@@ -22,3 +22,5 @@ const sequelize = new Sequelize(
 module.exports = sequelize;
 dsadsadasdasdsad
 đasakdgkgkgkgkh
+thanghoingu
+khangcute
