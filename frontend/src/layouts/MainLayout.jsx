@@ -1,108 +1,80 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard,
-  FileCheck,
-  Building2,
-  MapPin,
-  Briefcase,
-  FileText,
-  Users,
-  LogOut
-} from "lucide-react";
+import React from 'react';
+import { Outlet, Navigate } from 'react-router-dom';
+import { Bell } from 'lucide-react';
+import "./MainLayout.css";
 
-export default function MainLayout() {
-  const navigate = useNavigate();
-  const location = useLocation();
+// Import 4 file Sidebar từ thư mục components
+import SidebarGiamDoc from '../components/SidebarGiamDoc';
+import SidebarNhanVien from '../components/SidebarNhanVien';
+import SidebarAdmin from '../components/SidebarAdmin';
+import SidebarQuanLy from '../components/SidebarQuanLy';
 
-  const handleLogout = () => {
-    localStorage.removeItem("isLogin");
-    navigate("/login", { replace: true });
+const MainLayout = () => {
+  // 1. Lấy user từ Storage
+  const userString = localStorage.getItem('user');
+  const user = userString ? JSON.parse(userString) : null;
+
+  // Nếu chưa đăng nhập -> đuổi ra Login
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const role = user.role; 
+
+  // 2. Hàm gọi Sidebar tương ứng
+  const renderSidebar = () => {
+    switch (role) {
+      case 'ADMIN': return <SidebarAdmin />;
+      case 'DIRECTOR': return <SidebarGiamDoc />;
+      case 'MANAGER': return <SidebarQuanLy />;
+      default: return <SidebarNhanVien />;
+    }
   };
 
-  // 🎯 function check active
-  const isActive = (path) => location.pathname === path;
-
-  // 🎯 class chung cho menu
-  const menuClass = (path) =>
-    `flex items-center gap-3 p-3 rounded-xl cursor-pointer transition ${
-      isActive(path)
-        ? "bg-blue-500 text-white"
-        : "hover:bg-gray-100 text-gray-700"
-    }`;
+  // 3. Lấy ngày giờ thực tế
+  const today = new Date();
+  const dateString = today.toLocaleDateString('vi-VN');
+  const timeString = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl flex flex-col justify-between">
-        <div>
-          <div className="p-6 text-2xl font-bold text-blue-600">
-            QLNS
+    <div className="admin-layout">
+      
+      {/* GỌI SIDEBAR RA ĐÂY (Nó đã chứa sẵn thẻ <aside className="sidebar"> bên trong rồi) */}
+      {renderSidebar()}
+
+      {/* NỘI DUNG BÊN PHẢI (Header + Outlet) */}
+      <main className="main-content">
+        
+        {/* HEADER */}
+        <header className="top-header">
+          <div className="datetime-box" style={{ background: 'white', padding: '8px 20px', borderRadius: '20px', fontWeight: '500' }}>
+            {dateString} . {timeString}
           </div>
-
-          <nav className="px-4 space-y-2">
-
-            <div onClick={() => navigate("/dashboard")} className={menuClass("/dashboard")}>
-              <LayoutDashboard size={18} />
-              Dashboard
-            </div>
-
-            <div onClick={() => navigate("/approvals")} className={menuClass("/approvals")}>
-              <FileCheck size={18} />
-              Xét duyệt tài liệu
-            </div>
-
-            <div onClick={() => navigate("/departments")} className={menuClass("/departments")}>
-              <Building2 size={18} />
-              Quản lý phòng ban
-            </div>
-
-            <div onClick={() => navigate("/branches")} className={menuClass("/branches")}>
-              <MapPin size={18} />
-              Quản lý chi nhánh
-            </div>
-
-            <div onClick={() => navigate("/positions")} className={menuClass("/positions")}>
-              <Briefcase size={18} />
-              Quản lý chức vụ
-            </div>
-
-            <div onClick={() => navigate("/employees")} className={menuClass("/employees")}>
-              <Users size={18} />
-              Quản lý nhân viên
-            </div>
-
-            <div onClick={() => navigate("/contracts")} className={menuClass("/contracts")}>
-              <FileText size={18} />
-              Quản lý hợp đồng
-            </div>
-
-          </nav>
-        </div>
-
-        {/* User + Logout */}
-        <div className="p-4 border-t space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-200 rounded-full"></div>
-            <div>
-              <div className="font-semibold">Admin</div>
-              <div className="text-sm text-gray-500">Manager</div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <button style={{ background: 'white', border: 'none', padding: '10px', borderRadius: '50%', cursor: 'pointer' }}>
+              <Bell size={20} color="#6b7280" />
+            </button>
+            <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'white', padding: '5px 15px', borderRadius: '30px' }}>
+              <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                👤
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{user.name || 'Người dùng'}</div>
+                <div style={{ fontSize: '10px', color: '#1da053', fontWeight: 'bold', textTransform: 'uppercase' }}>{role}</div>
+              </div>
             </div>
           </div>
+        </header>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl"
-          >
-            <LogOut size={16} />
-            Đăng xuất
-          </button>
+        {/* NỘI DUNG TRANG (Dashboard, Chấm công, Hợp đồng...) */}
+        <div className="content-body">
+          <Outlet />
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 p-6 overflow-auto">
-        <Outlet />
-      </div>
+        
+      </main>
     </div>
   );
-}
+};
+
+export default MainLayout;

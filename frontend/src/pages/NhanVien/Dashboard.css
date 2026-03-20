@@ -1,0 +1,243 @@
+/* RESET BASIC & VARIABLES */
+:root {
+  --main-bg: #f3fbf7; /* Màu nền xanh nhạt toàn trang */
+  --content-bg: #e6f6ec; /* Màu xanh của vòng tổng */
+  --card-bg: #ffffff;
+  --primary-green: #1da053;
+  --text-gray: #6b7280;
+  --text-dark: #1f2937;
+  --border-color: #e5e7eb;
+}
+
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--main-bg);
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-dark);
+}
+
+.dashboard-wrapper {
+  padding: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+/* --- VÒNG TỔNG MÀU XANH (KEY CHANGE 1) --- */
+.dashboard-content-box {
+  background-color: #E2F2E9;
+  border-radius: 30px; /* Bo góc lớn hơn cho vòng tổng */
+  padding: 30px;
+  width: 100%;
+  max-width: 1280px;
+  display: flex;
+  gap: 24px; /* Khoảng cách giữa 2 cột */
+  align-items: stretch;
+}
+
+
+/* PHÂN CHIA CỘT */
+.left-section {
+  flex: 2; /* Chiếm 2 phần */
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.right-section {
+  flex: 1; /* Chiếm 1 phần */
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* COMMON CARD STYLES */
+.checkin-card, .stat-card, .info-card, .notification-card {
+  background-color: var(--card-bg);
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+}
+
+/* --- CỘT TRÁI --- */
+.checkin-card {
+  padding: 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1.5px solid #4ade80;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03)
+}
+
+.date-text { color: #9ca3af; margin: 0 0 10px 0; font-weight: 500; }
+.time-text {
+  font-size: 64px;
+  font-weight: 800;
+  margin: 0;
+  
+  /* BƯỚC 1: Khai báo màu Gradient giống nút bấm */
+  background: linear-gradient(135deg, #1da053 0%, #3b82f6 100%);
+  
+  /* BƯỚC 2: Ép màu nền này chỉ hiển thị bên trong chữ */
+
+  -webkit-text-fill-color: transparent; /* Làm chữ trong suốt để thấy nền gradient bên dưới */
+  
+  /* Thêm khoảng cách chữ cho giống mẫu */
+  letter-spacing: -2px;
+}
+
+.status-badge {
+  background-color: #dcfce7;
+  color: #16a34a;
+  padding: 8px 16px;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 15px;
+}
+
+.gps-status { color: #9ca3af; font-size: 12px; margin: 15px 0 0 0; }
+
+.checkin-button {
+  background: linear-gradient(135deg, #1da053, #4338ca);
+  border: none;
+  padding: 25px 35px;
+  border-radius: 50px;
+  color: white;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 10px 20px rgba(67, 56, 202, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.checkin-button:hover { transform: translateY(-2px); }
+.btn-main-text { display: block; font-size: 18px; font-weight: 700; margin-bottom: 5px; }
+.btn-sub-text { font-size: 11px; opacity: 0.8; }
+
+/* --- HÀNG THỐNG KÊ (KEY CHANGE 2: CHIỀU CAO BẰNG NHAU) --- */
+.stats-container {
+  display: flex; /* Dùng Flexbox cho hàng */
+  gap: 24px;
+  width: 100%;
+}
+
+.stat-card {
+  flex: 1; /* Chia đều chiều rộng */
+  padding: 30px;
+  text-align: center;
+  display: flex; /* Dùng Flex để căn giữa nội dung theo chiều dọc */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.stat-icon-wrapper {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.stat-icon-wrapper.success { background-color: #dcfce7; color: #16a34a; }
+.stat-icon-wrapper.warning { background-color: #fef3c7; color: #d97706; }
+.stat-icon-wrapper.danger { background-color: #fee2e2; color: #dc2626; }
+
+.stat-card p { color: var(--text-gray); font-size: 14px; margin: 0 0 10px 0; }
+.stat-card h3 { font-size: 32px; font-weight: 700; margin: 0; color: var(--text-dark); }
+.warning-text { color: #d97706; }
+.danger-text { color: #dc2626; }
+
+/* --- CỘT PHẢI --- */
+.info-card, .notification-card {
+  padding: 24px;
+}
+
+
+.section-title { color: var(--primary-green); font-size: 16px; margin: 0 0 20px 0; }
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+
+.time-value { font-weight: 700; color: var(--primary-green); }
+
+.time-remaining-container {
+  border-top: 1px solid var(--border-color);
+  margin-top: 10px;
+  padding-top: 15px;
+}
+
+.info-item.remaining { color: var(--text-gray); }
+.time-remaining-value { color: var(--primary-green); font-weight: 700; }
+
+/* NOTIFICATIONS */
+.notif-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.see-all { color: var(--text-gray); font-size: 12px; text-decoration: none; }
+
+.notif-list { list-style: none; padding: 0; margin: 0; }
+.notif-list li {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.notif-dot.green { background-color: #22c55e; }
+.notif-dot.orange { background-color: #f59e0b; }
+
+.notif-content p { margin: 0; font-size: 13px; font-weight: 500; color: #374151; }
+.notif-time { color: #9ca3af; font-size: 12px; }
+.info-card {
+  background-color: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  
+  /* CỰC QUAN TRỌNG: Để cao bằng phần bên trái */
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* Giãn cách đều nội dung bên trong */
+}
+.info-item-bg {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0f9f4; /* Màu xanh lá cực nhạt */
+  padding: 12px 15px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #6b7280;
+}
+.time-value {
+  font-weight: 700;
+  color: #1da053; /* Màu giờ vào/ra xanh đậm */
+}
+
+/* Phần thời gian còn lại có vạch xanh bên trái */
+.info-item.remaining {
+  border-left: 4px solid #1da053;
+  padding-left: 12px;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}

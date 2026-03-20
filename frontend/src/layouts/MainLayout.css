@@ -1,0 +1,145 @@
+/* Tổng thể Layout */
+.admin-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #f0f7f4; /* Nền xanh nhạt như thiết kế */
+  font-family: 'Inter', sans-serif;
+}
+
+/* Sidebar bên trái */
+.sidebar {
+  width: 280px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 20px;
+  border-right: 1px solid #e5e7eb;
+  z-index: 100;
+}
+
+.logo {
+  padding-left: 10px;
+  margin-bottom: 40px;
+}
+
+/* Menu Item Styling */
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  text-decoration: none;
+  color: #6b7280; /* Màu xám chữ */
+  font-weight: 500;
+  border-radius: 16px; /* Bo góc tròn lớn theo UI */
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  font-size: 15px;
+}
+
+.menu-item:hover {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+/* Trạng thái Active - Xanh lá đặc trưng */
+.menu-item.active {
+  background-color: #1da053; 
+  color: #ffffff;
+  box-shadow: 0 10px 15px -3px rgba(29, 160, 83, 0.3);
+}
+
+.menu-item svg {
+  margin-right: 14px;
+}
+
+/* Footer của Sidebar */
+.sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 20px;
+}
+
+/* Nội dung chính bên phải */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Top Header */
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  min-height: 80px;
+}
+
+/* Các hộp thông tin trên Header */
+.datetime-box, .user-profile, .top-header button {
+  background: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border: none;
+}
+
+.datetime-box {
+  color: #374151;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.user-profile {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.user-profile:hover {
+  transform: translateY(-2px);
+}
+
+/* Khu vực hiển thị trang con */
+.content-body {
+  padding: 0 40px 40px 40px;
+  flex: 1;
+}
+
+/* Responsive cơ bản */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 80px;
+    padding: 20px 10px;
+  }
+  .sidebar span, .sidebar p {
+    display: none;
+  }
+  .menu-item {
+    justify-content: center;
+    padding: 15px;
+  }
+  .menu-item svg {
+    margin-right: 0;
+  }
+}
+/* Styling cho container chứa logo */
+.logo {
+  padding-left: 10px;
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Logo căn trái */
+}
+
+/* Styling cụ thể cho file ảnh bên trong */
+.logo img {
+  height: 48px; /* Tăng chiều cao lên một chút cho rõ */
+  width: auto; /* Tự động chỉnh chiều rộng để không bị méo ảnh */
+  object-fit: contain; /* Đảm bảo ảnh luôn nằm gọn trong khung */
+  transition: transform 0.3s ease; /* Hiệu ứng nhẹ khi hover */
+}
+
+.logo img:hover {
+  transform: scale(1.05); /* Phóng to nhẹ khi rê chuột vào */
+}

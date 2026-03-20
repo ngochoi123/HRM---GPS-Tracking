@@ -6,11 +6,7 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-const authRoutes = require('./routes/authRoutes'); // Nhớ import vào
 
-// Đảm bảo bạn khai báo đúng cái chuỗi '/api/auth' này
-app.use('/api/auth', authRoutes);
-// Middlewares
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/AdminRoutes');
 app.use('/api/auth', authRoutes);

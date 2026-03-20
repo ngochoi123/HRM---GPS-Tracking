@@ -8,7 +8,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(''); // Thêm để hiển thị lỗi
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -21,7 +21,7 @@ const Login = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          username: email, // Vì bạn đang dùng ô nhập email làm tên đăng nhập
+          username: email,
           password: password 
         }),
       });
@@ -35,13 +35,15 @@ const Login = () => {
         const userRole = data.user.role;
         
         if (userRole === 'ADMIN') {
-          navigate('/admin/users'); // Admin vào trang quản lý User
+          navigate('/Admin/users');
         } else if (userRole === 'DIRECTOR') {
-          navigate('/giamdoc/dashboard'); // Giám đốc vào trang tổng quan
+          navigate('/GiamDoc/Dashboard'); // Sửa lại chữ d thường theo route App.jsx
         } else if (userRole === 'MANAGER') {
-          navigate('/quanly/dashboard'); // Quản lý vào trang của quản lý
+          navigate('/QuanLy/Dashboard');
         } else {
-          navigate('/dashboard'); // Nhân viên thường (USER) vào trang chấm công
+          // Lưu ý: Trong App.jsx bạn không có route nào tên /NhanVien/DashboardHome
+          // Mà bạn đang dùng route /dashboard cho nhân viên. Hãy kiểm tra lại App.jsx nhé.
+          navigate('/NhanVien/Dashboard'); // Sửa lại đường dẫn theo route App.jsx
         }
       } else {
         setError(data.message || 'Tên đăng nhập hoặc mật khẩu không đúng!');
@@ -50,7 +52,10 @@ const Login = () => {
       setError('Không thể kết nối đến máy chủ!');
     } finally {
       setIsLoading(false);
+    } // <--- ĐÃ THÊM DẤU ĐÓNG NÀY ĐỂ KẾT THÚC KHỐI FINALLY
+  }; // <--- ĐÃ THÊM DẤU ĐÓNG NÀY ĐỂ KẾT THÚC HÀM handleLogin
 
+  // Bắt đầu phần Render Giao diện
   return (
     <div className="login-container">
       <div className="login-card">
@@ -61,7 +66,6 @@ const Login = () => {
           <p>Vui lòng đăng nhập để truy cập hệ thống</p>
         </div>
 
-        {/* Hiển thị lỗi nếu đăng nhập thất bại */}
         {error && (
           <div style={{ color: '#dc2626', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', textAlign: 'center' }}>
             {error}
@@ -133,6 +137,6 @@ const Login = () => {
       </div>
     </div>
   );
-};
+}; // Đã bỏ bớt các dấu ngoặc thừa ở cuối file gốc
 
 export default Login;

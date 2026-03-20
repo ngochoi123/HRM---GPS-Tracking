@@ -1,8 +1,63 @@
+const db = require('../config/database');
 const { sendOTPEmail } = require('../services/emailService');
 
-// Nơi lưu trữ OTP tạm thời (Trong thực tế nên dùng Redis hoặc lưu vào bảng trong Database)
+// Nơi lưu trữ OTP tạm thời (RAM ảo)
 global.otpStorage = global.otpStorage || {}; 
 
+// ==========================================
+// 1. HÀM ĐĂNG NHẬP (Lúc nãy bạn bị xóa mất, mình viết lại cho chuẩn)
+// ==========================================
+const login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập tài khoản và mật khẩu' });
+    }
+
+    // Truy vấn kiểm tra username và password (dùng hàm crypt của PostgreSQL)
+    const query = `
+      SELECT e.id, e.full_name, e.work_email, ua.username, ua.role_code, ua.status 
+      FROM user_account ua
+      JOIN employee e ON ua.employee_id = e.id
+      WHERE (ua.username = :username OR e.work_email = :username OR e.personal_email = :username)
+      AND ua.password_hash = crypt(:password, ua.password_hash)
+      AND ua.status = 'active'
+    `;
+
+    const users = await db.query(query, {
+      replacements: { username, password },
+      type: db.QueryTypes.SELECT
+    });
+
+    if (users.length === 0) {
+      return res.status(401).json({ success: false, message: 'Tài khoản hoặc mật khẩu không chính xác, hoặc tài khoản đã bị khóa!' });
+    }
+
+    const user = users[0];
+
+    // Trả về thông tin user cho Frontend
+    res.status(200).json({
+      success: true,
+      message: 'Đăng nhập thành công',
+      user: {
+        id: user.id,
+        name: user.full_name,
+        email: user.work_email,
+        username: user.username,
+        role: user.role_code
+      }
+    });
+
+  } catch (error) {
+    console.error('Lỗi đăng nhập:', error);
+    res.status(500).json({ success: false, message: 'Lỗi máy chủ nội bộ' });
+  }
+};
+
+// ==========================================
+// 2. HÀM QUÊN MẬT KHẨU (Gửi OTP)
+// ==========================================
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -11,28 +66,29 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp email!' });
     }
 
-    // 1. Tạo mã OTP 6 số ngẫu nhiên
+    // Tạo mã OTP 6 số ngẫu nhiên
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 2. Lưu OTP vào bộ nhớ tạm với thời hạn 5 phút
+    // Lưu OTP vào bộ nhớ tạm với thời hạn 5 phút
     global.otpStorage[email] = {
       otp: otpCode,
-      expiresAt: Date.now() + 5 * 60 * 1000 // 5 phút (tính bằng milliseconds)
+      expiresAt: Date.now() + 5 * 60 * 1000 
     };
 
-    // 3. Gọi hàm gửi Email (đã viết ở file emailService.js)
+    // Gọi hàm gửi Email 
     await sendOTPEmail(email, otpCode);
 
-    res.status(200).json({ 
-      success: true, 
-      message: 'Mã OTP đã được gửi đến email của bạn!' 
-    });
+    res.status(200).json({ success: true, message: 'Mã OTP đã được gửi đến email của bạn!' });
 
   } catch (error) {
     console.error('Lỗi API forgotPassword:', error);
     res.status(500).json({ success: false, message: 'Lỗi Server khi gửi email' });
   }
 };
+
+// ==========================================
+// 3. HÀM XÁC THỰC OTP
+// ==========================================
 const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -64,32 +120,48 @@ const verifyOTP = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi Server khi xác thực OTP' });
   }
 };
-const bcrypt = require('bcryptjs'); // Hoặc dùng thư viện mã hóa của bạn
 
+// ==========================================
+// 4. HÀM ĐẶT LẠI MẬT KHẨU (Gọi thẳng SQL)
+// ==========================================
 const resetPassword = async (req, res) => {
   try {
     const { email, newPassword } = req.body;
 
-    // 1. Mã hóa mật khẩu mới (Nếu bạn dùng pgAdmin crypt thì dùng SQL, ở đây mình ví dụ logic)
-    // Giả sử dùng Sequelize hoặc SQL thuần:
-    // UPDATE user_account SET password_hash = crypt(newPassword, gen_salt('bf')) 
-    // WHERE employee_id = (SELECT id FROM employee WHERE personal_email = email)
+    if (!email || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đủ thông tin!' });
+    }
 
-    console.log(`Đang đổi mật khẩu cho email: ${email}`);
+    const query = `
+      UPDATE user_account 
+      SET password_hash = crypt(:newPassword, gen_salt('bf')) 
+      WHERE employee_id = (
+        SELECT id FROM employee 
+        WHERE work_email = :email OR personal_email = :email
+        LIMIT 1
+      )
+    `;
 
-    res.status(200).json({ 
-      success: true, 
-      message: 'Mật khẩu đã được cập nhật thành công!' 
+    const [result, metadata] = await db.query(query, {
+      replacements: { newPassword: newPassword, email: email }
     });
+
+    if (metadata.rowCount === 0) {
+      return res.status(400).json({ success: false, message: 'Không tìm thấy tài khoản liên kết với email này!' });
+    }
+
+    res.status(200).json({ success: true, message: 'Mật khẩu đã được cập nhật thành công!' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Lỗi server' });
+    console.error('Lỗi API resetPassword:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server khi đổi mật khẩu' });
   }
 };
 
-// Đừng quên thêm resetPassword vào module.exports và file Routes nhé!
-// 2. SỬA LẠI KHÚC EXPORTS Ở DƯỚI CÙNG ĐỂ THÊM verifyOTP VÀO:
+// ==========================================
+// EXPORTS CÁC HÀM RA CHO ROUTER SỬ DỤNG
+// ==========================================
 module.exports = {
-  // login, (nếu bạn có hàm login ở đây)
+  login, // Đã sửa lại thành login (chữ l thường)
   forgotPassword,
   verifyOTP,
   resetPassword
