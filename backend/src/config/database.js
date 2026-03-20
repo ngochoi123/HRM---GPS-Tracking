@@ -9,7 +9,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     dialect: 'postgres',
-    logging: false, // Để console sạch sẽ hơn theo Clean Code
+    logging: false, // console gọn gàng
     pool: {
       max: 5,
       min: 0,
@@ -18,5 +18,14 @@ const sequelize = new Sequelize(
     }
   }
 );
+
+// 🔥 Test kết nối
+sequelize.authenticate()
+  .then(() => {
+    console.log("✅ Kết nối PostgreSQL thành công");
+  })
+  .catch((error) => {
+    console.error("❌ Lỗi kết nối PostgreSQL:", error);
+  });
 
 module.exports = sequelize;

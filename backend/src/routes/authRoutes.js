@@ -5,5 +5,4 @@ const authController = require('../controllers/authController');
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/verify-otp', authController.verifyOTP);
 router.post('/reset-password', authController.resetPassword);
-router.post('/login', authController.login);
 module.exports = router;

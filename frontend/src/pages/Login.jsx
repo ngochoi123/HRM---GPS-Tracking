@@ -50,8 +50,6 @@ const Login = () => {
       setError('Không thể kết nối đến máy chủ!');
     } finally {
       setIsLoading(false);
-    }
-  };
 
   return (
     <div className="login-container">
