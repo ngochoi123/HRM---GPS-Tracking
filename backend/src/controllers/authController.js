@@ -5,8 +5,10 @@ const { sendOTPEmail } = require('../services/emailService');
 global.otpStorage = global.otpStorage || {}; 
 
 // ==========================================
-// 1. HÀM ĐĂNG NHẬP (Lúc nãy bạn bị xóa mất, mình viết lại cho chuẩn)
+// 1. HÀM ĐĂNG NHẬP (Đã bổ sung chốt chặn đổi mật khẩu lần đầu)
 // ==========================================
+const jwt = require('jsonwebtoken'); // 1. NHỚ PHẢI CÓ DÒNG NÀY Ở ĐẦU FILE
+
 const login = async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -15,35 +17,65 @@ const login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tài khoản và mật khẩu' });
     }
 
-    // Truy vấn kiểm tra username và password (dùng hàm crypt của PostgreSQL)
     const query = `
-      SELECT e.id, e.full_name, e.work_email, ua.username, ua.role_code, ua.status 
+      SELECT 
+        e.id as employee_id, e.full_name, e.work_email, 
+        ua.id as user_id, ua.username, ua.role_code, ua.status, ua.require_pass_change,
+        ua.password_hash -- Lấy cái này để verify
       FROM user_account ua
       JOIN employee e ON ua.employee_id = e.id
       WHERE (ua.username = :username OR e.work_email = :username OR e.personal_email = :username)
-      AND ua.password_hash = crypt(:password, ua.password_hash)
       AND ua.status = 'active'
     `;
 
-    const users = await db.query(query, {
-      replacements: { username, password },
-      type: db.QueryTypes.SELECT
-    });
+    const users = await db.query(query, { replacements: { username }, type: db.QueryTypes.SELECT });
 
     if (users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Tài khoản hoặc mật khẩu không chính xác, hoặc tài khoản đã bị khóa!' });
+      return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại!' });
     }
 
     const user = users[0];
 
-    // Trả về thông tin user cho Frontend
+    // 2. Kiểm tra mật khẩu bằng SQL crypt
+    const passQuery = `SELECT crypt(:password, :hash) = :hash as valid`;
+    const [passCheck] = await db.query(passQuery, { 
+      replacements: { password, hash: user.password_hash },
+      type: db.QueryTypes.SELECT 
+    });
+
+    if (!passCheck.valid) {
+      return res.status(401).json({ success: false, message: 'Mật khẩu không chính xác!' });
+    }
+
+    // 3. SINH TOKEN (Quan trọng để không bị lỗi ReferenceError)
+    const token = jwt.sign(
+      { id: user.user_id, username: user.username, role: user.role_code },
+      process.env.JWT_SECRET || 'your_jwt_secret', 
+      { expiresIn: '24h' }
+    );
+
+    // 4. CHIA NGẢ ĐƯỜNG ĐĂNG NHẬP
+    if (user.require_pass_change) {
+      return res.status(200).json({ 
+        success: true,
+        require_pass_change: true,
+        message: "Vui lòng đổi mật khẩu trước khi sử dụng hệ thống.",
+        token: token, // Bây giờ token đã có giá trị
+        user: {
+          username: user.username,
+          role: user.role_code
+        }
+      });
+    }
+
+    // Đăng nhập bình thường
     res.status(200).json({
       success: true,
-      message: 'Đăng nhập thành công',
+      require_pass_change: false,
+      token: token,
       user: {
-        id: user.id,
+        id: user.employee_id,
         name: user.full_name,
-        email: user.work_email,
         username: user.username,
         role: user.role_code
       }
@@ -157,11 +189,49 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const changePasswordFirstLogin = async (req, res) => {
+  const { username, oldPassword, newPassword } = req.body;
+
+  try {
+    // 1. Kiểm tra tài khoản và mật khẩu cũ có khớp không
+    const checkQuery = `
+      SELECT id FROM user_account 
+      WHERE username = :username 
+      AND password_hash = crypt(:oldPassword, password_hash)
+    `;
+    const [user] = await db.query(checkQuery, {
+      replacements: { username, oldPassword },
+      type: db.QueryTypes.SELECT
+    });
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Mật khẩu cũ không chính xác!" });
+    }
+
+    // 2. Cập nhật mật khẩu mới và tắt cờ bắt buộc đổi mật khẩu
+    const updateQuery = `
+      UPDATE user_account 
+      SET password_hash = crypt(:newPassword, gen_salt('bf')),
+          require_pass_change = false
+      WHERE id = :id
+    `;
+    await db.query(updateQuery, {
+      replacements: { newPassword, id: user.id }
+    });
+
+    res.status(200).json({ success: true, message: "Đổi mật khẩu thành công! Vui lòng đăng nhập lại." });
+  } catch (error) {
+    console.error("Lỗi đổi mật khẩu lần đầu:", error);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ nội bộ" });
+  }
+};
+
 // ==========================================
 // EXPORTS CÁC HÀM RA CHO ROUTER SỬ DỤNG
 // ==========================================
 module.exports = {
   login, // Đã sửa lại thành login (chữ l thường)
+  changePasswordFirstLogin,
   forgotPassword,
   verifyOTP,
   resetPassword

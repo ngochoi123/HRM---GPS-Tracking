@@ -45,6 +45,56 @@ const sendOTPEmail = async (toEmail, otpCode) => {
   }
 };
 
+// Thêm hàm này vào file emailService.js
+const sendAccountEmail = async (email, fullName, username, password) => {
+  try {
+    const subject = 'Cấp tài khoản hệ thống HR People Tech';
+    
+    // Mẫu mail HTML đẹp mắt gửi cho nhân viên
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+        <div style="background-color: #8b5cf6; padding: 20px; text-align: center; color: white;">
+          <h2>CHÀO MỪNG GIA NHẬP HỆ THỐNG</h2>
+        </div>
+        <div style="padding: 20px; color: #374151; line-height: 1.6;">
+          <p>Xin chào <strong>${fullName}</strong>,</p>
+          <p>Bộ phận Admin vừa cấp cho bạn một tài khoản để truy cập vào hệ thống Quản lý Nhân sự của công ty. Dưới đây là thông tin đăng nhập của bạn:</p>
+          
+          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0;">👤 <strong>Tên đăng nhập:</strong> <span style="color: #8b5cf6;">${username}</span></p>
+            <p style="margin: 0;">🔑 <strong>Mật khẩu tạm thời:</strong> <span style="color: #ef4444; font-weight: bold;">${password}</span></p>
+          </div>
+
+          <p><em>⚠️ Lưu ý: Vì lý do bảo mật, hệ thống sẽ yêu cầu bạn đổi mật khẩu ngay trong lần đăng nhập đầu tiên.</em></p>
+          
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="http://localhost:3000/login" style="background-color: #8b5cf6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Đăng nhập ngay</a>
+          </div>
+        </div>
+        <div style="background-color: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #9ca3af;">
+          Đây là email tự động, vui lòng không trả lời email này.
+        </div>
+      </div>
+    `;
+
+    // 🛑 ĐÃ MỞ COMMENT: Lệnh gửi mail thực tế
+    const info = await transporter.sendMail({
+      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: subject,
+      html: htmlContent
+    });
+    
+    console.log(`Đã gửi email cấp tài khoản tới: ${email} - ID: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi gửi email tài khoản:', error);
+    throw new Error('Không thể gửi email thông báo tài khoản');
+  }
+};
+
+// Nhớ export nó ra nhé
 module.exports = {
   sendOTPEmail,
+  sendAccountEmail
 };
