@@ -3,6 +3,13 @@ const router = express.Router();
 const employeeController = require('../controllers/EmployeeController');
 
 // API lấy thông tin dashboard nhân viên
+// (Giữ alias để tránh lỗi phân biệt hoa/thường)
 router.get('/Dashboard/:id', employeeController.getDashboard);
+router.get('/dashboard/:id', employeeController.getDashboard);
+
+// Chấm công (Attendance + GPS)
+router.get('/attendance/summary/:id', employeeController.getAttendanceSummary);
+router.post('/attendance/checkin/:id', employeeController.checkIn);
+router.post('/attendance/checkout/:id', employeeController.checkOut);
 
 module.exports = router;

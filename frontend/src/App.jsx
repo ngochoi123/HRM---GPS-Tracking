@@ -73,6 +73,7 @@ function App() {
           {/* 4. NHÂN VIÊN ROUTES */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
           <Route path="/NhanVien/checkin" element={<CheckIn />} />
+          <Route path="/NhanVien/CheckIn" element={<CheckIn />} />
           <Route path="/NhanVien/payroll" element={<Payroll />} />
           <Route path="/NhanVien/requests" element={<Requests />} />
           <Route path="/NhanVien/profile" element={<Profile />} />
