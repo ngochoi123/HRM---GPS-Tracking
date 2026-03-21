@@ -27,6 +27,7 @@ import DepartmentCreate from "./pages/GiamDoc/DepartmentCreate";
 
 // ===== QUẢN LÝ =====
 import ManagerDashboard from './pages/QuanLy/Dashboard'; // Đã sửa tên để khớp route
+import ManagerCheckIn from './pages/QuanLy/CheckIn';
 import TeamAttendance from './pages/QuanLy/TeamAttendance';
 import TeamApprovals from './pages/QuanLy/TeamApprovals';
 
@@ -75,12 +76,14 @@ function App() {
 
           {/* 3. QUẢN LÝ ROUTES */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
+          <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} />
           <Route path="/QuanLy/team-attendance" element={<TeamAttendance />} />
           <Route path="/QuanLy/team-approvals" element={<TeamApprovals />} />
 
           {/* 4. NHÂN VIÊN ROUTES */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
           <Route path="/NhanVien/checkin" element={<CheckIn />} />
+          <Route path="/NhanVien/CheckIn" element={<CheckIn />} />
           <Route path="/NhanVien/payroll" element={<Payroll />} />
           <Route path="/NhanVien/requests" element={<Requests />} />
           <Route path="/NhanVien/profile" element={<Profile />} />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, UserCheck, ClipboardCheck, Settings, HelpCircle, LogOut } from 'lucide-react';
+import { Home, MapPin, UserCheck, ClipboardCheck, Settings, HelpCircle, LogOut } from 'lucide-react';
 
 const SidebarQuanLy = () => {
   const location = useLocation();
@@ -8,6 +8,7 @@ const SidebarQuanLy = () => {
 
 const menuItems = [
     { path: '/QuanLy/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
+    { path: '/QuanLy/checkin', icon: <MapPin size={20} />, label: 'Chấm công & giám sát' },
     { path: '/QuanLy/team-attendance', icon: <UserCheck size={20} />, label: 'Chấm công bộ phận' },
     { path: '/QuanLy/team-approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn' },
   ];
