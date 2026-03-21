@@ -11,10 +11,10 @@ const SidebarNhanVien = () => {
 
   const menuItems = [
     { path: '/NhanVien/Dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
-    { path: '/NhanVien/CheckIn', icon: <MapPin size={20} />, label: 'Chấm công' },
-    { path: '/NhanVien/Payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
-    { path: '/NhanVien/Requests', icon: <FileText size={20} />, label: 'Đơn từ' },
-    { path: '/NhanVien/Profile', icon: <User size={20} />, label: 'Hồ sơ cá nhân' },
+    { path: '/NhanVien/checkin', icon: <MapPin size={20} />, label: 'Chấm công' },
+    { path: '/NhanVien/payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
+    { path: '/NhanVien/requests', icon: <FileText size={20} />, label: 'Đơn từ' },
+    { path: '/NhanVien/profile', icon: <User size={20} />, label: 'Hồ sơ cá nhân' },
   ];
 
   // Hàm thực hiện đăng xuất thật sự

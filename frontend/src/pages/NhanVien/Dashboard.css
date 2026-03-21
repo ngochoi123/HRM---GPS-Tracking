@@ -196,6 +196,9 @@ body {
   
   text-decoration: none; /* (Tùy chọn) Bỏ gạch chân khi hover cho hiện đại */
 }
+.time-remaining-value{
+  color: #089752;
+}
 .notif-list { list-style: none; padding: 0; margin: 0; }
 .notif-list li {
   display: flex;

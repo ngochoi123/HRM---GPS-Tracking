@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
-
+import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 
+// ✅ STATUS
 const getWorkStatus = (checkInTime, checkOutTime) => {
   const now = new Date();
 
   const shifts = [
-    { name: 'morning', start: 8, end: 12 },
+    { name: 'morning', start: 7, end: 11 },
     { name: 'afternoon', start: 13, end: 17 }
   ];
 
-  // ✅ FIX: chọn đúng ca
   const currentShift = shifts.find(shift => {
     const start = new Date();
     start.setHours(shift.start, 0, 0);
@@ -36,7 +36,7 @@ const getWorkStatus = (checkInTime, checkOutTime) => {
 
     if (diff < 0) {
       return {
-        text: `Bạn đang đến sớm ${Math.abs(diff)} phút`,
+        text: `Còn ${Math.abs(diff)} phút để vào ca`,
         type: 'success',
         canCheckIn: true
       };
@@ -69,8 +69,70 @@ const getWorkStatus = (checkInTime, checkOutTime) => {
   };
 };
 
-const Dashboard = () => {
+// ✅ TIME REMAINING
+const getTimeRemaining = (checkInTime, checkOutTime) => {
+  const now = new Date();
 
+  const shifts = [
+    { name: 'morning', start: 7, end: 11 },
+    { name: 'afternoon', start: 13, end: 17 }
+  ];
+
+  let currentShift = shifts.find(shift => {
+    const start = new Date();
+    start.setHours(shift.start, 0, 0);
+
+    const end = new Date();
+    end.setHours(shift.end, 0, 0);
+
+    return now >= start && now <= end;
+  });
+
+  // nếu chưa tới ca → lấy ca tiếp theo
+  if (!currentShift) {
+    currentShift = shifts.find(shift => {
+      const start = new Date();
+      start.setHours(shift.start, 0, 0);
+      return now < start;
+    });
+  }
+
+  if (!currentShift) return 'Hết ca';
+
+  const start = new Date();
+  start.setHours(currentShift.start, 0, 0);
+
+  const end = new Date();
+  end.setHours(currentShift.end, 0, 0);
+
+  // ❌ chưa check-in
+  if (!checkInTime) {
+    if (now < start) {
+      const diff = Math.floor((start - now) / 60000);
+      return `Còn ${diff} phút`;
+    } else {
+      const diff = Math.floor((now - start) / 60000);
+      return `Chưa vào ca`;
+    }
+  }
+
+  // ✅ đã check-in
+  if (checkInTime && !checkOutTime) {
+    const diff = Math.floor((end - now) / 60000);
+
+    if (diff <= 0) return 'Hết giờ';
+
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+
+    return `${h}h ${m}m`;
+  }
+
+  return 'Đã xong';
+};
+
+const Dashboard = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState({
     name: '',
     stats: {},
@@ -81,7 +143,6 @@ const Dashboard = () => {
     checkOut: null
   });
 
-  // ✅ THÊM realtime time
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -94,10 +155,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || !user.id) return;
 
-    if (!user) return;
-
-    fetch(`http://localhost:5000/api/employee/dashboard/${user.employee_id}`)
+    fetch(`http://localhost:5000/api/employee/dashboard/${user.id}`)
       .then(res => res.json())
       .then(result => {
         if (!result.employee) return;
@@ -116,25 +176,20 @@ const Dashboard = () => {
 
   }, []);
 
-  // ✅ status realtime
   const workStatus = getWorkStatus(attendance.checkIn, attendance.checkOut);
 
   return (
     <div className="dashboard-wrapper">
       <div className="dashboard-content-box">
 
-        {/* CỘT TRÁI */}
         <div className="left-section">
-          
           <div className="checkin-card">
             <div className="checkin-info">
 
-              {/* ✅ dùng currentTime */}
               <h4 className="date-text">
                 {currentTime.toLocaleDateString('vi-VN')}
               </h4>
 
-              {/* ✅ bỏ giây + realtime */}
               <h2 className="time-text">
                 {currentTime.toLocaleTimeString('en-US', {
                   hour: '2-digit',
@@ -143,7 +198,6 @@ const Dashboard = () => {
                 })}
               </h2>
 
-              {/* ✅ status động */}
               <div className="status-badge">
                 <span className="icon-check">✓</span>
                 <span>{workStatus.text}</span>
@@ -156,14 +210,16 @@ const Dashboard = () => {
               <button
                 className="checkin-button"
                 disabled={!workStatus.canCheckIn}
-               
+                onClick={() => navigate('/NhanVien/checkin',{
+  state: { employeeId: JSON.parse(localStorage.getItem('user')).id }
+})}
               >
                 ĐIỂM DANH VÀO
               </button>
 
               <p className="external-status-text">
                 Trạng thái:{' '}
-                <span>
+                <span >
                   {attendance.checkIn
                     ? attendance.checkOut
                       ? 'Đã checkout'
@@ -195,14 +251,13 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* CỘT PHẢI */}
         <div className="right-section">
           <div className="info-card">
             <h4 className="section-title">Ca làm việc hôm nay</h4>
 
             <div className="info-item">
               <span className="time-label">Giờ vào ca</span>
-              <span className="time-value">08:00 AM</span>
+              <span className="time-value">07:00 AM</span>
             </div>
 
             <div className="info-item">
@@ -214,8 +269,7 @@ const Dashboard = () => {
               <div className="info-item remaining">
                 <span>Thời gian còn lại</span>
                 <span className="time-remaining-value">
-                  {/* (giữ nguyên layout, chưa động phần này) */}
-                  8h 5m
+                  {getTimeRemaining(attendance.checkIn, attendance.checkOut)}
                 </span>
               </div>
             </div>
