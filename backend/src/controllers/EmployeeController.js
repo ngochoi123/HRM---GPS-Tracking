@@ -137,7 +137,7 @@ exports.getAttendanceSummary = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1) Lấy work_location (ĐÃ SỬA LẠI JOIN)
+    // 1) Lấy work_location từ chuỗi: employee -> position -> department -> branch -> work_location
     const locationResult = await db.query(
       `
         SELECT
@@ -146,21 +146,25 @@ exports.getAttendanceSummary = async (req, res) => {
           w.latitude,
           w.longitude,
           w.radius_meters,
-          b.id AS branch_id,
+          b.id,
           b.branch_code,
           b.branch_name
         FROM employee e
         LEFT JOIN position p ON e.position_id = p.id
         LEFT JOIN department d ON p.department_id = d.id
         LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
+        LEFT JOIN work_location w ON b.work_location_id = w.id
         WHERE e.id = $1
         LIMIT 1
       `,
       { bind: [id], type: QueryTypes.SELECT }
     );
 
-    const workLocation = normalizeWorkLocation(locationResult[0]);
+    const workLocation = locationResult[0];
+
+    if (!workLocation || workLocation.latitude == null || workLocation.longitude == null) {
+      return res.status(404).json({ success: false, message: 'Chưa có cấu hình GPS cho nhân viên này!' });
+    }
 
     // 2) Lấy trạng thái attendance hôm nay
     const attendanceResult = await db.query(
@@ -202,9 +206,9 @@ exports.getAttendanceSummary = async (req, res) => {
         workLocation: {
           work_location_id: workLocation.work_location_id,
           location_name: workLocation.location_name,
-          latitude: workLocation.latitude,
-          longitude: workLocation.longitude,
-          radius_meters: workLocation.radius_meters,
+          latitude: Number(workLocation.latitude),
+          longitude: Number(workLocation.longitude),
+          radius_meters: workLocation.radius_meters == null ? null : Number(workLocation.radius_meters),
           branch: {
             branch_id: workLocation.branch_id,
             branch_code: workLocation.branch_code,
@@ -244,7 +248,7 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu latitude/longitude hợp lệ.' });
     }
 
-    // Lấy work_location (ĐÃ SỬA LẠI JOIN)
+    // Lấy work_location
     const locationResult = await db.query(
       `
         SELECT
@@ -256,14 +260,17 @@ exports.checkIn = async (req, res) => {
         LEFT JOIN position p ON e.position_id = p.id
         LEFT JOIN department d ON p.department_id = d.id
         LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
+        LEFT JOIN work_location w ON b.work_location_id = w.id
         WHERE e.id = $1
         LIMIT 1
       `,
       { bind: [id], type: QueryTypes.SELECT }
     );
 
-    const workLocation = normalizeWorkLocation(locationResult[0]);
+    const workLocation = locationResult[0];
+    if (!workLocation || workLocation.latitude == null || workLocation.longitude == null) {
+      return res.status(404).json({ success: false, message: 'Chưa có cấu hình GPS cho nhân viên này!' });
+    }
 
     const centerLat = Number(workLocation.latitude);
     const centerLng = Number(workLocation.longitude);
@@ -362,7 +369,7 @@ exports.checkOut = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu latitude/longitude hợp lệ.' });
     }
 
-    // Lấy work_location (ĐÃ SỬA LẠI JOIN)
+    // Lấy work_location
     const locationResult = await db.query(
       `
         SELECT
@@ -374,14 +381,18 @@ exports.checkOut = async (req, res) => {
         LEFT JOIN position p ON e.position_id = p.id
         LEFT JOIN department d ON p.department_id = d.id
         LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
+        LEFT JOIN work_location w ON b.work_location_id = w.id
         WHERE e.id = $1
         LIMIT 1
       `,
       { bind: [id], type: QueryTypes.SELECT }
     );
 
-    const workLocation = normalizeWorkLocation(locationResult[0]);
+    const workLocation = locationResult[0];
+    if (!workLocation || workLocation.latitude == null || workLocation.longitude == null) {
+      return res.status(404).json({ success: false, message: 'Chưa có cấu hình GPS cho nhân viên này!' });
+    }
+
     const centerLat = Number(workLocation.latitude);
     const centerLng = Number(workLocation.longitude);
     const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
@@ -391,7 +402,7 @@ exports.checkOut = async (req, res) => {
       if (distanceMeters > radiusMeters) {
         return res.status(403).json({
           success: false,
-          message: 'Bạn đang ở ngoài vùng GPS cho phép. Không thể checkout.',
+          message: 'Bạn đang ở ngoài vùng GPS cho phép.',
           distance_meters: Number(distanceMeters.toFixed(2))
         });
       }
@@ -440,138 +451,6 @@ exports.checkOut = async (req, res) => {
     return res.status(200).json({ success: true, message: 'Checkout thành công!', data: updateRows[0] });
   } catch (error) {
     console.error('checkOut error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
-  }
-};
-
-// ----------------------------
-// Manager: giám sát nhân viên check-in trong zone
-// ----------------------------
-exports.getManagerZoneAttendance = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // 1) Xác định zone làm việc của quản lý (ĐÃ SỬA LẠI JOIN)
-    const managerLocationResult = await db.query(
-      `
-        SELECT
-          w.id AS work_location_id,
-          w.location_name,
-          w.latitude,
-          w.longitude,
-          w.radius_meters,
-          b.id AS branch_id,
-          b.branch_code,
-          b.branch_name
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
-        WHERE e.id = $1
-        LIMIT 1
-      `,
-      { bind: [id], type: QueryTypes.SELECT }
-    );
-
-    if (!managerLocationResult[0]) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý.' });
-    }
-
-    const workLocation = normalizeWorkLocation(managerLocationResult[0]);
-
-    // 2) Lấy toàn bộ nhân viên cùng chi nhánh đã check-in hôm nay
-    const teamAttendanceResult = await db.query(
-      `
-        SELECT
-          e.id AS employee_id,
-          e.employee_code,
-          e.full_name,
-          d.department_name,
-          p.position_name,
-          a.check_in_time,
-          a.check_out_time,
-          a.status,
-          a.check_in_latitude,
-          a.check_in_longitude,
-          a.check_out_latitude,
-          a.check_out_longitude,
-          COALESCE(a.check_out_latitude, a.check_in_latitude) AS live_latitude,
-          COALESCE(a.check_out_longitude, a.check_in_longitude) AS live_longitude
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN attendance a
-          ON a.employee_id = e.id
-         AND a.attendance_date = CURRENT_DATE
-        WHERE d.branch_id = $1
-          AND a.check_in_time IS NOT NULL
-        ORDER BY a.check_in_time DESC
-      `,
-      { bind: [workLocation.branch_id], type: QueryTypes.SELECT }
-    );
-
-    const centerLat = Number(workLocation.latitude);
-    const centerLng = Number(workLocation.longitude);
-    const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
-
-    const attendees = teamAttendanceResult
-      .map((row) => {
-        const lat = Number(row.live_latitude);
-        const lng = Number(row.live_longitude);
-        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-
-        const distanceMeters =
-          hasCoords && radiusMeters != null
-            ? haversineDistanceMeters(lat, lng, centerLat, centerLng)
-            : null;
-        const isInsideZone = radiusMeters == null ? hasCoords : hasCoords && distanceMeters <= radiusMeters;
-
-        return {
-          employeeId: row.employee_id,
-          employeeCode: row.employee_code || null,
-          fullName: row.full_name || 'Nhân viên',
-          departmentName: row.department_name || null,
-          positionName: row.position_name || null,
-          checkInTime: row.check_in_time,
-          checkOutTime: row.check_out_time,
-          status: row.status || null,
-          latitude: hasCoords ? lat : null,
-          longitude: hasCoords ? lng : null,
-          distanceMeters: distanceMeters == null ? null : Number(distanceMeters.toFixed(2)),
-          isInsideZone
-        };
-      })
-      .filter((item) => item.isInsideZone);
-
-    const checkedOutCount = attendees.filter((item) => item.checkOutTime).length;
-    const checkedInOnlyCount = attendees.length - checkedOutCount;
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        workLocation: {
-          work_location_id: workLocation.work_location_id,
-          location_name: workLocation.location_name,
-          latitude: workLocation.latitude,
-          longitude: workLocation.longitude,
-          radius_meters: workLocation.radius_meters,
-          branch: {
-            branch_id: workLocation.branch_id,
-            branch_code: workLocation.branch_code,
-            branch_name: workLocation.branch_name
-          }
-        },
-        zoneStats: {
-          totalInZone: attendees.length,
-          checkedInOnly: checkedInOnlyCount,
-          checkedOut: checkedOutCount
-        },
-        attendees
-      }
-    });
-  } catch (error) {
-    console.error('getManagerZoneAttendance error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
 };
