@@ -1,6 +1,5 @@
 import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
-import { Bell } from 'lucide-react';
 import "./MainLayout.css";
 
 // Import 4 file Sidebar từ thư mục components
@@ -9,6 +8,8 @@ import SidebarNhanVien from '../components/SidebarNhanVien';
 import SidebarAdmin from '../components/SidebarAdmin';
 import SidebarQuanLy from '../components/SidebarQuanLy';
 
+// 1. IMPORT COMPONENT CHUÔNG THÔNG BÁO TẠI ĐÂY
+import NotificationBell from '../components/Notifications/NotificationBell';
 const MainLayout = () => {
   // 1. Lấy user từ Storage
   const userString = localStorage.getItem('user');
@@ -52,9 +53,12 @@ const MainLayout = () => {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <button style={{ background: 'white', border: 'none', padding: '10px', borderRadius: '50%', cursor: 'pointer' }}>
-              <Bell size={20} color="#6b7280" />
-            </button>
+            
+            {/* 2. THAY THẾ CÁI CHUÔNG CŨ BẰNG NOTIFICATION BELL Ở ĐÂY */}
+            <div style={{ background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2px' }}>
+              <NotificationBell />
+            </div>
+
             <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'white', padding: '5px 15px', borderRadius: '30px' }}>
               <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 👤

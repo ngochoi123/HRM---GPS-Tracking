@@ -30,6 +30,7 @@ import ManagerDashboard from './pages/QuanLy/Dashboard'; // Đã sửa tên đ�
 import ManagerCheckIn from './pages/QuanLy/CheckIn';
 import TeamAttendance from './pages/QuanLy/TeamAttendance';
 import TeamApprovals from './pages/QuanLy/TeamApprovals';
+import NotificationPage from './pages/QuanLy/NotificationPage'; 
 
 // ===== NHÂN VIÊN =====
 import EmployeeDashboard from './pages/NhanVien/Dashboard'; // Đã sửa tên để khớp route
@@ -79,6 +80,9 @@ function App() {
           <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} />
           <Route path="/QuanLy/team-attendance" element={<TeamAttendance />} />
           <Route path="/QuanLy/team-approvals" element={<TeamApprovals />} />
+          {/* 2. THÊM DÒNG NÀY: */}
+          <Route path="/QuanLy/notifications" element={<NotificationPage />} />
+          
 
           {/* 4. NHÂN VIÊN ROUTES */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
