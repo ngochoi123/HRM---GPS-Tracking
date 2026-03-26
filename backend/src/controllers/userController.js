@@ -14,7 +14,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 const createUser = async (req, res) => {
-  // 1. SỬA LỖI: Lấy ĐẦY ĐỦ các trường từ Frontend gửi lên
+  // 1. Lấy ĐẦY ĐỦ các trường từ Frontend gửi lên
   const { employeeId, username, password, role, status, sendEmail, email, fullName } = req.body; 
 
   try {
@@ -25,7 +25,7 @@ const createUser = async (req, res) => {
       RETURNING id, username;
     `;
     
-    // 3. Thực thi Query bằng db (giống code cũ của bạn)
+    // 3. Thực thi Query bằng db 
     const [results, metadata] = await db.query(query, {
       replacements: { 
         employeeId: employeeId, 

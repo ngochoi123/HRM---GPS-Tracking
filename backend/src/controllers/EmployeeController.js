@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
 
+
 // ----------------------------
 // GPS helpers
 // ----------------------------
@@ -443,7 +444,84 @@ exports.checkOut = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
 };
+exports.getProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const result = await db.query(`
+      SELECT 
+        e.id,
+        e.full_name,
+        e.work_email,
+        e.employee_code,
+        e.personal_email,
+        e.phone_number,
+        e.identity_card_number,
+        e.date_of_birth,
+        e.address,
+        e.bank_account_number,
+        e.join_date,
+        p.position_name,
+        d.department_name
+      FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE e.id = $1
+    `, {
+      bind: [id],
+      type: QueryTypes.SELECT
+    });
+
+    res.json(result[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { userId, oldPassword, newPassword } = req.body;
+
+    if (!userId || !oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Thiếu dữ liệu" });
+    }
+
+    // 1. Kiểm tra mật khẩu cũ
+    const checkQuery = `
+      SELECT id FROM user_account
+      WHERE employee_id = $1
+      AND password_hash = crypt($2, password_hash)
+    `;
+
+    const user = await db.query(checkQuery, {
+      bind: [userId, oldPassword],
+      type: QueryTypes.SELECT
+    });
+
+    if (user.length === 0) {
+      return res.status(400).json({ message: "Mật khẩu cũ không đúng!" });
+    }
+
+    // 2. Update mật khẩu mới
+    const updateQuery = `
+      UPDATE user_account
+      SET password_hash = crypt($1, gen_salt('bf'))
+      WHERE employee_id = $2
+    `;
+
+    await db.query(updateQuery, {
+      bind: [newPassword, userId]
+    });
+
+    return res.json({ message: "Đổi mật khẩu thành công!" });
+
+  } catch (error) {
+    console.error("Lỗi changePassword:", error);
+    return res.status(500).json({ message: "Lỗi server" });
+  }
+};
 // ----------------------------
 // Manager: giám sát nhân viên check-in trong zone
 // ----------------------------
@@ -574,4 +652,6 @@ exports.getManagerZoneAttendance = async (req, res) => {
     console.error('getManagerZoneAttendance error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
+
+  
 };

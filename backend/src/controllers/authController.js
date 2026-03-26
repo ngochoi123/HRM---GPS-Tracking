@@ -98,8 +98,22 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp email!' });
     }
 
-    // Tạo mã OTP 6 số ngẫu nhiên
+    const [employee] = await db.query('SELECT * FROM employee WHERE personal_email = :email LIMIT 1', {
+        replacements: { email: email },
+        type: db.QueryTypes.SELECT
+    });
+
+    if (!employee) {
+        return res.status(404).json({ 
+            success: false, 
+            message: 'Tài khoản không tồn tại trong hệ thống' 
+        });
+    }
+
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Khởi tạo global.otpStorage nếu chưa có (Tránh lỗi undefined)
+    if (!global.otpStorage) global.otpStorage = {};
 
     // Lưu OTP vào bộ nhớ tạm với thời hạn 5 phút
     global.otpStorage[email] = {
@@ -230,7 +244,7 @@ const changePasswordFirstLogin = async (req, res) => {
 // EXPORTS CÁC HÀM RA CHO ROUTER SỬ DỤNG
 // ==========================================
 module.exports = {
-  login, // Đã sửa lại thành login (chữ l thường)
+  login, 
   changePasswordFirstLogin,
   forgotPassword,
   verifyOTP,

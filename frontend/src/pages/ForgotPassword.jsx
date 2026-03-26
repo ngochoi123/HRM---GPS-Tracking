@@ -6,33 +6,52 @@ import './Login.css';
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(''); // Thêm state để bắt lỗi
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
+    
+    // ================================================================
+    // 🟢 KIỂM TRA ĐIỀU KIỆN ĐẦU VÀO (VALIDATION THEO TEST CASE)
+    // ================================================================
+    const trimmedEmail = email.trim();
+
+    // FUNC-DMK01: Kiểm tra lỗi để trống email
+    if (!trimmedEmail) {
+      setError("Vui lòng nhập email tài khoản đã được đăng ký từ trước !");
+      return;
+    }
+
+    // FUNC-DMK02: Kiểm tra lỗi định dạng email (thiếu chữ @)
+    if (!trimmedEmail.includes('@')) {
+      setError("Vui lòng nhập đúng định dạng email bao gồm '@' trong địa chỉ email!");
+      return;
+    }
+
+    // Nếu qua được các bước trên, bắt đầu loading và xóa lỗi cũ
     setIsLoading(true);
-    setError(''); // Reset lỗi mỗi lần bấm
+    setError(''); 
 
     try {
-      // Gọi API thực tế xuống Backend (Đổi port 5000 nếu backend của bạn chạy port khác)
       const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }), // Gửi email lên server
+        body: JSON.stringify({ email: trimmedEmail }), 
       });
 
       const data = await response.json();
 
       if (data.success) {
         setIsLoading(false);
-        // Nếu API báo thành công, chuyển sang trang OTP
-        navigate('/verify-otp', { state: { email: email } }); 
+        // FUNC-DMK04: Gửi mail thành công, chuyển sang trang nhập mã OTP
+        navigate('/verify-otp', { state: { email: trimmedEmail } }); 
       } else {
-        // Lỗi từ server (VD: Email không tồn tại, lỗi gửi mail)
-        setError(data.message);
+        // FUNC-DMK03: Email không tồn tại trong hệ thống 
+        // Ghi đè thông báo trả về từ Backend để khớp 100% với Test Case
+        setError("Thông tin không hợp lệ và không thực hiện thay đổi mật khẩu");
         setIsLoading(false);
       }
     } catch (err) {
@@ -62,14 +81,14 @@ const ForgotPassword = () => {
           </div>
         )}
 
-        <form onSubmit={handleSendOTP}>
+        {/* Thêm noValidate để chặn popup cảnh báo định dạng mặc định của trình duyệt */}
+        <form onSubmit={handleSendOTP} noValidate>
           <div className="form-group">
             <label htmlFor="email" className="form-label">Email đã đăng ký</label>
             <div className="input-wrapper">
               <input
                 id="email"
-                type="email"
-                required
+                type="text"  // Đổi thành text để React tự bắt lỗi định dạng theo Test Case
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="form-input"

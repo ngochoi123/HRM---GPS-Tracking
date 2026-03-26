@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 
-// ✅ STATUS
+//  STATUS
 const getWorkStatus = (checkInTime, checkOutTime) => {
   const now = new Date();
 
@@ -69,7 +69,7 @@ const getWorkStatus = (checkInTime, checkOutTime) => {
   };
 };
 
-// ✅ TIME REMAINING
+//  TIME REMAINING
 const getTimeRemaining = (checkInTime, checkOutTime) => {
   const now = new Date();
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
-import FirstLoginChangePass from './FirstLoginChangePass'; // Nhớ tạo file này nhé
+import FirstLoginChangePass from './FirstLoginChangePass'; 
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -10,12 +10,37 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState('LOGIN'); // Thêm state quản lý mode
+  const [mode, setMode] = useState('LOGIN'); 
   const navigate = useNavigate();
 
-  
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // ================================================================
+    // 🟢 KIỂM TRA ĐIỀU KIỆN ĐẦU VÀO (VALIDATION THEO TEST CASE)
+    // ================================================================
+    const isEmailEmpty = !email.trim();
+    const isPasswordEmpty = !password.trim();
+
+    // 1. Để trống cả 2 trường
+    if (isEmailEmpty && isPasswordEmpty) {
+      setError("Vui lòng nhập user name/ password");
+      return;
+    }
+    
+    // 2. Để trống trường Tên đăng nhập
+    if (isEmailEmpty && !isPasswordEmpty) {
+      setError("Vui lòng không để trống trường tên đăng nhập Email");
+      return;
+    }
+
+    // 3. Để trống trường Mật khẩu
+    if (!isEmailEmpty && isPasswordEmpty) {
+      setError("Bạn chưa nhập mật khẩu vào!");
+      return;
+    }
+
+    // Vượt qua kiểm tra rỗng -> Xóa lỗi cũ, bắt đầu loading gọi API
     setIsLoading(true);
     setError('');
 
@@ -32,13 +57,11 @@ const Login = () => {
       const data = await response.json();
 
       if (data.success) {
-        // 🟢 BƯỚC 1: KIỂM TRA ĐỔI MẬT KHẨU LẦN ĐẦU
         if (data.require_pass_change) {
           setMode('FIRST_CHANGE_PASS');
           return;
         }
 
-        // 🟢 BƯỚC 2: NẾU KHÔNG CẦN ĐỔI PASS -> ĐĂNG NHẬP LUÔN
         const userRole = data?.user?.role_code || data?.user?.role;
         
         if (userRole) {
@@ -54,7 +77,8 @@ const Login = () => {
           setError("Tài khoản chưa được phân quyền hệ thống!");
         }
       } else {
-        setError(data.message || 'Tên đăng nhập hoặc mật khẩu không đúng!');
+        // 4. Sai Username hoặc Password (Ghi đè thông báo từ backend để khớp Test Case)
+        setError('Tên đăng nhập hoặc mật khẩu không đúng');
       }
     } catch (err) {
       console.error("Login Error:", err);
@@ -64,7 +88,6 @@ const Login = () => {
     }
   };
 
-  // PHẦN RENDER GIAO DIỆN
   return (
     <div className="login-container">
       <div className="login-card">
@@ -82,16 +105,17 @@ const Login = () => {
               </div>
             )}
 
-            <form onSubmit={handleLogin}>
+            {/* Thêm noValidate để chặn popup cảnh báo rỗng mặc định của HTML5 */}
+            <form onSubmit={handleLogin} noValidate>
               <div className="form-group">
                 <label className="form-label">Tên đăng nhập / Email</label>
                 <input
                   type="text"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="form-input"
                   placeholder="Nhập tên đăng nhập"
+                  // Đã xóa thuộc tính 'required' ở đây
                 />
               </div>
 
@@ -100,11 +124,11 @@ const Login = () => {
                 <div className="input-wrapper" style={{ position: 'relative' }}>
                   <input
                     type={showPassword ? "text" : "password"}
-                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="form-input"
                     placeholder="Nhập mật khẩu"
+                    // Đã xóa thuộc tính 'required' ở đây
                   />
                   <button
                     type="button"
@@ -131,7 +155,6 @@ const Login = () => {
             </form>
           </>
         ) : (
-          // HIỂN THỊ TRANG ĐỔI MẬT KHẨU KHI MODE LÀ FIRST_CHANGE_PASS
           <FirstLoginChangePass 
             username={email} 
             onSuccess={() => setMode('LOGIN')} 

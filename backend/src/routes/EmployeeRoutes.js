@@ -7,6 +7,9 @@ const employeeController = require('../controllers/EmployeeController');
 router.get('/Dashboard/:id', employeeController.getDashboard);
 router.get('/dashboard/:id', employeeController.getDashboard);
 
+router.get('/profile/:id', employeeController.getProfile);
+router.post('/change-password', employeeController.changePassword);
+
 // Chấm công (Attendance + GPS)
 router.get('/attendance/summary/:id', employeeController.getAttendanceSummary);
 router.post('/attendance/checkin/:id', employeeController.checkIn);

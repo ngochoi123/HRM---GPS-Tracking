@@ -1,0 +1,383 @@
+:root {
+  --green-main: #00b33c;
+  --green-soft: #e6f7ed;
+  --bg-page: #eef3f1;
+  --text-primary: #2d3436;
+  --text-secondary: #636e72;
+  --border-soft: #edf1ef;
+}
+
+/* ===== PAGE ===== */
+.profile-page-background {
+  padding-left: 10px;
+  padding-top: 40px;
+}
+
+.profile-content-wrapper {
+  width: 100%;
+  max-width: 1100px;
+}
+
+/* ===== MAIN CARD ===== */
+.card-main {
+  background: #fff;
+  border-radius: 20px;
+  padding: 30px 35px;
+  
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+/* ===== HEADER ===== */
+.profile-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+}
+
+.profile-top-bar h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sub-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 5px;
+}
+
+/* ===== BACK BUTTON ===== */
+.btn-back-outline {
+  border: 1px solid #dfe6e9;
+  background: #fff;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* ===== SUMMARY ===== */
+.card-summary {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  margin-bottom: 25px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 20px 22px;
+}
+
+/* Avatar */
+.avatar-wrapper {
+  width: 100px;
+  height: 100px;
+  position: relative;
+}
+
+.avatar-wrapper img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Dot online */
+.online-status-dot {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  background: var(--green-main);
+  border-radius: 50%;
+  border: 3px solid white;
+}
+
+/* ===== USER INFO ===== */
+.card-summary h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.badge-active {
+  background: var(--green-soft);
+  color: var(--green-main);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+/* Pills */
+.pill-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.pill-group span {
+  background: #f4f7f6;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+/* ===== GRID ===== */
+.profile-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+  margin-top: 10px;
+}
+
+/* ===== CARD TITLE ===== */
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.text-green {
+  color: 1F2937;
+}
+
+.text-brown {
+  color: 1F2937;
+}
+
+/* ===== DATA ROW ===== */
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f7f7f7;
+  font-size: 14px;
+}
+
+.data-row:last-child {
+  border-bottom: none;
+}
+
+.label {
+  color: var(--text-secondary);
+}
+
+.value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Badge contract */
+.contract-badge {
+  background: var(--green-soft);
+  color: var(--green-main);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===== FOOTER ===== */
+.profile-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+/* Buttons */
+.btn-password {
+  background: #2d3436;
+  color: white;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-contract {
+  background: var(--green-main);
+  color: white;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 15px rgba(0, 179, 60, 0.25);
+}
+
+/* ===== HOVER ===== */
+.btn-password:hover {
+  opacity: 0.9;
+}
+
+.btn-contract:hover {
+  transform: translateY(-1px);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .profile-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-footer {
+    flex-direction: column;
+  }
+
+  .btn-password,
+  .btn-contract {
+    width: 100%;
+  }
+}
+
+/* ===== DETAIL CARD (viền xám nhẹ) ===== */
+.card-detail {
+  background: #ffffff;
+  border: 1px solid var(--border-soft); /* viền xám nhẹ */
+  border-radius: 16px;
+  padding: 20px 22px;
+  transition: all 0.2s ease;
+}
+
+.card-detail:hover {
+  border-color: #dfe6e9;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+.icon-green {
+  color: var(--green-main);
+  margin-right: 6px;
+}
+.card-title {
+  display: flex;
+  /* khoảng cách icon - chữ */
+  gap: 5px;
+
+}
+.icon-green {
+  color: #00b33c;
+  font-size: 16px;
+  align-items: center;
+}
+.icon-main{
+  font-size: 20px;
+  color: #00b33c;
+}
+.main-title{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 20%;
+  background: #e6f7ed; /* xanh nhạt */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-pill-group-m{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.icon-pill-group{
+  color: #00b33c;
+  font-size: 16px;
+ 
+}
+
+
+/* ===== MODAL OVERLAY ===== */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  background: rgba(0, 0, 0, 0.4); /* nền mờ */
+  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  z-index: 999;
+}
+
+/* ===== MODAL BOX ===== */
+.modal-content {
+  background: #fff;
+  padding: 30px;
+  border-radius: 16px;
+  width: 400px;
+  max-width: 90%;
+
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+
+  animation: fadeIn 0.2s ease;
+  text-align: center;
+}
+
+/* ===== INPUT ===== */
+.modal-content input {
+  width: 100%;
+  padding: 12px 14px;
+  margin-top: 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+/* ===== BUTTON ===== */
+.modal-content button {
+  margin-top: 15px;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  
+  
+}
+
+/* Nút xác nhận */
+.modal-content button:first-of-type {
+  background: var(--green-main);
+  color: white;
+  margin-right: 10px;
+  width: 100px;
+  
+}
+
+/* Nút huỷ */
+.modal-content button:last-of-type {
+  background: #dfe6e9;
+  margin-left: 10px;
+  width: 100px;
+  
+}
+
+/* ===== ANIMATION ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
