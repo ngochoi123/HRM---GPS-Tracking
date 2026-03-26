@@ -15,30 +15,31 @@ import LocationSettings from './pages/Admin/LocationSettings';
 import LocationMap from './pages/Admin/LocationMap';
 
 // ===== GIÁM ĐỐC =====
-import GiamDocDashboard from './pages/GiamDoc/Dashboard'; // Đã sửa tên để khớp route
+import GiamDocDashboard from './pages/GiamDoc/Dashboard';
 import Departments from './pages/GiamDoc/Departments';
-import Employees from './pages/GiamDoc/Employees';
 import Contracts from './pages/GiamDoc/Contracts';
 import Branches from './pages/GiamDoc/Branches';
 import Positions from './pages/GiamDoc/Positions';
 import Approvals from './pages/GiamDoc/Approvals';
 import DepartmentDetail from './pages/GiamDoc/DepartmentDetail';
 import DepartmentCreate from "./pages/GiamDoc/DepartmentCreate";
+import EditDepartment from "./pages/GiamDoc/EditDepartment";
+import DeleteDepartment from "./pages/GiamDoc/DeleteDepartment";
 
 // ===== QUẢN LÝ =====
-import ManagerDashboard from './pages/QuanLy/Dashboard'; // Đã sửa tên để khớp route
+import ManagerDashboard from './pages/QuanLy/Dashboard';
 import ManagerCheckIn from './pages/QuanLy/CheckIn';
 import TeamAttendance from './pages/QuanLy/TeamAttendance';
 import TeamApprovals from './pages/QuanLy/TeamApprovals';
 
 // ===== NHÂN VIÊN =====
-import EmployeeDashboard from './pages/NhanVien/Dashboard'; // Đã sửa tên để khớp route
+import EmployeeDashboard from './pages/NhanVien/Dashboard';
 import CheckIn from './pages/NhanVien/CheckIn';
 import Payroll from './pages/NhanVien/Payroll';
 import Requests from './pages/NhanVien/Requests';
 import Profile from './pages/NhanVien/Profile';
 
-// ===== LAYOUT CHUNG DUY NHẤT =====
+// ===== LAYOUT =====
 import MainLayout from './layouts/MainLayout';
 
 function App() {
@@ -47,40 +48,42 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         
-        {/* ===== LUỒNG KHÔNG CÓ SIDEBAR ===== */}
+        {/* ===== AUTH ===== */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ===== LUỒNG CÓ SIDEBAR (Dùng MainLayout) ===== */}
+        {/* ===== CÓ SIDEBAR ===== */}
         <Route element={<MainLayout />}>
-          
-          {/* 1. ADMIN ROUTES */}
+
+          {/* ===== ADMIN ===== */}
           <Route path="/Admin/dashboard" element={<AdminDashboard />} />
           <Route path="/Admin/users" element={<AdminUsers />} />
           <Route path="/Admin/settings" element={<AdminSettings />} />
           <Route path="/Admin/LocationSettings" element={<LocationSettings />} />
 
-
-          {/* 2. GIÁM ĐỐC ROUTES */}
+          {/* ===== GIÁM ĐỐC (FIX Ở ĐÂY) ===== */}
           <Route path="/GiamDoc/dashboard" element={<GiamDocDashboard />} />
           <Route path="/GiamDoc/departments" element={<Departments />} />
-          <Route path="/GiamDoc/employees" element={<Employees />} />
+          <Route path="/GiamDoc/departments/create" element={<DepartmentCreate />} />
+          <Route path="/GiamDoc/departments/:id" element={<DepartmentDetail />} />
           <Route path="/GiamDoc/contracts" element={<Contracts />} />
           <Route path="/GiamDoc/branches" element={<Branches />} />
           <Route path="/GiamDoc/positions" element={<Positions />} />
           <Route path="/GiamDoc/approvals" element={<Approvals />} />
-          <Route path="/departments/:id" element={<DepartmentDetail />} />
-          <Route path="/departments/create" element={<DepartmentCreate />} />
+          <Route path="/GiamDoc/departments/edit/:id" element={<EditDepartment />}/>
+          <Route path="/GiamDoc/departments/delete/:id" element={<DeleteDepartment />} />
+          
+          
 
-          {/* 3. QUẢN LÝ ROUTES */}
+          {/* ===== QUẢN LÝ ===== */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
           <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} />
           <Route path="/QuanLy/team-attendance" element={<TeamAttendance />} />
           <Route path="/QuanLy/team-approvals" element={<TeamApprovals />} />
 
-          {/* 4. NHÂN VIÊN ROUTES */}
+          {/* ===== NHÂN VIÊN ===== */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
           <Route path="/NhanVien/checkin" element={<CheckIn />} />
           <Route path="/NhanVien/CheckIn" element={<CheckIn />} />
@@ -90,7 +93,7 @@ function App() {
           
         </Route>
 
-        {/* 404 Bẫy lỗi: Nếu vào link linh tinh sẽ văng về login */}
+        {/* ===== 404 ===== */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

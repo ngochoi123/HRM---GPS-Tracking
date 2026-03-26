@@ -17,6 +17,7 @@ export default function DepartmentDetail() {
 
   const [department, setDepartment] = useState(null);
   const [employees, setEmployees] = useState([]);
+  const [search, setSearch] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 5;
@@ -39,19 +40,24 @@ export default function DepartmentDetail() {
 
   if (!department) return <div className="p-6">Loading...</div>;
 
-  // Pagination
-  const totalPages = Math.ceil(employees.length / perPage);
-  const start = (currentPage - 1) * perPage;
-  const currentEmployees = employees.slice(start, start + perPage);
+  // Search filter
+  const filteredEmployees = employees.filter((emp) => {
+    const keyword = search.toLowerCase();
 
-  const descriptionMap = {
-    IT: "Phụ trách phát triển phần mềm, hệ thống và hạ tầng công nghệ.",
-    HR: "Quản lý nhân sự, tuyển dụng, đào tạo và văn hóa doanh nghiệp.",
-    PR: "Truyền thông, marketing, xây dựng thương hiệu và hình ảnh công ty."
-  };
+    return (
+      emp.full_name?.toLowerCase().includes(keyword) ||
+      emp.employee_code?.toLowerCase().includes(keyword) ||
+      emp.position_name?.toLowerCase().includes(keyword)
+    );
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredEmployees.length / perPage);
+  const start = (currentPage - 1) * perPage;
+  const currentEmployees = filteredEmployees.slice(start, start + perPage);
 
   const description =
-    descriptionMap[department.department_code] ||
+    department.description ||
     "Chưa có mô tả cho phòng ban này.";
 
   return (
@@ -142,37 +148,6 @@ export default function DepartmentDetail() {
             </div>
           </div>
 
-          {/* STATS */}
-          <div className="grid grid-cols-3 gap-5">
-            <div className="bg-white shadow p-5 rounded-xl flex gap-3 items-center">
-              <Users className="text-blue-500" />
-              <div>
-                <p className="text-sm text-gray-400">Tổng</p>
-                <h2 className="font-bold text-lg">{employees.length}</h2>
-              </div>
-            </div>
-
-            <div className="bg-white shadow p-5 rounded-xl flex gap-3 items-center">
-              <Briefcase className="text-green-500" />
-              <div>
-                <p className="text-sm text-gray-400">Đang làm</p>
-                <h2 className="font-bold text-lg">
-                  {employees.filter(e => e.status === "active").length}
-                </h2>
-              </div>
-            </div>
-
-            <div className="bg-white shadow p-5 rounded-xl flex gap-3 items-center">
-              <Building className="text-purple-500" />
-              <div>
-                <p className="text-sm text-gray-400">Chi nhánh</p>
-                <h2 className="font-semibold text-sm">
-                  {department.branch_name}
-                </h2>
-              </div>
-            </div>
-          </div>
-
           {/* EMPLOYEE TABLE */}
           <div className="bg-white p-5 rounded-2xl shadow">
 
@@ -184,6 +159,11 @@ export default function DepartmentDetail() {
 
               <input
                 placeholder="Tìm nhân viên..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
@@ -211,7 +191,7 @@ export default function DepartmentDetail() {
                         className="border-b hover:bg-gray-50 transition"
                       >
                         <td className="py-3 font-medium text-gray-600">
-                            {emp.employee_code}
+                          {emp.employee_code}
                         </td>
 
                         <td>
@@ -261,8 +241,8 @@ export default function DepartmentDetail() {
             <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
               <p>
                 Hiển thị {start + 1}–
-                {Math.min(start + perPage, employees.length)} trong tổng{" "}
-                {employees.length} nhân sự
+                {Math.min(start + perPage, filteredEmployees.length)} trong tổng{" "}
+                {filteredEmployees.length} nhân sự
               </p>
 
               <div className="flex gap-2">

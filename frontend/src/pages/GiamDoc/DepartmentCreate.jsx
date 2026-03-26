@@ -13,11 +13,10 @@ export default function DepartmentCreate() {
     department_code: "",
     description: "",
     branch_id: "",
-    manager_id: "", // vẫn giữ nhưng không dùng
+    manager_id: "",
     is_active: true
   });
 
-  // 👉 CHỈ LOAD CHI NHÁNH (KHÔNG LOAD EMPLOYEE NỮA)
   useEffect(() => {
     fetchBranches();
   }, []);
@@ -46,29 +45,31 @@ export default function DepartmentCreate() {
         {
           department_name: form.department_name,
           department_code: form.department_code,
+          description: form.description || "",
           branch_id: form.branch_id || null,
           is_active: form.is_active
         }
       );
-  
+
       console.log("✅ Created:", res.data);
-  
       alert("Tạo phòng ban thành công!");
-  
-      // ⏳ delay để tránh redirect lỗi
-      setTimeout(() => {
-        navigate("/departments");
-      }, 300);
-  
+      navigate("/GiamDoc/departments");
+
     } catch (err) {
-      console.log("🔥 ERROR:", err.response?.data);
-      alert(err.response?.data?.message || "Lỗi tạo phòng ban");
+      console.error("🔥 FULL ERROR:", err);
+
+      if (err.response) {
+        alert(err.response.data?.message || "Lỗi từ server");
+      } else if (err.request) {
+        alert("Không nhận được phản hồi từ server!");
+      } else {
+        alert("Lỗi hệ thống!");
+      }
     }
   };
 
   return (
     <div className="bg-gray-100 min-h-screen p-6">
-
       <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-lg p-6 space-y-6">
 
         {/* HEADER */}
@@ -86,13 +87,6 @@ export default function DepartmentCreate() {
               Thiết lập thông tin cơ bản, cơ cấu quản lý và chức năng phòng ban.
             </p>
           </div>
-
-          <button
-            onClick={() => navigate("/departments")}
-            className="px-4 py-2 bg-gray-100 rounded-lg text-sm"
-          >
-            ← Quay lại danh sách
-          </button>
         </div>
 
         {/* SECTION 1 */}
@@ -150,7 +144,6 @@ export default function DepartmentCreate() {
 
           <div className="grid grid-cols-2 gap-4">
 
-            {/* ✅ CHỈ GIỮ CHI NHÁNH */}
             <div>
               <label className="text-sm font-medium">
                 Chi nhánh *
@@ -172,7 +165,6 @@ export default function DepartmentCreate() {
               </select>
             </div>
 
-            {/* ❌ GIỮ UI nhưng disable */}
             <div>
               <label className="text-sm font-medium">
                 Trưởng phòng (tùy chọn)
@@ -188,29 +180,42 @@ export default function DepartmentCreate() {
         </div>
 
         {/* STATUS */}
-        <div className="bg-blue-50 rounded-2xl p-5 flex justify-between items-center">
-          <div>
-            <p className="font-medium text-gray-700">
-              Trạng thái phòng ban
-            </p>
-            <p className="text-sm text-gray-400">
-              Quyết định phòng ban có hoạt động hay không
-            </p>
-          </div>
+<div className="bg-blue-50 rounded-2xl p-5 flex justify-between items-center">
+  <div>
+    <p className="font-medium text-gray-700">
+      Trạng thái phòng ban
+    </p>
+    <p className="text-sm text-gray-400">
+      Quyết định phòng ban có hoạt động hay không
+    </p>
 
-          <label className="inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              name="is_active"
-              checked={form.is_active}
-              onChange={handleChange}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-500 relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
-            </div>
-          </label>
-        </div>
+    {/* 👇 HIỂN THỊ TRẠNG THÁI */}
+    <p className={`mt-2 text-sm font-semibold ${
+      form.is_active ? "text-green-600" : "text-red-500"
+    }`}>
+      {form.is_active ? "Đang hoạt động" : "Ngưng hoạt động"}
+    </p>
+  </div>
+
+  {/* TOGGLE */}
+  <div
+    onClick={() =>
+      setForm((prev) => ({
+        ...prev,
+        is_active: !prev.is_active
+      }))
+    }
+    className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition ${
+      form.is_active ? "bg-blue-500" : "bg-gray-300"
+    }`}
+  >
+    <div
+      className={`bg-white w-5 h-5 rounded-full shadow-md transform transition ${
+        form.is_active ? "translate-x-7" : "translate-x-0"
+      }`}
+    />
+  </div>
+</div>
 
         {/* ACTION */}
         <div className="flex justify-end gap-3 pt-4">
