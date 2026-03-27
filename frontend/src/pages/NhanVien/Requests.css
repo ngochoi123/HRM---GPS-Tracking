@@ -1,0 +1,140 @@
+.request-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* LEFT */
+.request-left {
+  background: #fff;
+  min-height: 500px;
+  border-radius: 20px;
+  max-width: 800px;
+  padding: 15px 20px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* HEADER */
+.request-left-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 25px;
+}
+
+/* TEXT bên trái (giống contract) */
+.header-left h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.header-left p {
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+/* RIGHT header */
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+
+
+
+.badge-green {
+  background-color: #d6e5d6 !important;
+  color: gray !important;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-left: 10px;
+  white-space: nowrap;
+  
+}
+
+/* CONTENT */
+.request-left-content {
+    margin-left: 30px;
+    margin-right: 30px;
+    margin-top: 30px;
+    margin-bottom: 40px;
+}
+.section-title{
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+.input-option {
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+
+  border: 1px solid #ccc;
+  border-radius: 8px;
+
+  font-size: 0.9rem;
+  outline: none;
+
+  transition: 0.2s;
+}
+
+/* Khi hover */
+.input-option:hover {
+  border-color: #00AE0C;
+}
+
+/* Khi click vào (focus) */
+.input-option:focus {
+  border-color: #00AE0C;
+  box-shadow: 0 0 0 2px rgba(0, 174, 12, 0.2);
+}
+
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Chia làm 2 cột */
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+/* RIGHT */
+.request-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  
+}
+
+
+/* Card trên */
+.card-request-top {
+  background: linear-gradient(135deg, #00AE0C, #009688);
+  color: white;
+  height: 180px;
+  border-radius: 20px;
+  padding: 20px;
+}
+
+
+/* Card dưới */
+.card-request-bot {
+  background: #fff;
+  min-height: 600px;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}

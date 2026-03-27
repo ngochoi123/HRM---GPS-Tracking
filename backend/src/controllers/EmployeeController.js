@@ -720,3 +720,121 @@ exports.getContract = async (req, res) => {
     });
   }
 };
+
+// ==============================
+// 🟢 TẠO ĐƠN NGHỈ
+// ==============================
+exports.createRequest = async (req, res) => {
+  try {
+    const { employee_id, leave_type, start_datetime, end_datetime, reason } = req.body;
+
+    // ✅ Validate
+    if (!employee_id || !leave_type || !start_datetime || !end_datetime) {
+      return res.status(400).json({ message: 'Thiếu dữ liệu' });
+    }
+
+    // ✅ Check ENUM hợp lệ (rất quan trọng)
+    const validTypes = ['annual', 'sick', 'unpaid', 'maternity', 'bereavement'];
+    if (!validTypes.includes(leave_type)) {
+      return res.status(400).json({ message: 'Loại nghỉ không hợp lệ' });
+    }
+
+    // ✅ Lấy manager duyệt
+    const manager = await db.query(
+      `SELECT direct_manager_id FROM employee WHERE id = $1`,
+      {
+        bind: [employee_id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    const approver_id = manager[0]?.direct_manager_id;
+
+    // ❗ Nếu không có manager → báo lỗi
+    if (!approver_id) {
+      return res.status(400).json({
+        message: 'Nhân viên chưa có người duyệt (manager)'
+      });
+    }
+
+    // ✅ Insert + RETURNING
+    const result = await db.query(
+      `
+      INSERT INTO leave_request (
+        employee_id,
+        leave_type,
+        start_datetime,
+        end_datetime,
+        reason,
+        approver_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+      `,
+      {
+        bind: [
+          employee_id,
+          leave_type,
+          start_datetime,
+          end_datetime,
+          reason,
+          approver_id
+        ],
+        type: QueryTypes.INSERT
+      }
+    );
+
+    return res.status(201).json({
+      message: 'Tạo đơn thành công',
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error('createRequest error:', error);
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: error.message
+    });
+  }
+};
+
+
+// ==============================
+// 🔵 LẤY DANH SÁCH ĐƠN
+// ==============================
+exports.getMyRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT 
+        lr.id,
+        lr.leave_type,
+        lr.start_datetime,
+        lr.end_datetime,
+        lr.reason,
+        lr.status,
+        lr.created_at,
+        e.full_name AS approver_name
+      FROM leave_request lr
+      LEFT JOIN employee e ON lr.approver_id = e.id
+      WHERE lr.employee_id = $1
+      ORDER BY lr.created_at DESC
+      `,
+      {
+        bind: [id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    return res.json(result);
+
+  } catch (error) {
+    console.error('getMyRequests error:', error);
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: error.message
+    });
+  }
+};

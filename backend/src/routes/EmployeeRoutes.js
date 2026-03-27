@@ -2,14 +2,19 @@ const express = require('express');
 const router = express.Router();
 const employeeController = require('../controllers/EmployeeController');
 
+
 // API lấy thông tin dashboard nhân viên
 // (Giữ alias để tránh lỗi phân biệt hoa/thường)
 router.get('/Dashboard/:id', employeeController.getDashboard);
 router.get('/dashboard/:id', employeeController.getDashboard);
-
+//Thông tin cá nhân
 router.get('/profile/:id', employeeController.getProfile);
 router.get('/contract/:id', employeeController.getContract);
 router.post('/change-password', employeeController.changePassword);
+
+//Đơn từ
+router.post('/leave-request', employeeController.createRequest);
+router.get('/leave-request/:id', employeeController.getMyRequests);
 
 
 // Chấm công (Attendance + GPS)

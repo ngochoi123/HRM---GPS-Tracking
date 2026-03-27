@@ -29,7 +29,15 @@ const Contract = () => {
         </div>
         <div className="header-right">
           <span className="badge-gray">Thời hạn:</span>
-          <span className="badge-green">1 năm</span>
+          <span className="badge-green">
+            {contract.contract_type === "fixed_3y"
+              ? "3 năm"
+              : contract.contract_type === "fixed_1y"
+              ? "1 năm"
+              : contract.contract_type === "indefinite"
+              ? "Không xác định"
+              : "Chưa có"}
+          </span>
         </div>
       </div>
 
@@ -38,14 +46,17 @@ const Contract = () => {
         <section className="info-section">
           <h3 className="section-title"><FaUser className="icon" /> Thông tin chung</h3>
           <div className="input-grid">
+
             <div className="input-group">
               <label>Tên người lao động</label>
               <input type="text" value={contract.full_name} readOnly />
             </div>
+
             <div className="input-group">
               <label>Số/Mã hợp đồng</label>
               <input type="text" value={contract.contract_number} readOnly />
             </div>
+            
           </div>
         </section>
 
