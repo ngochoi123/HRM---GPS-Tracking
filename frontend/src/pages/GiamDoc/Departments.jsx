@@ -46,7 +46,7 @@ export default function Departments() {
         </h1>
 
         <button
-          onClick={() => navigate("/departments/create")}
+          onClick={() => navigate("/GiamDoc/departments/create")}
           className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-2 rounded-xl shadow-lg"
         >
           <Plus size={18} />
@@ -111,19 +111,25 @@ export default function Departments() {
                   <div className="flex justify-center gap-2">
 
                     <button
-                      onClick={() => navigate(`/departments/${dep.id}`)}
+                      onClick={() => navigate(`/GiamDoc/departments/${dep.id}`)}
                       className="p-2 bg-blue-100 rounded-lg"
                     >
                       <Eye size={16} />
                     </button>
 
-                    <button className="p-2 bg-yellow-100 rounded-lg">
-                      <Pencil size={16} />
+                    <button
+                    onClick={() => navigate(`/GiamDoc/departments/edit/${dep.id}`)}
+                    className="p-2 bg-yellow-100 rounded-lg"
+                    >
+                    <Pencil size={16} />
                     </button>
 
-                    <button className="p-2 bg-red-100 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
+                    <button
+                    onClick={() => navigate(`/GiamDoc/departments/delete/${dep.id}`)}
+                    className="p-2 bg-red-100 rounded-lg hover:bg-red-200"
+                    >
+                    <Trash2 size={16} />
+                  </button>
 
                   </div>
                 </td>

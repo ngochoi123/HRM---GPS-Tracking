@@ -45,12 +45,12 @@ const sendOTPEmail = async (toEmail, otpCode) => {
   }
 };
 
-// Thêm hàm này vào file emailService.js
+
 const sendAccountEmail = async (email, fullName, username, password) => {
   try {
     const subject = 'Cấp tài khoản hệ thống HR People Tech';
     
-    // Mẫu mail HTML đẹp mắt gửi cho nhân viên
+    
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
         <div style="background-color: #8b5cf6; padding: 20px; text-align: center; color: white;">
@@ -93,7 +93,7 @@ const sendAccountEmail = async (email, fullName, username, password) => {
   }
 };
 
-// Nhớ export nó ra nhé
+
 module.exports = {
   sendOTPEmail,
   sendAccountEmail

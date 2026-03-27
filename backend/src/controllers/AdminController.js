@@ -126,7 +126,7 @@ const updateUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi cập nhật tài khoản" });
   }
 };
-// Thêm hàm này vào adminController.js
+
 const getEmployeesWithoutAccount = async (req, res) => {
   try {
     const query = `
@@ -152,7 +152,7 @@ const getEmployeesWithoutAccount = async (req, res) => {
   }
 };
 
-// Đừng quên export nó ra ở cuối file nhé:
+
 // module.exports = { getAllUsers, createUser, updateUser, getEmployeesWithoutAccount };
 
 module.exports = { getAllUsers, createUser, updateUser, getEmployeesWithoutAccount };

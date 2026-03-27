@@ -15,10 +15,13 @@ router.get('/', async (req, res) => {
         d.id,
         d.department_code,
         d.department_name,
+        d.description,
         d.is_active,
         b.branch_name,
 
         e.full_name AS manager_name,
+        e.work_email AS manager_email,
+        e.phone_number AS manager_phone,
 
         COALESCE(emp_count.total, 0) AS total_employees
 
@@ -47,7 +50,61 @@ router.get('/', async (req, res) => {
 
 
 // ==============================
-// 2️⃣ LẤY NHÂN VIÊN THEO PHÒNG BAN
+// 2️⃣ LẤY PHÒNG BAN THEO ID (🔥 ĐÃ FIX)
+// ==============================
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [department] = await db.query(
+      `
+      SELECT 
+        d.id,
+        d.department_code,
+        d.department_name,
+        d.description,
+        d.is_active,
+
+        b.branch_name,
+
+        e.full_name AS manager_name,
+        e.work_email AS manager_email,
+        e.phone_number AS manager_phone,
+
+        COALESCE(emp_count.total, 0) AS total_employees
+
+      FROM department d
+      LEFT JOIN branch b ON d.branch_id = b.id
+      LEFT JOIN employee e ON d.manager_id = e.id
+
+      LEFT JOIN (
+        SELECT p.department_id, COUNT(emp.id) AS total
+        FROM employee emp
+        LEFT JOIN position p ON emp.position_id = p.id
+        GROUP BY p.department_id
+      ) emp_count ON emp_count.department_id = d.id
+
+      WHERE d.id = :id
+      `,
+      {
+        replacements: { id },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    res.json(department);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Lỗi lấy phòng ban"
+    });
+  }
+});
+
+
+// ==============================
+// 3️⃣ LẤY NHÂN VIÊN THEO PHÒNG BAN
 // ==============================
 router.get('/:id/employees', async (req, res) => {
   const { id } = req.params;
@@ -82,7 +139,7 @@ router.get('/:id/employees', async (req, res) => {
 
 
 // ==============================
-// 3️⃣ TẠO PHÒNG BAN (FIX CHÍNH)
+// 4️⃣ TẠO PHÒNG BAN
 // ==============================
 router.post('/', async (req, res) => {
   const { 
@@ -90,6 +147,7 @@ router.post('/', async (req, res) => {
     department_name, 
     branch_id,
     manager_id,
+    description,
     is_active
   } = req.body;
 
@@ -103,16 +161,17 @@ router.post('/', async (req, res) => {
     const [result] = await db.query(
       `
       INSERT INTO department 
-      (department_code, department_name, branch_id, manager_id, is_active)
-      VALUES (:code, :name, :branch, :manager, :active)
+      (department_code, department_name, branch_id, manager_id, description, is_active)
+      VALUES (:code, :name, :branch, :manager, :description, :active)
       RETURNING *;
       `,
       {
         replacements: {
-          code: department_code || `PB_${Date.now()}`, // 🔥 chống null
+          code: department_code || `PB_${Date.now()}`,
           name: department_name,
           branch: branch_id || null,
           manager: manager_id || null,
+          description: description || null,
           active: is_active ?? true
         },
         type: QueryTypes.INSERT
@@ -128,9 +187,143 @@ router.post('/', async (req, res) => {
     console.error("🔥 ERROR:", err);
 
     res.status(500).json({
-      message: err.message // 👈 trả lỗi thật về FE
+      message: err.message
     });
   }
 });
 
+
+// ==============================
+// 5️⃣ CẬP NHẬT PHÒNG BAN
+// ==============================
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    department_name,
+    branch_id,
+    manager_id,
+    description,
+    is_active
+  } = req.body;
+
+  try {
+    await db.query(
+      `
+      UPDATE department
+      SET 
+        department_name = :name,
+        branch_id = :branch,
+        manager_id = :manager,
+        description = :description,
+        is_active = :active
+      WHERE id = :id
+      `,
+      {
+        replacements: {
+          id,
+          name: department_name,
+          branch: branch_id || null,
+          manager: manager_id || null,
+          description: description || null,
+          active: is_active ?? true
+        }
+      }
+    );
+
+    res.json({
+      message: "Cập nhật phòng ban thành công"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Lỗi cập nhật phòng ban"
+    });
+  }
+});
+
+
+// ==============================
+// 6️⃣ DROPDOWN PHÒNG BAN
+// ==============================
+router.get('/dropdown/departments', async (req, res) => {
+  try {
+    const data = await db.query(
+      `SELECT id, department_name FROM department ORDER BY department_name`,
+      { type: QueryTypes.SELECT }
+    );
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi load dropdown" });
+  }
+});
+
+// ==============================
+// 7️⃣ XOÁ PHÒNG BAN
+// ==============================
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { move_to_department_id } = req.body;
+
+  try {
+    // 🔹 Kiểm tra số nhân viên
+    const [check] = await db.query(
+      `
+      SELECT COUNT(emp.id) AS total
+      FROM employee emp
+      LEFT JOIN position p ON emp.position_id = p.id
+      WHERE p.department_id = :id
+      `,
+      {
+        replacements: { id },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    const total = parseInt(check.total);
+
+    // ❗ Nếu có nhân sự mà không chọn phòng chuyển
+    if (total > 0 && !move_to_department_id) {
+      return res.status(400).json({
+        message: "Phải chọn phòng ban chuyển nhân sự"
+      });
+    }
+
+    // 🔥 CHUYỂN NHÂN VIÊN
+    if (total > 0) {
+      await db.query(
+        `
+        UPDATE position
+        SET department_id = :newDept
+        WHERE department_id = :oldDept
+        `,
+        {
+          replacements: {
+            newDept: move_to_department_id,
+            oldDept: id
+          }
+        }
+      );
+    }
+
+    // 🔥 XOÁ PHÒNG BAN
+    await db.query(
+      `DELETE FROM department WHERE id = :id`,
+      {
+        replacements: { id }
+      }
+    );
+
+    res.json({
+      message: "Xoá phòng ban thành công"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Lỗi xoá phòng ban"
+    });
+  }
+});
 module.exports = router;

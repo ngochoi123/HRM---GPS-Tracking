@@ -244,7 +244,7 @@ const changePasswordFirstLogin = async (req, res) => {
 // EXPORTS CÁC HÀM RA CHO ROUTER SỬ DỤNG
 // ==========================================
 module.exports = {
-  login, // Đã sửa lại thành login (chữ l thường)
+  login, 
   changePasswordFirstLogin,
   forgotPassword,
   verifyOTP,
