@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function DepartmentCreate() {
   const navigate = useNavigate();
 
   const [branches, setBranches] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [form, setForm] = useState({
     department_name: "",
@@ -27,6 +30,7 @@ export default function DepartmentCreate() {
       setBranches(res.data || []);
     } catch (err) {
       console.error("Lỗi load chi nhánh:", err);
+      toast.error("Không tải được chi nhánh");
     }
   };
 
@@ -39,7 +43,19 @@ export default function DepartmentCreate() {
   };
 
   const handleSubmit = async () => {
+    if (!form.department_name) {
+      toast.error("Tên phòng ban không được để trống");
+      return;
+    }
+
+    if (!form.branch_id) {
+      toast.error("Vui lòng chọn chi nhánh");
+      return;
+    }
+
     try {
+      setSaving(true);
+
       const res = await axios.post(
         "http://localhost:5000/api/departments",
         {
@@ -51,20 +67,24 @@ export default function DepartmentCreate() {
         }
       );
 
-      console.log("✅ Created:", res.data);
-      alert("Tạo phòng ban thành công!");
-      navigate("/GiamDoc/departments");
+      toast.success("Tạo phòng ban thành công");
+
+      setTimeout(() => {
+        navigate("/GiamDoc/departments");
+      }, 1000);
 
     } catch (err) {
       console.error("🔥 FULL ERROR:", err);
 
       if (err.response) {
-        alert(err.response.data?.message || "Lỗi từ server");
+        toast.error(err.response.data?.message || "Lỗi từ server");
       } else if (err.request) {
-        alert("Không nhận được phản hồi từ server!");
+        toast.error("Không nhận được phản hồi từ server");
       } else {
-        alert("Lỗi hệ thống!");
+        toast.error("Lỗi hệ thống");
       }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -180,42 +200,37 @@ export default function DepartmentCreate() {
         </div>
 
         {/* STATUS */}
-<div className="bg-blue-50 rounded-2xl p-5 flex justify-between items-center">
-  <div>
-    <p className="font-medium text-gray-700">
-      Trạng thái phòng ban
-    </p>
-    <p className="text-sm text-gray-400">
-      Quyết định phòng ban có hoạt động hay không
-    </p>
+        <div className="bg-blue-50 rounded-2xl p-5 flex justify-between items-center">
+          <div>
+            <p className="font-medium text-gray-700">
+              Trạng thái phòng ban
+            </p>
 
-    {/* 👇 HIỂN THỊ TRẠNG THÁI */}
-    <p className={`mt-2 text-sm font-semibold ${
-      form.is_active ? "text-green-600" : "text-red-500"
-    }`}>
-      {form.is_active ? "Đang hoạt động" : "Ngưng hoạt động"}
-    </p>
-  </div>
+            <p className={`mt-2 text-sm font-semibold ${
+              form.is_active ? "text-green-600" : "text-red-500"
+            }`}>
+              {form.is_active ? "Đang hoạt động" : "Ngưng hoạt động"}
+            </p>
+          </div>
 
-  {/* TOGGLE */}
-  <div
-    onClick={() =>
-      setForm((prev) => ({
-        ...prev,
-        is_active: !prev.is_active
-      }))
-    }
-    className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition ${
-      form.is_active ? "bg-blue-500" : "bg-gray-300"
-    }`}
-  >
-    <div
-      className={`bg-white w-5 h-5 rounded-full shadow-md transform transition ${
-        form.is_active ? "translate-x-7" : "translate-x-0"
-      }`}
-    />
-  </div>
-</div>
+          <div
+            onClick={() =>
+              setForm((prev) => ({
+                ...prev,
+                is_active: !prev.is_active
+              }))
+            }
+            className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition ${
+              form.is_active ? "bg-blue-500" : "bg-gray-300"
+            }`}
+          >
+            <div
+              className={`bg-white w-5 h-5 rounded-full shadow-md transform transition ${
+                form.is_active ? "translate-x-7" : "translate-x-0"
+              }`}
+            />
+          </div>
+        </div>
 
         {/* ACTION */}
         <div className="flex justify-end gap-3 pt-4">
@@ -227,14 +242,54 @@ export default function DepartmentCreate() {
           </button>
 
           <button
-            onClick={handleSubmit}
-            className="px-6 py-2 bg-blue-500 text-white rounded-xl shadow"
+            onClick={() => setShowConfirm(true)}
+            disabled={saving}
+            className="px-6 py-2 bg-blue-500 text-white rounded-xl flex items-center gap-2"
           >
+            {saving && <Loader2 className="animate-spin" size={16} />}
             + Tạo phòng ban
           </button>
         </div>
 
       </div>
+
+      {/* Confirm Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-[400px]">
+
+            <h3 className="text-lg font-semibold mb-2">
+              Xác nhận tạo phòng ban
+            </h3>
+
+            <p className="text-gray-500 mb-5">
+              Bạn có chắc chắn muốn tạo phòng ban này?
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Huỷ
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  handleSubmit();
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+              >
+                Xác nhận
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
