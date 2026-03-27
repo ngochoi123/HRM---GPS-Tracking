@@ -21,7 +21,7 @@ const SidebarQuanLy = () => {
 
   // 2. NHÓM CHỨC NĂNG QUẢN LÝ
   const managementItems = [
-    { path: '/QuanLy/employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
+    { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
     { path: '/QuanLy/payroll', icon: <Calculator size={20} />, label: 'Tính lương hệ thống' },
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
