@@ -349,9 +349,7 @@ distance_meters: Number(distanceMeters.toFixed(2))
   }
 };
 
-// ----------------------------
-// Check-out
-// ----------------------------
+
 exports.checkOut = async (req, res) => {
   try {
     const { id } = req.params;
@@ -449,7 +447,7 @@ exports.getProfile = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(`
-      SELECT 
+            SELECT 
         e.id,
         e.full_name,
         e.work_email,
@@ -461,12 +459,25 @@ exports.getProfile = async (req, res) => {
         e.address,
         e.bank_account_number,
         e.join_date,
+
         p.position_name,
-        d.department_name
+        d.department_name,
+
+        c.contract_number,
+        c.contract_type,
+        c.start_date,
+        c.end_date,
+        c.base_salary,
+        c.is_active
+
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
+      LEFT JOIN contract c ON c.employee_id = e.id
+
       WHERE e.id = $1
+      ORDER BY c.start_date DESC
+      LIMIT 1;
     `, {
       bind: [id],
       type: QueryTypes.SELECT
@@ -522,9 +533,7 @@ exports.changePassword = async (req, res) => {
     return res.status(500).json({ message: "Lỗi server" });
   }
 };
-// ----------------------------
-// Manager: giám sát nhân viên check-in trong zone
-// ----------------------------
+
 exports.getManagerZoneAttendance = async (req, res) => {
   try {
     const { id } = req.params;
@@ -651,7 +660,59 @@ const lat = Number(row.live_latitude);
   } catch (error) {
     console.error('getManagerZoneAttendance error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
-  }
+  } 
+};
 
-  
+exports.getContract = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `
+         SELECT 
+          e.full_name,
+          e.employee_code,
+
+          p.position_name,
+          d.department_name,
+
+          c.contract_number,
+          c.start_date,
+          c.end_date,
+          c.base_salary,
+          c.contract_type,
+          c.is_active
+
+      FROM contract c
+      JOIN employee e ON e.id = c.employee_id
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+
+      WHERE e.id = $1
+      ORDER BY c.start_date DESC
+      LIMIT 1;
+      `,
+      {
+        bind: [id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!result[0]) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hợp đồng"
+      });
+    }
+
+    res.json(result[0]);
+
+  } catch (error) {
+    console.error("getContract error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
 };

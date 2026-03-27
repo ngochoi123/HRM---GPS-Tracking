@@ -51,13 +51,6 @@ const getInitials = (name) => {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[parts.length - 2][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
 };
-const buildPingIcon = (color, title) =>
-  L.divIcon({
-    className: 'hq-ping-icon',
-    html: `<div class="hq-ping-root" style="--ping-color:${color}"><div class="hq-ping-dot" title="${title}"></div><div class="hq-ping-ring"></div></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9]
-  });
 const buildStaffMarkerIcon = ({ initials, tone, active }) =>
   L.divIcon({
     className: 'manager-staff-marker',

@@ -1,0 +1,124 @@
+.contract-container {
+  background-color: #ffffff;
+  border-radius: 30px;
+  padding: 30px;
+  max-width: 800px;
+  margin: 20px auto;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* Header */
+.contract-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 25px;
+}
+
+.header-left h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.header-left p {
+  color: #888;
+  font-size: 0.85rem;
+  
+}
+
+.badge-green {
+  background-color: #10b910;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-left: 10px;
+}
+.badge-gray{
+    color: #4B5563;
+    align-items: center;
+}
+.contract-content{
+    margin-left: 90px;
+    margin-right: 90px;
+    margin-top: 40px;
+    margin-bottom: 40px;
+}
+
+/* Section */
+.info-section {
+  margin-bottom: 30px;
+  border: 1px solid #E0E0E0;
+  padding: 20px;
+  border-radius: 20px;
+  
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+.icon {
+  margin-right: 10px;
+  color: #2ecc71;
+}
+
+/* Grid layout cho các ô input */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Chia làm 2 cột */
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.input-group input {
+  background-color: #dee2e6; /* Màu xám như trong hình */
+  border: none;
+  height: 38px;
+  padding: 12px 15px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #555;
+  outline: none;
+}
+
+/* Footer & Button */
+.action-footer {
+    margin-top: 50px;
+    display: flex;
+    justify-content: flex-end;
+    
+}
+
+.btn-back {
+    background-color: #E8ECF0; 
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: #495057;
+    align-items: center;
+}
+
+.btn-back:hover {
+    background-color: #dfe5ec;
+}

@@ -1,10 +1,13 @@
 import React, { useState } from 'react'; // Thêm useState
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+
 import { Home, MapPin, CreditCard, FileText, User, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
 
 const SidebarNhanVien = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
+
   
   // Trạng thái đóng/mở modal xác nhận
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -37,7 +40,7 @@ const SidebarNhanVien = () => {
           <Link 
             key={item.path} 
             to={item.path} 
-            className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
+            className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
           >
             {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
           </Link>

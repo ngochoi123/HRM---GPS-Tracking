@@ -9,19 +9,20 @@ app.use(express.json());
 
 // 1. IMPORT ROUTES
 const authRoutes = require('./routes/authRoutes');
-const adminRoutes = require('./routes/AdminRoutes'); // Đã gộp location vào đây
+const adminRoutes = require('./routes/AdminRoutes');
 const dashboardRoutes = require("./routes/dashboard");
 const departmentRoutes = require("./routes/departmentRoutes");
 const branchRoutes = require('./routes/branchesRoutes');
-const employeeRoutes = require('./routes/EmployeeRoutes'); // Đưa lên đây
-
+const employeeRoutes = require('./routes/EmployeeRoutes'); 
+const managementRoutes = require('./routes/managementRoutes'); 
 // 2. KHAI BÁO ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/departments", departmentRoutes);
 app.use('/api/branches', branchRoutes);
-app.use('/api/employee', employeeRoutes); // Đưa lên đây, TRƯỚC app.listen
+app.use('/api/employee', employeeRoutes);
+app.use('/api/manager', managementRoutes);
 
 // 3. TEST KẾT NỐI DB
 db.authenticate()
