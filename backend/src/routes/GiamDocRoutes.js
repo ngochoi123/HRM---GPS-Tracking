@@ -6,5 +6,7 @@ router.post('/positions', GiamDocController.createPosition);
 router.put('/positions/:id', GiamDocController.updatePosition);
 router.delete('/positions/:id', GiamDocController.deletePosition);
 router.get('/contracts', GiamDocController.getContracts);
-router.delete('/contracts/:id', GiamDocController.deleteContract);
+router.get('/contract-form-options', GiamDocController.getContractFormOptions);
+router.put('/contracts/:id', GiamDocController.updateContract);
+router.post('/contracts', GiamDocController.createContract);
 module.exports = router;

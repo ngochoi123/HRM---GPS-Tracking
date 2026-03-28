@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, FileText, Eye, Edit2, Clock, Loader2 } from 'lucide-react';
-//import AddEditContract from './AddEditContract';
+import { Search, Plus, FileText, Eye, Edit2, Clock, Loader2, Coins } from 'lucide-react';
+import AddEditContract from './AddEditContract';
+import ViewContract from './ViewContract'; // 👉 Đã Import màn hình xem
 
 export default function ContractManagement() {
   const [contracts, setContracts] = useState([]);
@@ -12,9 +13,10 @@ export default function ContractManagement() {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  // States quản lý Form
+  // 👉 States quản lý Form & View
   const [isAdding, setIsAdding] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
+  const [viewingContract, setViewingContract] = useState(null); // 👉 Thêm State này
 
   const fetchContracts = async () => {
     setLoading(true);
@@ -34,30 +36,27 @@ export default function ContractManagement() {
     fetchContracts();
   }, []);
 
-  // 🎨 Cấu hình hiển thị Loại hợp đồng
+  // Format Tiền
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+  };
+
+  // Cấu hình Badge
   const getTypeBadge = (typeCode, typeName) => {
     switch (typeCode) {
-      case 'indefinite':
-        return <span className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold">{typeName}</span>;
-      case 'probation':
-        return <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">{typeName}</span>;
-      default:
-        return <span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">{typeName}</span>;
+      case 'indefinite': return <span className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold">{typeName}</span>;
+      case 'probation': return <span className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">{typeName}</span>;
+      default: return <span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">{typeName}</span>;
     }
   };
 
-  // 🎨 Cấu hình hiển thị Trạng thái
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'active':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Còn hiệu lực</span>;
-      case 'expiring_soon':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Sắp hết hạn</span>;
+      case 'active': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Còn hiệu lực</span>;
+      case 'expiring_soon': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Sắp hết hạn</span>;
       case 'expired':
-      case 'terminated':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-400 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Đã chấm dứt</span>;
-      default:
-        return null;
+      case 'terminated': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-400 rounded-full text-xs font-bold"><span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Đã chấm dứt</span>;
+      default: return null;
     }
   };
 
@@ -66,7 +65,22 @@ export default function ContractManagement() {
     return new Date(dateStr).toLocaleDateString('vi-VN');
   };
 
-  // NẾU ĐANG BẤM NÚT THÊM / SỬA -> Hiển thị form
+  // 👉 NẾU ĐANG XEM CHI TIẾT -> Render màn hình ViewContract
+  if (viewingContract) {
+    return (
+      <ViewContract 
+        contract={viewingContract}
+        onBack={() => setViewingContract(null)}
+        onEdit={() => {
+          // Bấm sửa thì tắt Xem và mở Sửa
+          setEditingContract(viewingContract);
+          setViewingContract(null);
+        }}
+      />
+    );
+  }
+
+  // NẾU ĐANG BẤM NÚT THÊM / SỬA -> Hiển thị form AddEdit
   if (isAdding || editingContract) {
     return (
       <AddEditContract 
@@ -75,7 +89,7 @@ export default function ContractManagement() {
         onSaveSuccess={() => {
           setIsAdding(false);
           setEditingContract(null);
-          fetchContracts(); // Cập nhật lại list sau khi lưu
+          fetchContracts(); 
         }}
       />
     );
@@ -107,7 +121,6 @@ export default function ContractManagement() {
           </div>
           
           <div className="flex gap-3">
-            {/* Nút Xuất Excel đã được gỡ bỏ khỏi đây */}
             <button 
               onClick={() => setIsAdding(true)}
               className="bg-cyan-500 hover:bg-cyan-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-semibold transition-all shadow-sm shadow-cyan-200"
@@ -121,15 +134,8 @@ export default function ContractManagement() {
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Tìm theo mã HĐ, tên nhân viên..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all shadow-sm"
-            />
+            <input type="text" placeholder="Tìm theo mã HĐ, tên nhân viên..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-cyan-400 transition-all shadow-sm" />
           </div>
-          
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full md:w-56 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
             <option value="ALL">Tất cả loại HĐ</option>
             <option value="indefinite">Vô thời hạn</option>
@@ -137,7 +143,6 @@ export default function ContractManagement() {
             <option value="fixed_1y">Xác định TH (1 năm)</option>
             <option value="fixed_3y">Xác định TH (3 năm)</option>
           </select>
-
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full md:w-48 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
             <option value="ALL">Tất cả trạng thái</option>
             <option value="active">Còn hiệu lực</option>
@@ -156,6 +161,7 @@ export default function ContractManagement() {
                   <th className="py-4 px-6">NHÂN VIÊN</th>
                   <th className="py-4 px-6">LOẠI HỢP ĐỒNG</th>
                   <th className="py-4 px-6">THỜI HẠN</th>
+                  <th className="py-4 px-6 text-right">LƯƠNG CƠ BẢN</th>
                   <th className="py-4 px-6 text-center">TRẠNG THÁI</th>
                   <th className="py-4 px-6 text-center">THAO TÁC</th>
                 </tr>
@@ -163,9 +169,9 @@ export default function ContractManagement() {
               
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr><td colSpan="6" className="py-10 text-center"><Loader2 className="animate-spin text-cyan-500 mx-auto mb-2" size={32} /></td></tr>
+                  <tr><td colSpan="7" className="py-10 text-center"><Loader2 className="animate-spin text-cyan-500 mx-auto mb-2" size={32} /></td></tr>
                 ) : filteredContracts.length === 0 ? (
-                  <tr><td colSpan="6" className="py-10 text-center text-slate-500">Chưa có dữ liệu hợp đồng.</td></tr>
+                  <tr><td colSpan="7" className="py-10 text-center text-slate-500">Chưa có dữ liệu hợp đồng.</td></tr>
                 ) : (
                   filteredContracts.map((c) => (
                     <tr key={c.id} className={`hover:bg-slate-50/70 transition-colors group ${!c.isActive ? 'opacity-60' : ''}`}>
@@ -192,12 +198,25 @@ export default function ContractManagement() {
                           </p>
                         )}
                       </td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-emerald-600">
+                          <Coins size={14} className="text-emerald-500" />
+                          {formatCurrency(c.baseSalary)}
+                        </div>
+                      </td>
                       <td className="py-4 px-6 text-center">{getStatusBadge(c.status)}</td>
                       <td className="py-4 px-6">
                         <div className="flex justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                          <button className="w-8 h-8 rounded-full bg-cyan-50 flex items-center justify-center text-cyan-500 hover:bg-cyan-500 hover:text-white transition-colors" title="Xem">
+                          
+                          {/* 👉 NÚT XEM CHI TIẾT */}
+                          <button 
+                            onClick={() => setViewingContract(c)}
+                            className="w-8 h-8 rounded-full bg-cyan-50 flex items-center justify-center text-cyan-500 hover:bg-cyan-500 hover:text-white transition-colors" 
+                            title="Xem chi tiết"
+                          >
                             <Eye size={15} />
                           </button>
+
                           <button 
                             onClick={() => setEditingContract(c)}
                             className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors" 

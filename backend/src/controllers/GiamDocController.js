@@ -126,8 +126,13 @@ const deletePosition = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi Server khi xóa chức vụ' });
   }
 };
+// ==========================================
+// QUẢN LÝ HỢP ĐỒNG LAO ĐỘNG
+// ==========================================
+
 const getContracts = async (req, res) => {
   try {
+    // 👉 ĐÃ THÊM: c.base_salary, c.allowances
     const query = `
       SELECT 
         c.id, 
@@ -135,6 +140,8 @@ const getContracts = async (req, res) => {
         c.contract_type, 
         c.start_date, 
         c.end_date, 
+        c.base_salary,
+        c.allowances,
         c.is_active,
         e.id AS employee_id,
         e.full_name AS employee_name, 
@@ -149,26 +156,24 @@ const getContracts = async (req, res) => {
 
     // Format dữ liệu trước khi trả về FE
     const formattedData = contracts.map(c => {
-      // 1. Tính toán trạng thái hợp đồng (Còn hạn, Sắp hết hạn, Hết hạn)
       let status = 'active';
       let daysLeft = null;
 
       if (!c.is_active) {
-        status = 'terminated'; // Đã chấm dứt
+        status = 'terminated'; 
       } else if (c.end_date) {
         const endDate = new Date(c.end_date);
         const now = new Date();
         const diffTime = endDate - now;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays < 0) status = 'expired'; // Hết hạn
+        if (diffDays < 0) status = 'expired'; 
         else if (diffDays <= 30) {
-          status = 'expiring_soon'; // Sắp hết hạn (Dưới 30 ngày)
+          status = 'expiring_soon'; 
           daysLeft = diffDays;
         }
       }
 
-      // 2. Format Tên loại hợp đồng
       const typeMap = {
         'probation': 'Thử việc',
         'fixed_1y': 'Xác định TH (1 năm)',
@@ -187,7 +192,9 @@ const getContracts = async (req, res) => {
         endDate: c.end_date,
         status: status,
         daysLeft: daysLeft,
-        isActive: c.is_active
+        isActive: c.is_active,
+        baseSalary: c.base_salary, // 👉 Gửi xuống FE để form Edit đọc
+        allowances: c.allowances || [] // 👉 Gửi xuống FE để form Edit đọc
       };
     });
 
@@ -198,24 +205,127 @@ const getContracts = async (req, res) => {
   }
 };
 
-const deleteContract = async (req, res) => {
+
+// 1. Lấy danh sách Nhân viên và Chức vụ cho Combobox
+const getContractFormOptions = async (req, res) => {
   try {
-    const { id } = req.params;
-    // Thay vì xóa cứng, ta chuyển is_active = false để lưu lịch sử
-    await db.query("UPDATE contract SET is_active = false WHERE id = :id", {
-      replacements: { id }, type: db.QueryTypes.UPDATE
-    });
-    res.status(200).json({ success: true, message: 'Đã chấm dứt hợp đồng!' });
+    // Lấy nhân viên kèm ID chức vụ hiện tại
+    const employees = await db.query(`
+      SELECT id, full_name, employee_code, position_id 
+      FROM employee 
+      WHERE status = 'active' 
+      ORDER BY full_name ASC
+    `, { type: db.QueryTypes.SELECT });
+    
+    // Lấy danh sách chức vụ kèm mức lương sàn
+    const positions = await db.query(`
+      SELECT id, position_name, base_salary_min 
+      FROM position 
+      ORDER BY position_name ASC
+    `, { type: db.QueryTypes.SELECT });
+
+    res.status(200).json({ employees, positions });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Lỗi Server' });
+    console.error('Lỗi getContractFormOptions:', error);
+    res.status(500).json({ message: 'Lỗi Server' });
   }
 };
 
+// 2. Tạo hợp đồng mới (Có cập nhật chức vụ cho nhân viên)
+const createContract = async (req, res) => {
+  const t = await db.transaction();
+  try {
+    const { employee_id, position_id, contract_type, start_date, end_date, basic_salary, allowances } = req.body;
+    
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const contract_number = `HD-${new Date().getFullYear()}-${randomSuffix}`;
+
+    // 👉 Ép kiểu CAST(:allowances AS JSONB) để Postgres hiểu đây là mảng động
+    const insertQuery = `
+      INSERT INTO contract (contract_number, employee_id, contract_type, start_date, end_date, base_salary, allowances)
+      VALUES (:contract_number, :employee_id, :contract_type, :start_date, :end_date, :base_salary, CAST(:allowances AS JSONB))
+    `;
+    await db.query(insertQuery, {
+      replacements: {
+        contract_number, employee_id, contract_type, start_date,
+        end_date: end_date || null,
+        base_salary: basic_salary || 0,
+        allowances: JSON.stringify(allowances || []) 
+      },
+      type: db.QueryTypes.INSERT,
+      transaction: t
+    });
+
+    if (position_id) {
+      await db.query(`UPDATE employee SET position_id = :position_id WHERE id = :employee_id`, {
+        replacements: { position_id, employee_id },
+        type: db.QueryTypes.UPDATE,
+        transaction: t
+      });
+    }
+
+    await t.commit();
+    res.status(201).json({ success: true, message: 'Tạo hợp đồng và cập nhật chức vụ thành công!' });
+  } catch (error) {
+    await t.rollback();
+    console.error('Lỗi createContract:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server khi tạo hợp đồng' });
+  }
+};
+
+// 3. CẬP NHẬT HỢP ĐỒNG (Bỏ updated_at và ép kiểu JSONB)
+const updateContract = async (req, res) => {
+  const t = await db.transaction();
+  try {
+    const { id } = req.params;
+    const { employee_id, position_id, contract_type, start_date, end_date, basic_salary, allowances } = req.body;
+
+    // 👉 Đã xóa dòng updated_at = NOW() để tránh lỗi DB không có cột này
+    const updateQuery = `
+      UPDATE contract
+      SET contract_type = :contract_type,
+          start_date = :start_date,
+          end_date = :end_date,
+          base_salary = :base_salary,
+          allowances = CAST(:allowances AS JSONB)
+      WHERE id = :id
+    `;
+    await db.query(updateQuery, {
+      replacements: {
+        id, contract_type, start_date,
+        end_date: end_date || null,
+        base_salary: basic_salary || 0,
+        allowances: JSON.stringify(allowances || [])
+      },
+      type: db.QueryTypes.UPDATE,
+      transaction: t
+    });
+
+    // Cập nhật chức vụ cho Nhân viên
+    if (employee_id && position_id) {
+      await db.query(`UPDATE employee SET position_id = :position_id WHERE id = :employee_id`, {
+        replacements: { position_id, employee_id },
+        type: db.QueryTypes.UPDATE,
+        transaction: t
+      });
+    }
+
+    await t.commit();
+    res.status(200).json({ success: true, message: 'Cập nhật hợp đồng thành công!' });
+  } catch (error) {
+    await t.rollback();
+    console.error('Lỗi updateContract:', error);
+    res.status(500).json({ success: false, message: 'Lỗi Server khi cập nhật' });
+  }
+};
+// NHỚ EXPORT ĐẦY ĐỦ RA NHÉ
 module.exports = {
-    getPositions,
+  getPositions,
   createPosition,
   updatePosition,
   deletePosition,
-    getContracts,
-    deleteContract
+  getContracts,
+  getContractFormOptions, 
+  createContract,       
+  updateContract          
 };

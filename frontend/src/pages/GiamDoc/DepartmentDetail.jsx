@@ -27,15 +27,20 @@ export default function DepartmentDetail() {
   }, []);
 
   const fetchData = async () => {
-    const depRes = await axios.get("http://localhost:5000/api/departments");
-    const empRes = await axios.get(
-      `http://localhost:5000/api/departments/${id}/employees`
-    );
-
-    const found = depRes.data.find((d) => d.id == id);
-
-    setDepartment(found);
-    setEmployees(empRes.data || []);
+    try {
+      const depRes = await axios.get(
+        `http://localhost:5000/api/director/departments/${id}`
+      );
+  
+      const empRes = await axios.get(
+        `http://localhost:5000/api/director/departments/${id}/employees`
+      );
+  
+      setDepartment(depRes.data);
+      setEmployees(empRes.data || []);
+    } catch (err) {
+      console.error("Lỗi fetch:", err);
+    }
   };
 
   if (!department) return <div className="p-6">Loading...</div>;

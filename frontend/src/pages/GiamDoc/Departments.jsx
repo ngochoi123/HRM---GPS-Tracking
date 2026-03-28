@@ -21,12 +21,26 @@ export default function Departments() {
     try {
       setLoading(true);
 
-      const res = await axios.get("http://localhost:5000/api/departments");
+      const res = await axios.get(
+        "http://localhost:5000/api/director/departments",
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        }
+      );
+
       setDepartments(res.data || []);
 
     } catch (err) {
       console.log("🔥 Lỗi load departments:", err.response?.data);
-      toast.error("Không tải được danh sách phòng ban");
+
+      if (err.response?.status === 401) {
+        navigate("/login");
+      } else {
+        toast.error("Không tải được danh sách phòng ban");
+      }
+
       setDepartments([]);
     } finally {
       setLoading(false);
@@ -82,7 +96,6 @@ export default function Departments() {
           </div>
         </div>
       ) : (
-        /* TABLE */
         <div className="bg-white rounded-2xl shadow border overflow-hidden">
           <table className="w-full text-sm">
 

@@ -33,7 +33,7 @@ export default function EditDepartment() {
   const fetchDepartment = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/departments/${id}`
+        `http://localhost:5000/api/director/departments/${id}`
       );
 
       const data = res.data?.data || res.data;
@@ -58,9 +58,9 @@ export default function EditDepartment() {
   const fetchBranches = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/branches"
+        "http://localhost:5000/api/director/branches"
       );
-      setBranches(res.data || []);
+      setBranches(res.data?.data || res.data || []);
     } catch (err) {
       console.log(err);
       toast.error("Không tải được chi nhánh");
@@ -70,11 +70,11 @@ export default function EditDepartment() {
   const fetchManagers = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/departments/${id}/employees`
+        `http://localhost:5000/api/director/departments/${id}/employees`
       );
-
+  
       setManagers(res.data || []);
-
+  
     } catch (err) {
       console.log("Lỗi load managers:", err);
       toast.error("Không tải được danh sách nhân sự");
@@ -86,7 +86,7 @@ export default function EditDepartment() {
       setSaving(true);
 
       await axios.put(
-        `http://localhost:5000/api/departments/${id}`,
+        `http://localhost:5000/api/director/departments/${id}`,
         form
       );
 

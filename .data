@@ -1,0 +1,264 @@
+-- ==========================================
+-- 1. CÀI ĐẶT EXTENSION & ENUM TYPES
+-- ==========================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
+CREATE TYPE public.attendance_status AS ENUM ('on_time', 'late', 'early_leave', 'absent');
+CREATE TYPE public.contract_type AS ENUM ('probation', 'fixed_1y', 'fixed_3y', 'indefinite');
+CREATE TYPE public.decision_form AS ENUM ('money', 'gift', 'warning', 'certificate', 'fire');
+CREATE TYPE public.decision_type AS ENUM ('reward', 'discipline');
+CREATE TYPE public.employee_status AS ENUM ('active', 'on_leave', 'inactive');
+CREATE TYPE public.leave_type AS ENUM ('annual', 'sick', 'unpaid', 'ot', 'maternity', 'bereavement');
+CREATE TYPE public.location_type AS ENUM ('branch', 'client_site', 'wfh', 'department_site');
+CREATE TYPE public.notification_type AS ENUM ('info', 'warning', 'system');
+CREATE TYPE public.payroll_status AS ENUM ('draft', 'pending_approval', 'approved', 'paid');
+CREATE TYPE public.position_level AS ENUM ('intern', 'fresher', 'junior', 'middle', 'senior', 'manager', 'director');
+CREATE TYPE public.request_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE public.user_status AS ENUM ('active', 'locked');
+
+-- ==========================================
+-- 2. TẠO BẢNG (TABLES) THEO THỨ TỰ PHỤ THUỘC
+-- ==========================================
+
+-- Bảng Branch
+CREATE TABLE public.branch (
+    id SERIAL PRIMARY KEY,
+    branch_code VARCHAR(50) UNIQUE NOT NULL,
+    branch_name VARCHAR(255) NOT NULL,
+    address VARCHAR(500),
+    allowed_ips TEXT[],
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Department (Chưa gán khóa ngoại manager_id để tránh lỗi vòng lặp với bảng Employee)
+CREATE TABLE public.department (
+    id SERIAL PRIMARY KEY,
+    department_code VARCHAR(50) UNIQUE NOT NULL,
+    department_name VARCHAR(255) NOT NULL,
+    branch_id INTEGER REFERENCES public.branch(id) ON DELETE SET NULL,
+    manager_id UUID, 
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    description VARCHAR(100)
+);
+
+-- Bảng Position
+CREATE TABLE public.position (
+    id SERIAL PRIMARY KEY,
+    position_code VARCHAR(50) UNIQUE NOT NULL,
+    position_name VARCHAR(255) NOT NULL,
+    department_id INTEGER REFERENCES public.department(id) ON DELETE CASCADE,
+    level public.position_level NOT NULL,
+    base_salary_min NUMERIC(15,2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Employee
+CREATE TABLE public.employee (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_code VARCHAR(50) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    personal_email VARCHAR(255),
+    work_email VARCHAR(255) UNIQUE,
+    phone_number VARCHAR(20),
+    date_of_birth DATE,
+    identity_card_number VARCHAR(20),
+    gender BOOLEAN,
+    bank_account_number VARCHAR(50),
+    bank_name VARCHAR(100),
+    avatar_url VARCHAR(500),
+    position_id INTEGER REFERENCES public.position(id) ON DELETE SET NULL,
+    direct_manager_id UUID REFERENCES public.employee(id) ON DELETE SET NULL,
+    join_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    status public.employee_status DEFAULT 'active',
+    address TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cập nhật khóa ngoại manager_id cho Department sau khi đã có Employee
+ALTER TABLE public.department 
+    ADD CONSTRAINT fk_dept_manager FOREIGN KEY (manager_id) REFERENCES public.employee(id) ON DELETE SET NULL;
+
+-- Bảng User Account
+CREATE TABLE public.user_account (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID UNIQUE REFERENCES public.employee(id) ON DELETE CASCADE,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role_code VARCHAR(50) NOT NULL,
+    status public.user_status DEFAULT 'active',
+    last_login TIMESTAMPTZ,
+    require_pass_change BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Contract
+CREATE TABLE public.contract (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contract_number VARCHAR(100) UNIQUE NOT NULL,
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    contract_type public.contract_type NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    base_salary NUMERIC(15,2) NOT NULL,
+    allowances JSONB,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Payroll
+CREATE TABLE public.payroll (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    month_year VARCHAR(10) NOT NULL,
+    base_salary_snapshot NUMERIC(15,2) NOT NULL,
+    total_work_days NUMERIC(5,2) DEFAULT 0,
+    total_allowance NUMERIC(15,2) DEFAULT 0,
+    total_deduction NUMERIC(15,2) DEFAULT 0,
+    net_salary NUMERIC(15,2) NOT NULL,
+    status public.payroll_status DEFAULT 'draft',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (employee_id, month_year)
+);
+
+-- Bảng HR Decision
+CREATE TABLE public.hr_decision (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    decision_number VARCHAR(100) UNIQUE NOT NULL,
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    decision_type public.decision_type NOT NULL,
+    form public.decision_form NOT NULL,
+    amount NUMERIC(15,2) DEFAULT 0,
+    reason TEXT NOT NULL,
+    issue_date DATE NOT NULL,
+    issuer_id UUID REFERENCES public.employee(id) ON DELETE SET NULL,
+    payroll_id UUID REFERENCES public.payroll(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Work Location
+CREATE TABLE public.work_location (
+    id SERIAL PRIMARY KEY,
+    location_name VARCHAR(255) NOT NULL,
+    location_type public.location_type NOT NULL,
+    latitude NUMERIC(10,6) NOT NULL CHECK (latitude >= -90 AND latitude <= 90),
+    longitude NUMERIC(10,6) NOT NULL CHECK (longitude >= -180 AND longitude <= 180),
+    radius_meters INTEGER DEFAULT 100 CHECK (radius_meters > 0),
+    branch_id INTEGER REFERENCES public.branch(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Attendance
+CREATE TABLE public.attendance (
+    id BIGSERIAL PRIMARY KEY,
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    work_location_id INTEGER REFERENCES public.work_location(id) ON DELETE SET NULL,
+    attendance_date DATE NOT NULL,
+    check_in_time TIMESTAMPTZ,
+    check_out_time TIMESTAMPTZ,
+    check_in_latitude NUMERIC(10,6),
+    check_in_longitude NUMERIC(10,6),
+    check_out_latitude NUMERIC(10,6),
+    check_out_longitude NUMERIC(10,6),
+    device_ip VARCHAR(50),
+    status public.attendance_status,
+    total_work_hours NUMERIC(5,2) DEFAULT 0,
+    payroll_id UUID REFERENCES public.payroll(id) ON DELETE SET NULL,
+    UNIQUE (employee_id, attendance_date)
+);
+
+-- Bảng Leave Request
+CREATE TABLE public.leave_request (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    leave_type public.leave_type NOT NULL,
+    start_datetime TIMESTAMPTZ NOT NULL,
+    end_datetime TIMESTAMPTZ NOT NULL,
+    reason TEXT,
+    approver_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    status public.request_status DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Overtime Request
+CREATE TABLE public.overtime_request (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID REFERENCES public.employee(id) ON DELETE RESTRICT,
+    payroll_id UUID REFERENCES public.payroll(id) ON DELETE SET NULL,
+    ot_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    reason TEXT NOT NULL,
+    approver_id UUID REFERENCES public.employee(id) ON DELETE SET NULL,
+    status public.request_status DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Location Assignment
+CREATE TABLE public.location_assignment (
+    id BIGSERIAL PRIMARY KEY,
+    employee_id UUID NOT NULL REFERENCES public.employee(id) ON DELETE CASCADE,
+    work_location_id INTEGER NOT NULL REFERENCES public.work_location(id) ON DELETE CASCADE,
+    assigned_date DATE,
+    is_temporary BOOLEAN DEFAULT false,
+    status public.request_status DEFAULT 'approved',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Notification
+CREATE TABLE public.notification (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_id UUID REFERENCES public.employee(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    notification_type public.notification_type DEFAULT 'info',
+    target VARCHAR(255) DEFAULT 'Tất cả nhân viên',
+    "desc" VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'Đã gửi',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Notification Recipient
+CREATE TABLE public.notification_recipient (
+    id BIGSERIAL PRIMARY KEY,
+    notification_id UUID REFERENCES public.notification(id) ON DELETE CASCADE,
+    employee_id UUID REFERENCES public.employee(id) ON DELETE CASCADE,
+    is_read BOOLEAN DEFAULT false,
+    read_at TIMESTAMPTZ,
+    UNIQUE (notification_id, employee_id)
+);
+
+-- Bảng System Config
+CREATE TABLE public.system_config (
+    config_key VARCHAR(50) PRIMARY KEY,
+    config_value VARCHAR(255) NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- 3. TẠO INDEX ĐỂ TỐI ƯU HIỆU SUẤT TRUY VẤN
+-- ==========================================
+CREATE INDEX idx_att_date ON public.attendance (attendance_date);
+CREATE INDEX idx_att_payroll ON public.attendance (payroll_id);
+CREATE INDEX idx_decision_issuer ON public.hr_decision (issuer_id);
+CREATE INDEX idx_decision_payroll ON public.hr_decision (payroll_id);
+CREATE INDEX idx_emp_work_email ON public.employee (work_email);
+CREATE INDEX idx_loc_assignment ON public.location_assignment (employee_id, assigned_date);
+CREATE INDEX idx_notif_unread ON public.notification_recipient (employee_id) WHERE (is_read = false);
+CREATE INDEX idx_ot_payroll ON public.overtime_request (payroll_id);
+CREATE INDEX idx_payroll_period ON public.payroll (month_year);
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS target_department_id INTEGER REFERENCES department(id) ON DELETE SET NULL;
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS target_employee_id UUID REFERENCES employee(id) ON DELETE SET NULL;
+ALTER TABLE branch
+ADD COLUMN province VARCHAR(100),
+ADD COLUMN hotline VARCHAR(50),
+ADD COLUMN email VARCHAR(255),
+ADD COLUMN description TEXT;
+ALTER TABLE notification ADD COLUMN target VARCHAR(255) DEFAULT 'Tất cả nhân viên';
+ALTER TABLE notification ADD COLUMN "desc" VARCHAR(255);
+ALTER TABLE notification ADD COLUMN status VARCHAR(50) DEFAULT 'Đã gửi';

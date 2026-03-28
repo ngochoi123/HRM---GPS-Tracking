@@ -25,8 +25,12 @@ import DepartmentDetail from './pages/GiamDoc/DepartmentDetail';
 import DepartmentCreate from "./pages/GiamDoc/DepartmentCreate";
 import EditDepartment from "./pages/GiamDoc/EditDepartment";
 import DeleteDepartment from "./pages/GiamDoc/DeleteDepartment";
+import BranchesCreate from "./pages/GiamDoc/BranchesCreate";
+import BranchesDetail from "./pages/GiamDoc/BranchesDetail";
+import BranchesEdit from "./pages/GiamDoc/BranchesEdit";
+import BranchesDelete from "./pages/GiamDoc/BranchesDelete";
 
-// ===== QUẢN LÝ (ĐÃ CẬP NHẬT CHUẨN THEO FOLDER TỪ COPILOT) =====
+// ===== QUẢN LÝ =====
 import ManagerDashboard from './pages/QuanLy/Dashboard';
 import ManagerCheckIn from './pages/QuanLy/CheckIn';
 import MyRequests from './pages/QuanLy/MyRequests';
@@ -87,45 +91,41 @@ function App() {
           <Route path="/GiamDoc/dashboard" element={<GiamDocDashboard />} />
           <Route path="/GiamDoc/departments" element={<Departments />} />
           <Route path="/GiamDoc/departments/create" element={<DepartmentCreate />} />
-
-          {/* ROUTE CỤ THỂ */}
           <Route path="/GiamDoc/departments/edit/:id" element={<EditDepartment />} />
           <Route path="/GiamDoc/departments/delete/:id" element={<DeleteDepartment />} />
-
-          {/* ROUTE CHUNG */}
           <Route path="/GiamDoc/departments/:id" element={<DepartmentDetail />} />
 
-          <Route path="/GiamDoc/contracts" element={<Contracts />} />
           <Route path="/GiamDoc/branches" element={<Branches />} />
+          <Route path="/GiamDoc/branches/create" element={<BranchesCreate />} />
+          <Route path="/GiamDoc/branches/edit/:id" element={<BranchesEdit />} />
+          <Route path="/GiamDoc/branches/delete/:id" element={<BranchesDelete />} />
+          <Route path="/GiamDoc/branches/:id" element={<BranchesDetail />} />
+
+          <Route path="/GiamDoc/contracts" element={<Contracts />} />
           <Route path="/GiamDoc/positions" element={<Positions />} />
           <Route path="/GiamDoc/approvals" element={<Approvals />} />
-          <Route path="/GiamDoc/departments/edit/:id" element={<EditDepartment />}/>
-          <Route path="/GiamDoc/departments/delete/:id" element={<DeleteDepartment />} />
-          
+
           {/* ===== QUẢN LÝ ===== */}
-          {/* 1. Nhóm chức năng CÁ NHÂN */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
           <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} /> 
           <Route path="/QuanLy/my-requests" element={<MyRequests />} />
           <Route path="/QuanLy/my-salary" element={<MySalary />} />
 
-          {/* 2. Nhóm chức năng QUẢN LÝ */}
           <Route path="/QuanLy/employees" element={<EmployeeManagement />} />
-          <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} /> {/* Dùng Component Alias */}
-          <Route path="/QuanLy/payroll" element={<PayrollQuanLy />} />     {/* Dùng Component Alias */}
+          <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} />
+          <Route path="/QuanLy/payroll" element={<PayrollQuanLy />} />
           <Route path="/QuanLy/rewards-discipline" element={<RewardsDiscipline />} />
           <Route path="/QuanLy/notifications" element={<NotificationPage />} />
-          
+
           {/* ===== NHÂN VIÊN ===== */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
           <Route path="/NhanVien/checkin" element={<CheckIn />} />
-          {/* Chỗ này để nguyên CheckIn viết hoa để đề phòng sai URL trên sidebar */}
-          <Route path="/NhanVien/CheckIn" element={<CheckIn />} /> 
+          <Route path="/NhanVien/CheckIn" element={<CheckIn />} /> {/* giữ để tránh sai URL */}
           <Route path="/NhanVien/payroll" element={<Payroll />} />
           <Route path="/NhanVien/requests" element={<Requests />} />
           <Route path="/NhanVien/profile" element={<Profile />} />
           <Route path="/NhanVien/contracts" element={<Contract />} />
-          
+
         </Route>
 
         {/* ===== 404 ===== */}

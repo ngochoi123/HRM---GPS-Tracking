@@ -2,14 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import {
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  Eye,
-  Loader2
-} from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Eye, Loader2 } from "lucide-react";
 
 export default function Branches() {
   const [search, setSearch] = useState("");
@@ -20,10 +13,8 @@ export default function Branches() {
   const fetchBranches = async () => {
     try {
       setLoading(true);
-
-      const res = await axios.get("http://localhost:5000/api/branches");
+      const res = await axios.get("http://localhost:5000/api/director/branches");
       setBranches(res.data || []);
-
     } catch (err) {
       console.log("🔥 Lỗi load branches:", err.response?.data);
       toast.error("Không tải được danh sách chi nhánh");
@@ -84,7 +75,6 @@ export default function Branches() {
       ) : (
         <div className="bg-white rounded-2xl shadow border overflow-hidden">
           <table className="w-full text-sm">
-
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
               <tr>
                 <th className="text-left px-6 py-3">Mã CN</th>
@@ -98,51 +88,57 @@ export default function Branches() {
 
             <tbody>
               {filtered.map((b) => (
-                <tr key={b.id} className="border-t hover:bg-green-50">
-
+                <tr
+                  key={b.id}
+                  className="border-t hover:bg-green-50 cursor-pointer"
+                >
                   <td className="px-6 py-4 font-semibold text-green-600">
                     {b.branch_code}
                   </td>
-
-                  <td className="px-6 py-4 font-medium">
-                    {b.branch_name}
-                  </td>
-
-                  <td className="px-6 py-4 text-gray-500">
-                    {b.address || "-"}
-                  </td>
-
-                  <td className="px-6 py-4">
+                  <td>{b.branch_name}</td>
+                  <td className="text-gray-500">{b.address || "-"}</td>
+                  <td>
                     <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs">
-                      {b.total_departments} phòng
+                      {b.total_departments || 0} phòng
                     </span>
                   </td>
-
-                  <td className="px-6 py-4">
+                  <td>
                     <span className="bg-green-100 text-green-600 px-3 py-1 rounded-full text-xs">
-                      {b.total_employees} người
+                      {b.total_employees || 0} người
                     </span>
                   </td>
-
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2">
 
+                      {/* Eye button dẫn đến BranchesDetail */}
                       <button
-                        onClick={() => navigate(`/GiamDoc/branches/${b.id}`)}
-                        className="p-2 bg-blue-100 rounded-lg"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/GiamDoc/branches/${b.id}`);
+                        }}
+                        className="p-2 bg-blue-100 rounded-lg hover:bg-blue-200"
                       >
                         <Eye size={16} />
                       </button>
 
                       <button
-                        onClick={() => navigate(`/GiamDoc/branches/edit/${b.id}`)}
-                        className="p-2 bg-yellow-100 rounded-lg"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/GiamDoc/branches/edit/${b.id}`);
+                        }}
+                        className="p-2 bg-yellow-100 rounded-lg hover:bg-yellow-200"
                       >
                         <Pencil size={16} />
                       </button>
 
                       <button
-                        onClick={() => navigate(`/GiamDoc/branches/delete/${b.id}`)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/GiamDoc/branches/delete/${b.id}`);
+                        }}
                         className="p-2 bg-red-100 rounded-lg hover:bg-red-200"
                       >
                         <Trash2 size={16} />
@@ -150,7 +146,6 @@ export default function Branches() {
 
                     </div>
                   </td>
-
                 </tr>
               ))}
             </tbody>
@@ -163,7 +158,6 @@ export default function Branches() {
           )}
         </div>
       )}
-
     </div>
   );
 }

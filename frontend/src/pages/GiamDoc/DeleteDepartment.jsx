@@ -13,19 +13,36 @@ export default function DeleteDepartment() {
   const [confirmCode, setConfirmCode] = useState("");
   const [checked, setChecked] = useState(false);
   const [targetDepartment, setTargetDepartment] = useState("");
-  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [moveDepartmentId, setMoveDepartmentId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [hasEmployees, setHasEmployees] = useState(false);
+
+  // 🔥 Thêm state confirm đẹp
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     fetchDepartment();
     fetchDepartments();
-  }, []);
+  }, [id]);
 
   // 🔹 Lấy phòng ban hiện tại
   const fetchDepartment = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/departments/${id}`);
-      setDepartment(res.data);
+      setLoading(true);
+
+      const res = await axios.get(
+        `http://localhost:5000/api/director/departments/${id}`
+      );
+
+      const data = res.data?.data || res.data;
+
+      setDepartment(data);
+
+      if (data?.total_employees > 0) {
+        setHasEmployees(true);
+      }
+
     } catch (err) {
       console.log(err);
       toast.error("Không tải được thông tin phòng ban");
@@ -38,9 +55,11 @@ export default function DeleteDepartment() {
   const fetchDepartments = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/departments/dropdown/departments`
+        `http://localhost:5000/api/director/departments`
       );
-      setDepartments(res.data);
+
+      setDepartments(res.data?.data || res.data || []);
+
     } catch (err) {
       console.log(err);
       toast.error("Không tải được danh sách phòng ban");
@@ -49,49 +68,35 @@ export default function DeleteDepartment() {
 
   // 🔥 XÓA
   const handleDelete = async () => {
-    if (confirmCode.trim() !== String(department.department_code).trim()) {
-      toast.error("Mã phòng ban không đúng");
-      return;
-    }
-
-    if (!checked) {
-      toast.error("Bạn chưa xác nhận");
-      return;
-    }
-
-    if (department.total_employees > 0 && !targetDepartment) {
-      toast.error("Phải chọn phòng ban chuyển nhân sự");
-      return;
-    }
 
     try {
       setDeleting(true);
 
       await axios.delete(
-        `http://localhost:5000/api/departments/${id}`,
+        `http://localhost:5000/api/director/departments/${id}`,
         {
           data: {
-            move_to_department_id: targetDepartment || null,
-          },
+            move_to_department_id: targetDepartment || null
+          }
         }
       );
 
       toast.success("Xoá phòng ban thành công");
+      navigate("/GiamDoc/departments");
 
-      setTimeout(() => {
-        navigate("/GiamDoc/departments");
-      }, 1000);
+    } catch (error) {
+      console.error(error);
 
-    } catch (err) {
-      console.log(err);
-      toast.error("Xoá phòng ban thất bại");
+      toast.error(
+        error.response?.data?.message || "Lỗi xoá phòng ban"
+      );
     } finally {
       setDeleting(false);
     }
   };
 
   // 🔄 Loading page
-  if (loading) {
+  if (loading || !department) {
     return (
       <div className="p-10 flex justify-center items-center">
         <div className="flex gap-3 text-blue-500">
@@ -114,15 +119,13 @@ export default function DeleteDepartment() {
 
         {/* HEADER */}
         <div className="flex items-center justify-between relative">
-          {/* Nút quay lại góc trái */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/GiamDoc/departments")}
             className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg shadow hover:bg-gray-200 transition"
           >
             <ArrowLeft size={16} /> Quay lại
           </button>
 
-          {/* Title */}
           <div className="absolute left-1/2 -translate-x-1/2 text-center">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 justify-center">
               <AlertTriangle className="text-red-500" />
@@ -214,14 +217,14 @@ export default function DeleteDepartment() {
         {/* ACTION */}
         <div className="flex justify-end gap-3 pt-4 border-t">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/GiamDoc/departments")}
             className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
           >
             Hủy thao tác
           </button>
 
           <button
-            onClick={handleDelete}
+            onClick={() => setShowConfirm(true)}
             disabled={!canDelete || deleting}
             className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 transition ${
               !canDelete || deleting
@@ -234,6 +237,45 @@ export default function DeleteDepartment() {
           </button>
         </div>
       </div>
+
+      {/* 🔥 Confirm Modal đẹp */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-[400px]">
+
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="text-red-500" />
+              <h3 className="font-semibold text-lg">
+                Xác nhận xoá
+              </h3>
+            </div>
+
+            <p className="text-gray-600 mb-6">
+              Bạn có chắc muốn xoá phòng ban này không?
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+              >
+                Huỷ
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  handleDelete();
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Xoá
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
