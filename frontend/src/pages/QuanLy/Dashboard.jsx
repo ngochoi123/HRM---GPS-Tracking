@@ -1,15 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  RefreshCw,
-  Users,
-  UserCheck,
-  UserX,
-  Phone,
-  Bell,
-  MapPin,
-  Calendar,
-  AlertCircle
-} from "lucide-react";
+import {  RefreshCw,  Users,  UserCheck,  UserX,  Phone,  Bell,  MapPin,  Calendar,  AlertCircle} from "lucide-react";
 
 export default function DashboardQuanLy() {
   const [presentEmployees, setPresentEmployees] = useState([]);
@@ -24,11 +14,21 @@ export default function DashboardQuanLy() {
     day: "numeric",
   });
 
-  // 🚀 FETCH DATA
+  
   const fetchData = () => {
     // PRESENT
-    fetch("http://localhost:5000/api/dashboard/present")
-      .then((res) => res.json())
+    fetch("http://localhost:5000/api/manager/dashboard/present")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP Error! Status: ${res.status}`); // Ném lỗi nếu HTTP status không phải 2xx
+        }
+        // Kiểm tra xem content-type có phải là JSON không trước khi parse
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new TypeError("Oops, API không trả về JSON!");
+        }
+        return res.json();
+      })
       .then((data) => {
         const mapped = data.map((emp) => ({
           name: emp.full_name,
@@ -41,11 +41,22 @@ export default function DashboardQuanLy() {
         }));
         setPresentEmployees(mapped);
       })
-      .catch(err => console.error("Lỗi tải data hiện diện:", err));
+      .catch((err) => {
+        console.error("Lỗi tải data hiện diện:", err.message);
+        setPresentEmployees([]); // Set mảng rỗng để UI không bị lỗi undefined
+      });
 
     // ABSENT
-    fetch("http://localhost:5000/api/dashboard/absent")
-      .then((res) => res.json())
+    fetch("http://localhost:5000/api/manager/dashboard/absent")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP Error! Status: ${res.status}`);
+        
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new TypeError("Oops, API không trả về JSON!");
+        }
+        return res.json();
+      })
       .then((data) => {
         const mapped = data.map((emp) => ({
           name: emp.full_name,
@@ -54,7 +65,10 @@ export default function DashboardQuanLy() {
         }));
         setAbsentEmployees(mapped);
       })
-      .catch(err => console.error("Lỗi tải data vắng mặt:", err));
+      .catch((err) => {
+        console.error("Lỗi tải data vắng mặt:", err.message);
+        setAbsentEmployees([]); // Set mảng rỗng để UI không bị lỗi undefined
+      });
   };
 
   // LOAD LẦN ĐẦU

@@ -24,6 +24,8 @@ const managementRoutes = require('./routes/managementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
 // ================= USE ROUTES =================
+const GiamDocRoutes = require('./routes/GiamDocRoutes');
+// 2. KHAI BÁO ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/director', directorRoutes);   // ✅ giám đốc
@@ -44,6 +46,11 @@ app.use((err, req, res, next) => {
     message: 'Lỗi server',
     error: err.message
   });
+app.use('/api/giamdoc', GiamDocRoutes);
+
+// --- 3. ROUTES TEST ---
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API đang hoạt động tốt!' });
 });
 
 // ================= CONNECT DB =================

@@ -7,11 +7,14 @@ import { LuPhone } from "react-icons/lu";
 import { MdOutlineEmail } from "react-icons/md";
 import { FaAddressBook } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+
 import "./Profile.css";
 
 export default function Profile() {
     const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
 
   const [showContractModal, setShowContractModal] = useState(false);
 const [contractMessage, setContractMessage] = useState("");
@@ -40,7 +43,13 @@ const [contractMessage, setContractMessage] = useState("");
     navigate("/NhanVien/contracts");
   };
 
-  const handleChangePassword = async () => {
+const handleChangePassword = async () => {
+  // Kiểm tra mật khẩu mới vs xác nhận
+  if (newPassword !== confirmPassword) {
+    setModalMessage("Mật khẩu mới và xác nhận không khớp!");
+    return;
+  }
+
   try {
     const userLocal = JSON.parse(localStorage.getItem("user"));
 
@@ -53,11 +62,17 @@ const [contractMessage, setContractMessage] = useState("");
       }
     );
 
-    alert(res.data.message);
+    // Thành công
     setShowModal(false);
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setModalMessage("");
+
+    alert(res.data.message);
 
   } catch (err) {
-    alert(err.response?.data?.message || "Lỗi");
+    setModalMessage(err.response?.data?.message || "Lỗi khi đổi mật khẩu");
   }
 };
 
@@ -93,9 +108,7 @@ const [contractMessage, setContractMessage] = useState("");
               </p>
             </div>
 
-            <button className="btn-back-outline">
-              ← Quay lại
-            </button>
+
           </div>
 
           {/* ===== SUMMARY ===== */}
@@ -245,35 +258,44 @@ const [contractMessage, setContractMessage] = useState("");
           
         </div>
 
-        {showModal && (
-        <div className="modal" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3 >Đổi mật khẩu</h3>
+       {showModal && (
+          <div className="modal" onClick={() => setShowModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h3>Đổi mật khẩu</h3>
 
-            <input
-              type="password"
-              placeholder="Mật khẩu cũ"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-            />
+              <input
+                type="password"
+                placeholder="Mật khẩu cũ"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+              />
 
-            <input
-              type="password"
-              placeholder="Mật khẩu mới"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
+              <input
+                type="password"
+                placeholder="Mật khẩu mới"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
 
-            <button onClick={handleChangePassword} className="accpet">
-              Xác nhận
-            </button>
+              <input
+                type="password"
+                placeholder="Xác nhận mật khẩu mới"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
 
-            <button onClick={() => setShowModal(false)} className="canncel" >
-              Huỷ
-            </button>
+              {modalMessage && <p className="modal-error">{modalMessage}</p>}
+
+              <button onClick={handleChangePassword} className="accpet">
+                Xác nhận
+              </button>
+
+              <button onClick={() => setShowModal(false)} className="canncel">
+                Huỷ
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
         {showContractModal && (
   <div className="modal" onClick={() => setShowContractModal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -293,7 +315,7 @@ const [contractMessage, setContractMessage] = useState("");
 
     </div>
   </div>
-)}
+        )}
 
       </div>
     </div>

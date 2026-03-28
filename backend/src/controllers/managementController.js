@@ -1,6 +1,7 @@
 
 const db = require('../config/database'); 
 const bcrypt = require('bcrypt');
+const { sendAccountEmail } = require('../services/emailService');
 const getEmployees = async (req, res) => {
   try {
 
@@ -195,7 +196,6 @@ const getFormOptions = async (req, res) => {
   }
 };
 const createEmployee = async (req, res) => {
-  // Khởi tạo Transaction để đảm bảo tính toàn vẹn dữ liệu (Lưu cả Nhân viên + Tài khoản)
   const t = await db.transaction();
 
   try {
@@ -204,15 +204,12 @@ const createEmployee = async (req, res) => {
       identity_card_number, date_of_birth, gender, 
       bank_account_number, bank_name, status,
       work_email, position_id, department_id, join_date, direct_manager_id,
-      // 2 trường dành riêng cho tài khoản
-      username, password 
+      username, password, send_email // 👉 Lấy thêm send_email từ body
     } = req.body;
 
-    // 1. Tự động sinh Mã nhân viên (VD: NV-2026-XXXX)
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const employee_code = `NV-${new Date().getFullYear()}-${randomSuffix}`;
 
-    // 2. Insert vào bảng employee (Sử dụng RETURNING id để lấy ID vừa tạo)
     const insertEmpQuery = `
       INSERT INTO employee (
         employee_code, full_name, phone_number, personal_email, address, 
@@ -247,9 +244,8 @@ const createEmployee = async (req, res) => {
       transaction: t
     });
 
-    const newEmployeeId = empResult[0][0].id; // Lấy UUID vừa tạo
+    const newEmployeeId = empResult[0][0].id;
 
-    // 3. Mã hóa mật khẩu và Insert vào bảng user_account
     const saltRounds = 10;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
@@ -260,51 +256,58 @@ const createEmployee = async (req, res) => {
         :employee_id, :username, :password_hash, 'employee', true
       )
     `;
-    // Lưu ý: role_code mặc định là 'employee', require_pass_change = true để họ phải đổi pass lần đầu đăng nhập
 
     await db.query(insertUserQuery, {
       replacements: {
         employee_id: newEmployeeId,
-        username: username, // Ở FE sẽ bắt nhập đúng định dạng Email
+        username: username,
         password_hash: password_hash
       },
       type: db.QueryTypes.INSERT,
       transaction: t
     });
 
-    // 4. Nếu mọi thứ thành công -> Xác nhận Transaction
+    // ==========================================
+    // 4. MỌI THỨ THÀNH CÔNG -> GHI VÀO DATABASE
+    // ==========================================
     await t.commit();
 
-    const { send_email } = req.body;
+    // ==========================================
+    // 5. SAU KHI GHI XONG MỚI BẮT ĐẦU GỬI EMAIL
+    // ==========================================
     if (send_email === true || send_email === 'true') {
       try {
         await sendAccountEmail({
-        email: username,
-        subject: 'Chào mừng bạn đến với công ty - Thông tin tài khoản',
-        message: `Xin chào ${full_name},\n\nTài khoản của bạn là:\nUsername: ${username}\nPassword: ${password}\n\nVui lòng đổi mật khẩu trong lần đăng nhập đầu tiên.`
+          email: username,
+          subject: 'Thông tin tài khoản đăng nhập hệ thống',
+          message: `Xin chào ${full_name},\n\nTài khoản của bạn đã được tạo thành công:\n- Tên đăng nhập: ${username}\n- Mật khẩu: ${password}\n\nVui lòng đổi mật khẩu trong lần đăng nhập đầu tiên để bảo mật tài khoản.`
         });
-        console.log(`[Thành công] Đã gửi email cấp tài khoản tới: ${username}`);
+        console.log(`Đã gửi email cấp tài khoản tới: ${username}`);
+        
+        return res.status(201).json({ success: true, message: 'Thêm nhân viên và gửi email cấp tài khoản thành công!' });
       } catch (emailError) {
-        console.error('Lỗi khi gửi email cấp tài khoản:', emailError);
-        // Do đã Insert DB thành công nên vẫn trả về 201, nhưng kèm thông báo cảnh báo
+        console.error('Lỗi gửi email:', emailError);
+        // Trả về 201 vì DB đã ghi thành công, chỉ báo lỗi phần mail
         return res.status(201).json({ 
           success: true, 
-          message: 'Thêm nhân viên thành công, nhưng cấu hình gửi Email đang bị lỗi!' 
+          message: 'Đã thêm nhân viên thành công, nhưng cấu hình gửi Email đang bị lỗi. Vui lòng cấp lại pass sau.' 
         });
       }
     }
-    res.status(201).json({ success: true, message: 'Thêm nhân viên và cấp tài khoản thành công!' });
+
+    // Nếu không tick ô gửi mail
+    return res.status(201).json({ success: true, message: 'Thêm nhân viên và cấp tài khoản thành công!' });
 
   } catch (error) {
-    // Nếu có bất kỳ lỗi gì (VD: Trùng username) -> Hủy bỏ toàn bộ (Rollback)
-    await t.rollback();
-    console.error('Lỗi API createEmployee:', error);
+    // Chỉ Rollback khi lỗi CƠ SỞ DỮ LIỆU (Trùng mail, thiếu trường...)
+    if (!t.finished) {
+      await t.rollback();
+    }
     
-    // Bắt lỗi trùng lặp từ DB để báo cho FE
+    console.error('Lỗi API createEmployee:', error);
     if (error.original && error.original.code === '23505') {
       return res.status(400).json({ success: false, message: 'Email/Username này đã tồn tại trong hệ thống!' });
     }
-    
     res.status(500).json({ success: false, message: 'Lỗi Server khi thêm nhân viên' });
   }
 };
@@ -350,10 +353,63 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
-// 👉 Đừng quên xuất hàm ra nhé
-module.exports = {
-  getEmployees, getEmployeeById, updateEmployee, getFormOptions, createEmployee,
-  deleteEmployee 
+const getPresentEmployees = async (req, res) => {
+  try {
+const query = `
+      SELECT 
+        e.full_name, 
+        e.phone_number, 
+        a.check_in_time, 
+        a.check_in_latitude, 
+        a.check_in_longitude, 
+        wl.location_name
+      FROM employee e
+      JOIN attendance a ON e.id = a.employee_id
+      LEFT JOIN work_location wl ON a.work_location_id = wl.id
+      WHERE a.attendance_date = CURRENT_DATE
+    `;
+
+    const employees = await db.query(query, {
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(employees);
+  } catch (error) {
+    console.error('Lỗi API getPresentEmployees:', error);
+    res.status(500).json({ success: false, message: 'Lỗi Server khi tải dữ liệu hiện diện' });
+  }
+};
+
+const getAbsentEmployees = async (req, res) => {
+  try {
+    // Lưu ý: Đổi tên bảng 'leave_request' và 'attendance' cho khớp với database
+const query = `
+      SELECT 
+        e.full_name, 
+        e.phone_number, 
+        lr.status AS leave_status
+      FROM employee e
+      LEFT JOIN leave_request lr 
+        ON e.id = lr.employee_id 
+        AND CURRENT_DATE >= DATE(lr.start_datetime) 
+        AND CURRENT_DATE <= DATE(lr.end_datetime)
+      WHERE e.status = 'active' 
+        AND e.id NOT IN (
+          SELECT employee_id 
+          FROM attendance
+          WHERE attendance_date = CURRENT_DATE
+        )
+    `;
+
+    const employees = await db.query(query, {
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(employees);
+  } catch (error) {
+    console.error('Lỗi API getAbsentEmployees:', error);
+    res.status(500).json({ success: false, message: 'Lỗi Server khi tải dữ liệu vắng mặt' });
+  }
 };
 // NHỚ XUẤT HÀM NÀY RA NHÉ!
 module.exports = {
@@ -362,7 +418,9 @@ module.exports = {
   updateEmployee,
   getFormOptions ,
   createEmployee,
-    deleteEmployee
+  deleteEmployee,
+  getPresentEmployees,
+  getAbsentEmployees
 };
 
 
