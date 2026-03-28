@@ -14,6 +14,7 @@
   padding: 15px 20px;
   font-family: 'Inter', sans-serif;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  
 }
 
 /* HEADER */
@@ -77,8 +78,8 @@
   width: 100%;
   height: 40px;
   padding: 8px 12px;
-
-  border: 1px solid #ccc;
+  background: white !important;
+  border: 1px solid #ccc !important;
   border-radius: 8px;
 
   font-size: 0.9rem;
@@ -107,8 +108,131 @@
 .input-group {
   display: flex;
   flex-direction: column;
+  
 }
 
+.info-section-bottom{
+  display: flex;
+  padding: 10px;
+  border: 1px solid #56da72 !important;
+  margin-top: 30px;
+  border-radius: 10px;
+  height: 60px;
+  align-items: center;
+  gap: 320px;
+  background-color: #D1FAE5;
+}
+.info-section-bottom-left{
+  font-size: 14px;
+}
+.info-section-bottom-right{
+  font-weight: bold;
+  color: #00AE0C;
+  font-size: 16px;
+}
+
+.input-option-1 {
+  width: 100%;
+  height: 100px !important;
+  padding: 10px 12px 70px !important;
+  background: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 8px;
+  box-sizing: border-box;
+
+  font-size: 0.9rem;
+  outline: none;
+  
+  transition: 0.2s;
+}
+
+/* Khi hover */
+.input-option-1:hover {
+  border-color: #00AE0C;
+}
+
+/* Khi click vào (focus) */
+.input-option-1:focus {
+  border-color: #00AE0C;
+  box-shadow: 0 0 0 2px rgba(0, 174, 12, 0.2);
+}
+
+/* File uploader box */
+.file-uploader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #D1D5DB;
+  border-radius: 10px;
+  padding: 20px;
+  background-color: #F9FAFB ;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.file-uploader:hover {
+  border-color: #00AE0C;
+  background-color: #E6F9E7;
+}
+
+.file-icon {
+  font-size: 24px;
+  color: #00AE0C;
+  margin-bottom: 8px;
+}
+
+.file-text .file-bold {
+  font-weight: bold;
+  color: #00AE0C;
+}
+
+.file-note {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+.input-group-1{
+  display: flex;
+  flex-direction: column;
+}
+
+.acction-footer{
+    margin-top: 50px;
+    display: flex;
+    justify-content: flex-end;
+}
+.btn-request{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #00AE0C;
+  color: #F9FAFB;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-request:hover {
+    background-color: #1d957f;
+}
+.btn-cannel{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #E8ECF0;
+  color: gray;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.btn-cannel:hover {
+    background-color: #85bc9e;
+}
 
 
 /* RIGHT */
@@ -122,19 +246,112 @@
 
 /* Card trên */
 .card-request-top {
-  background: linear-gradient(135deg, #00AE0C, #009688);
+  background: linear-gradient(135deg, #00AE0C 40%, #009688 100%);
   color: white;
-  height: 180px;
+  height: 200px;
   border-radius: 20px;
   padding: 20px;
+  position: relative; /* Quan trọng để định vị icon ô */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: sans-serif;
+  
+}
+.card-header {
+  font-size: 14px;
+  display: flex;
+  
+  gap: 5px;
+  opacity: 0.9;
 }
 
+.card-main-value {
+  margin-top: 10px;
+}
+
+.remaining-days {
+  font-size: 48px;
+  font-weight: bold;
+}
+
+.total-days {
+  font-size: 16px;
+  opacity: 0.8;
+  margin-left: 5px;
+}
+
+.card-sub-text {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-bottom: 15px;
+  color: #CFFAFE !important;
+}
+
+/* Thanh tiến trình */
+.usage-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 5px;
+  opacity: 0.9;
+}
+
+.progress-bar {
+  background: rgba(255, 255, 255, 0.2);
+  height: 6px;
+  border-radius: 10px;
+  width: 100%;
+}
+
+.progress-fill {
+  background: white;
+  height: 100%;
+  border-radius: 10px;
+}
+
+
+.umbrella-bg {
+  position: absolute;
+  right: -10px;  
+  bottom: -10px;  
+  width: 130px; 
+  height: 130px;
+  color: white; 
+  opacity: 0.12;
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
 
 /* Card dưới */
 .card-request-bot {
   background: #fff;
-  min-height: 600px;
+  min-height: 814px;
+  max-height: 814px;
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+.card-header-bot{
+  display: flex;
+  gap: 160px;
+  align-items: center;
+
+}
+.btn-all{
+  font-size: 11px;
+  align-items: center;
+  color: #00AE0C;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-all:hover{
+  color: #009688;
+}
+.card-header-bot-2{
+  font-size: 14px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
 }

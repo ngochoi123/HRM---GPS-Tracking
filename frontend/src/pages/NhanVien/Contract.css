@@ -30,8 +30,8 @@
 }
 
 .badge-green {
-  background-color: #10b910;
-  color: white;
+  background-color: #10b910 !important;
+  color: white !important;
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 0.85rem;
