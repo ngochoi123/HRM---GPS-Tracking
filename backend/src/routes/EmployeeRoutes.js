@@ -1,6 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const employeeController = require('../controllers/EmployeeController');
+const multer = require('multer');
+
+// cấu hình nơi lưu file
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // thư mục lưu file
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + '-' + file.originalname;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({ storage: storage });
 
 
 // API lấy thông tin dashboard nhân viên
@@ -13,8 +27,10 @@ router.get('/contract/:id', employeeController.getContract);
 router.post('/change-password', employeeController.changePassword);
 
 //Đơn từ
-router.post('/leave-request', employeeController.createRequest);
+router.post('/leave-request',upload.single('attachment'),employeeController.createRequest);
 router.get('/leave-request/:id', employeeController.getMyRequests);
+
+router.get('/approvers/:id', employeeController.getApprovers);
 
 
 // Chấm công (Attendance + GPS)
