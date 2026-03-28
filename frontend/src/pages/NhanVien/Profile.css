@@ -457,3 +457,9 @@
     opacity: 1;
   }
 }
+.modal-error {
+  color: #ff4d4f;
+  font-size: 13px;
+  margin-top: 8px;
+  text-align: left;
+}
