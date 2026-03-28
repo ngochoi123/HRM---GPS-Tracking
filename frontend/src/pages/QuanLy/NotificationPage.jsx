@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { 
   Eye, Edit, X, Search, ChevronLeft, ChevronRight, 
   Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, 
-  Image as ImageIcon, Send, Save, AlignLeft, AlignCenter, AlignRight 
+  Image as ImageIcon, Send, Save, AlignLeft, AlignCenter, AlignRight, Paperclip
 } from "lucide-react"; 
 import axios from "axios";
 
@@ -24,6 +24,35 @@ function isCompanyWideTarget(t) {
   return s === "Toàn công ty" || s === "Tất cả nhân viên";
 }
 
+/** Đặt con trỏ cuối vùng contenteditable — execCommand cần selection hợp lệ trong editor. */
+function placeCaretAtEnd(el) {
+  if (!el) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function selectionInsideEditor(el) {
+  if (!el) return false;
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return false;
+  let node = sel.anchorNode;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  return node ? el.contains(node) : false;
+}
+
+function escapeHtmlAttr(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 /** Giữ chỗ cố định cho dòng lỗi — tránh modal bị giãn/nhảy khi validate. */
 function FieldErrorSlot({ message }) {
   return (
@@ -39,6 +68,7 @@ export default function NotificationPage() {
   const [editItem, setEditItem] = useState(null);
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
+  const attachmentInputRef = useRef(null);
   const savedRange = useRef(null);
   /** Vùng cuộn của bảng — đổi trang thì kéo về đầu danh sách */
   const tableScrollRef = useRef(null); 
@@ -109,30 +139,90 @@ export default function NotificationPage() {
   };
 
   const execCmd = (cmd, val = null) => {
-    if (editorRef.current) editorRef.current.focus();
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    if (!selectionInsideEditor(el)) {
+      placeCaretAtEnd(el);
+    }
     document.execCommand(cmd, false, val);
-    updateToolbarStatus(); // Cập nhật ngay khi nhấn nút
+    updateToolbarStatus();
   };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => execCmd("insertImage", event.target.result);
+      reader.onload = (event) => {
+        const el = editorRef.current;
+        if (!el) return;
+        el.focus();
+        if (!selectionInsideEditor(el)) placeCaretAtEnd(el);
+        document.execCommand("insertImage", false, event.target.result);
+        updateToolbarStatus();
+      };
       reader.readAsDataURL(file);
     }
     e.target.value = null;
   };
 
-  const insertLink = () => {
-    if (linkUrl) {
-      restoreSelection(); 
-      const formattedUrl = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
-      execCmd("createLink", formattedUrl);
-      setLinkUrl("");
-      setShowLinkInput(false);
-      savedRange.current = null;
+  const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+  const handleAttachmentUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      alert("Tệp đính kèm tối đa 4MB. Vui lòng chọn tệp nhỏ hơn hoặc nén trước.");
+      e.target.value = "";
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      const el = editorRef.current;
+      if (!el || typeof dataUrl !== "string") return;
+      el.focus();
+      if (!selectionInsideEditor(el)) placeCaretAtEnd(el);
+      const nameEsc = escapeHtmlAttr(file.name);
+      const nameVisible = escapeHtmlAttr(file.name);
+      const hrefSafe = dataUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+      const html = `&nbsp;<a href="${hrefSafe}" download="${nameEsc}" target="_blank" rel="noopener noreferrer" class="text-teal-700 font-semibold underline decoration-teal-400 underline-offset-2" contenteditable="false">📎 ${nameVisible}</a>&nbsp;`;
+      document.execCommand("insertHTML", false, html);
+      updateToolbarStatus();
+      clearFormError("content");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const insertLink = () => {
+    const raw = linkUrl.trim();
+    if (!raw || !editorRef.current) return;
+    const el = editorRef.current;
+    el.focus();
+    restoreSelection();
+    if (!selectionInsideEditor(el)) {
+      placeCaretAtEnd(el);
+    }
+    const formattedUrl = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const sel = window.getSelection();
+    const hasSelection = sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed;
+
+    if (hasSelection) {
+      document.execCommand("createLink", false, formattedUrl);
+    } else {
+      const hrefEsc = escapeHtmlAttr(formattedUrl);
+      const labelEsc = escapeHtmlAttr(formattedUrl);
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<a href="${hrefEsc}" target="_blank" rel="noopener noreferrer">${labelEsc}</a>`
+      );
+    }
+    setLinkUrl("");
+    setShowLinkInput(false);
+    savedRange.current = null;
+    updateToolbarStatus();
   };
 
   const getSmartIcon = (title, type) => {
@@ -226,6 +316,11 @@ export default function NotificationPage() {
   useEffect(() => {
     if (open && editorRef.current) {
       editorRef.current.innerHTML = editItem ? editItem.content : "";
+      try {
+        document.execCommand("defaultParagraphSeparator", false, "p");
+      } catch {
+        /* một số trình duyệt không hỗ trợ */
+      }
       // eslint-disable-next-line react-hooks/set-state-in-effect
       updateToolbarStatus();
     }
@@ -557,7 +652,7 @@ export default function NotificationPage() {
 
         {/* PHÂN TRANG */}
         <div className="mt-auto pt-6 flex items-center justify-between bg-white shrink-0 font-sans">
-          <p className="text-xs text-gray-400 font-bold italic uppercase tracking-widest font-sans">Page {page} of {totalPages}</p>
+          <p className="text-xs text-gray-400 font-bold italic uppercase tracking-widest font-sans">Trang {page} trên {totalPages}</p>
           <div className="flex items-center gap-1 font-sans">
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="p-2 border border-gray-100 rounded-xl disabled:opacity-30 hover:bg-gray-50 transition-all font-sans"><ChevronLeft size={18}/></button>
             {[...Array(totalPages)].map((_, i) => (
@@ -743,39 +838,84 @@ export default function NotificationPage() {
                       <ListOrdered size={18}/>
                     </button>
                     
-                    <div className="relative font-sans">
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          saveSelection(); 
-                          setShowLinkInput(!showLinkInput);
-                        }} 
-                        className={`p-2 rounded-xl transition-all ${showLinkInput ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+                    <div className="relative font-sans z-[120]">
+                      <button
+                        type="button"
+                        title="Chèn liên kết"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          saveSelection();
+                          setShowLinkInput((v) => !v);
+                        }}
+                        className={`p-2.5 rounded-xl transition-all ${showLinkInput ? "bg-blue-500 text-white shadow-md" : "text-slate-500 hover:bg-slate-50 hover:text-blue-500"}`}
                       >
                         <LinkIcon size={18}/>
                       </button>
                       {showLinkInput && (
-                        <div className="absolute top-full left-0 mt-3 p-4 bg-white shadow-2xl rounded-2xl border border-slate-100 flex gap-2 z-[110] animate-in slide-in-from-top-2 w-72 font-sans font-sans">
-                          <input 
-                            className="px-4 py-2 bg-slate-50 border-none rounded-xl text-xs outline-none flex-1 font-bold font-sans" 
-                            autoFocus 
-                            placeholder="Dán link hoặc nhập URL..." 
-                            value={linkUrl} 
-                            onChange={(e)=>setLinkUrl(e.target.value)} 
+                        <div className="absolute top-full left-0 mt-2 p-3 bg-white shadow-2xl rounded-2xl border border-slate-200 flex flex-wrap gap-2 z-[130] w-[min(18rem,calc(100vw-2rem))]">
+                          <input
+                            type="url"
+                            className="min-w-0 flex-1 basis-[8rem] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 font-sans"
+                            autoFocus
+                            placeholder="https://..."
+                            value={linkUrl}
+                            onChange={(e) => setLinkUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                insertLink();
+                              }
+                            }}
                           />
-                          <button onClick={insertLink} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase font-sans">Chèn</button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={insertLink}
+                            className="shrink-0 bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase font-sans"
+                          >
+                            Chèn
+                          </button>
                         </div>
                       )}
                     </div>
 
-                    <button type="button" onClick={()=>fileInputRef.current.click()} className="p-2 text-slate-500 hover:bg-slate-50 hover:text-blue-500 rounded-xl transition-all font-sans"><ImageIcon size={18}/></button>
+                    <button
+                      type="button"
+                      title="Chèn ảnh"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2.5 text-slate-500 hover:bg-slate-50 hover:text-blue-500 rounded-xl transition-all font-sans"
+                    >
+                      <ImageIcon size={18}/>
+                    </button>
                     <input type="file" ref={fileInputRef} className="hidden font-sans" accept="image/*" onChange={handleImageUpload} />
+
+                    <button
+                      type="button"
+                      title="Đính kèm tệp (tối đa 4MB)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className="p-2.5 text-slate-500 hover:bg-slate-50 hover:text-teal-600 rounded-xl transition-all font-sans"
+                    >
+                      <Paperclip size={18}/>
+                    </button>
+                    <input
+                      type="file"
+                      ref={attachmentInputRef}
+                      className="hidden font-sans"
+                      onChange={handleAttachmentUpload}
+                    />
                   </div>
                   
                   <div 
                     ref={editorRef} 
                     contentEditable 
-                    className="p-6 sm:p-8 min-h-[200px] outline-none text-slate-600 text-sm sm:text-base font-medium leading-relaxed font-sans" 
+                    className="notification-editor-content p-6 sm:p-8 min-h-[200px] outline-none text-slate-600 text-sm sm:text-base font-medium leading-relaxed font-sans
+                      [&_a]:text-teal-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg
+                      [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-7 [&_ul]:[list-style-position:outside]
+                      [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-7 [&_ol]:[list-style-position:outside]
+                      [&_li]:my-0.5 [&_li]:pl-0.5
+                      [&_ul_ul]:list-[circle] [&_ol_ol]:list-[lower-alpha]" 
                     onMouseUp={saveSelection}
                     onKeyUp={saveSelection}
                     onBlur={saveSelection}

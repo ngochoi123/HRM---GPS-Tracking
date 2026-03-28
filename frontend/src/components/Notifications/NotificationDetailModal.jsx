@@ -112,32 +112,40 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-slate-900/55 backdrop-blur-md font-sans">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/55 backdrop-blur-md font-sans overflow-y-auto overflow-x-hidden"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
-        className="bg-[#f8fafc] w-full max-w-[min(92vw,45rem)] h-[min(92vh,860px)] rounded-2xl shadow-[0_25px_80px_-12px_rgba(15,23,42,0.45)] border border-slate-200/90 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-[#f8fafc] w-full max-w-[min(96vw,72rem)] max-h-[min(92vh,920px)] my-auto rounded-2xl shadow-[0_25px_80px_-12px_rgba(15,23,42,0.45)] border border-slate-200/90 flex flex-col min-h-0 overflow-hidden animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="notif-doc-title"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header gọn */}
-        <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-3 sm:px-6 border-b border-slate-200/90 bg-white">
-          <div className="flex items-center gap-2.5 min-w-0 text-slate-700">
-            <FileText className="w-4 h-4 text-teal-600 shrink-0" strokeWidth={2} />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 truncate">
-              Chi tiết thông báo
-            </span>
+        {/* Một vùng cuộn duy nhất — tránh lồng overflow khiến phải đưa chuột ra ngoài mới cuộn */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+          {/* Header dính trên khi cuộn */}
+          <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/90 bg-white px-5 py-3.5 sm:px-7">
+            <div className="flex min-w-0 items-center gap-2.5 text-slate-700">
+              <FileText className="h-5 w-5 shrink-0 text-teal-600" strokeWidth={2} />
+              <span className="truncate text-sm font-bold uppercase tracking-wider text-slate-500">
+                Chi tiết thông báo
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+              aria-label="Đóng"
+            >
+              <X size={22} strokeWidth={2} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-            aria-label="Đóng"
-          >
-            <X size={20} strokeWidth={2} />
-          </button>
-        </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="min-h-0 flex-1">
           {loading && (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-500">
               <Loader2 className="w-9 h-9 animate-spin text-teal-600" />
@@ -284,7 +292,7 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
                     </span>
                   </div>
                   <div
-                    className="px-5 sm:px-6 py-5 max-h-[min(58vh,calc(92vh-16rem))] overflow-y-auto overscroll-contain text-slate-800 leading-[1.75] text-[17px] sm:text-[1.0625rem]
+                    className="px-5 sm:px-6 py-5 text-slate-800 leading-[1.75] text-base sm:text-lg
                       [&_a]:text-teal-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-sm
                       [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3
                       [&_p]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-3"
@@ -294,6 +302,7 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
