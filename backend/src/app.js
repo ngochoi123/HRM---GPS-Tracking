@@ -20,6 +20,7 @@ const branchRoutes = require('./routes/branchesRoutes');
 const employeeRoutes = require('./routes/EmployeeRoutes'); 
 const managementRoutes = require('./routes/managementRoutes'); 
 const notificationRoutes = require('./routes/notificationRoutes');
+const GiamDocRoutes = require('./routes/GiamDocRoutes');
 // 2. KHAI BÁO ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -29,6 +30,12 @@ app.use('/api/branches', branchRoutes);
 app.use('/api/employee', employeeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/manager', managementRoutes);
+app.use('/api/giamdoc', GiamDocRoutes);
+
+// --- 3. ROUTES TEST ---
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API đang hoạt động tốt!' });
+});
 
 // --- 4. KẾT NỐI DB & START SERVER ---
 db.authenticate()

@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const GiamDocController = require('../controllers/GiamDocController');
+router.get('/positions', GiamDocController.getPositions);
+router.post('/positions', GiamDocController.createPosition);
+router.put('/positions/:id', GiamDocController.updatePosition);
+router.delete('/positions/:id', GiamDocController.deletePosition);
+router.get('/contracts', GiamDocController.getContracts);
+router.delete('/contracts/:id', GiamDocController.deleteContract);
+module.exports = router;
