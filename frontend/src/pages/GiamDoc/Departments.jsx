@@ -1,28 +1,35 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   Plus,
   Search,
   Pencil,
   Trash2,
-  Eye
+  Eye,
+  Loader2
 } from "lucide-react";
 
 export default function Departments() {
   const [search, setSearch] = useState("");
   const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const fetchDepartments = async () => {
     try {
+      setLoading(true);
+
       const res = await axios.get("http://localhost:5000/api/departments");
       setDepartments(res.data || []);
+
     } catch (err) {
       console.log("🔥 Lỗi load departments:", err.response?.data);
-  
-      // ❗ QUAN TRỌNG: KHÔNG redirect login
+      toast.error("Không tải được danh sách phòng ban");
       setDepartments([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,85 +73,96 @@ export default function Departments() {
         />
       </div>
 
-      {/* TABLE */}
-      <div className="bg-white rounded-2xl shadow border overflow-hidden">
-        <table className="w-full text-sm">
-
-          <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-            <tr>
-              <th className="text-left px-6 py-3">Mã PB</th>
-              <th className="text-left px-6 py-3">Tên phòng ban</th>
-              <th className="text-left px-6 py-3">Chi nhánh</th>
-              <th className="text-left px-6 py-3">Trưởng phòng</th>
-              <th className="text-left px-6 py-3">Số nhân sự</th>
-              <th className="text-center px-6 py-3">Thao tác</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filtered.map((dep) => (
-              <tr key={dep.id} className="border-t hover:bg-blue-50">
-
-                <td className="px-6 py-4 font-semibold text-blue-600">
-                  {dep.department_code}
-                </td>
-
-                <td className="px-6 py-4 font-medium">
-                  {dep.department_name}
-                </td>
-
-                <td className="px-6 py-4 text-gray-500">
-                  {dep.branch_name || "-"}
-                </td>
-
-                <td className="px-6 py-4">
-                  {dep.manager_name || "-"}
-                </td>
-
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs">
-                    {dep.total_employees} người
-                  </span>
-                </td>
-
-                <td className="px-6 py-4">
-                  <div className="flex justify-center gap-2">
-
-                    <button
-                      onClick={() => navigate(`/GiamDoc/departments/${dep.id}`)}
-                      className="p-2 bg-blue-100 rounded-lg"
-                    >
-                      <Eye size={16} />
-                    </button>
-
-                    <button
-                    onClick={() => navigate(`/GiamDoc/departments/edit/${dep.id}`)}
-                    className="p-2 bg-yellow-100 rounded-lg"
-                    >
-                    <Pencil size={16} />
-                    </button>
-
-                    <button
-                    onClick={() => navigate(`/GiamDoc/departments/delete/${dep.id}`)}
-                    className="p-2 bg-red-100 rounded-lg hover:bg-red-200"
-                    >
-                    <Trash2 size={16} />
-                  </button>
-
-                  </div>
-                </td>
-
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filtered.length === 0 && (
-          <div className="text-center py-6 text-gray-500">
-            Không có dữ liệu
+      {/* LOADING */}
+      {loading ? (
+        <div className="bg-white rounded-2xl shadow p-10 flex justify-center items-center">
+          <div className="flex items-center gap-3 text-blue-500">
+            <Loader2 className="animate-spin" size={24} />
+            <span className="font-medium">Đang tải dữ liệu...</span>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        /* TABLE */
+        <div className="bg-white rounded-2xl shadow border overflow-hidden">
+          <table className="w-full text-sm">
+
+            <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+              <tr>
+                <th className="text-left px-6 py-3">Mã PB</th>
+                <th className="text-left px-6 py-3">Tên phòng ban</th>
+                <th className="text-left px-6 py-3">Chi nhánh</th>
+                <th className="text-left px-6 py-3">Trưởng phòng</th>
+                <th className="text-left px-6 py-3">Số nhân sự</th>
+                <th className="text-center px-6 py-3">Thao tác</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filtered.map((dep) => (
+                <tr key={dep.id} className="border-t hover:bg-blue-50">
+
+                  <td className="px-6 py-4 font-semibold text-blue-600">
+                    {dep.department_code}
+                  </td>
+
+                  <td className="px-6 py-4 font-medium">
+                    {dep.department_name}
+                  </td>
+
+                  <td className="px-6 py-4 text-gray-500">
+                    {dep.branch_name || "-"}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    {dep.manager_name || "-"}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs">
+                      {dep.total_employees} người
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex justify-center gap-2">
+
+                      <button
+                        onClick={() => navigate(`/GiamDoc/departments/${dep.id}`)}
+                        className="p-2 bg-blue-100 rounded-lg"
+                      >
+                        <Eye size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => navigate(`/GiamDoc/departments/edit/${dep.id}`)}
+                        className="p-2 bg-yellow-100 rounded-lg"
+                      >
+                        <Pencil size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => navigate(`/GiamDoc/departments/delete/${dep.id}`)}
+                        className="p-2 bg-red-100 rounded-lg hover:bg-red-200"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                    </div>
+                  </td>
+
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {filtered.length === 0 && (
+            <div className="text-center py-6 text-gray-500">
+              Không có dữ liệu
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

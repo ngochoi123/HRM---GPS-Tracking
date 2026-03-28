@@ -17,10 +17,10 @@ const adminRoutes = require('./routes/AdminRoutes');
 const dashboardRoutes = require("./routes/dashboard");
 const departmentRoutes = require("./routes/departmentRoutes");
 const branchRoutes = require('./routes/branchesRoutes');
-const employeeRoutes = require('./routes/EmployeeRoutes');
+const employeeRoutes = require('./routes/EmployeeRoutes'); 
+const managementRoutes = require('./routes/managementRoutes'); 
 const notificationRoutes = require('./routes/notificationRoutes');
-
-// --- 3. KHAI BÁO ROUTES ---
+// 2. KHAI BÁO ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -28,6 +28,7 @@ app.use("/api/departments", departmentRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/employee', employeeRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/manager', managementRoutes);
 
 // --- 4. KẾT NỐI DB & START SERVER ---
 db.authenticate()

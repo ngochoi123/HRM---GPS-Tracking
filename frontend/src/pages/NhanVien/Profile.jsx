@@ -6,13 +6,39 @@ import { ImProfile } from "react-icons/im";
 import { LuPhone } from "react-icons/lu";
 import { MdOutlineEmail } from "react-icons/md";
 import { FaAddressBook } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import "./Profile.css";
 
 export default function Profile() {
+    const navigate = useNavigate();
   const [user, setUser] = useState(null);
+
+  const [showContractModal, setShowContractModal] = useState(false);
+const [contractMessage, setContractMessage] = useState("");
+  
   const [showModal, setShowModal] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const handleGoContract = () => {
+    if (!user?.contract_type) {
+        setContractMessage("Nhân viên chưa có hợp đồng");
+        setShowContractModal(true);
+        return;
+      }
+
+    const isActive =
+      user?.is_active === true ||
+      user?.is_active === 1;
+
+    if (!isActive) {
+      setContractMessage("Hợp đồng đã hết hiệu lực");
+      setShowContractModal(true);
+      return;
+    }
+
+    navigate("/NhanVien/contracts");
+  };
 
   const handleChangePassword = async () => {
   try {
@@ -179,7 +205,13 @@ export default function Profile() {
               <div className="data-row">
                 <span className="label">Loại hợp đồng</span>
                 <span className="contract-badge">
-                  Xác định thời hạn (3 năm)
+                  {user.contract_type === "fixed_3y"
+                    ? "Xác định thời hạn (3 năm)"
+                    : user.contract_type === "fixed_1y"
+                      ? "Xác định thời hạn (1 năm)"
+                      : user.contract_type === "indefinite"
+                        ? "Không xác định thời hạn"
+                        : "Chưa có hợp đồng"}
                 </span>
               </div>
 
@@ -206,7 +238,7 @@ export default function Profile() {
               🔒 Đổi mật khẩu
             </button>
 
-            <button className="btn-contract">
+            <button className="btn-contract" onClick={handleGoContract}>
               📄 Hợp đồng lao động
             </button>
           </div>
@@ -242,6 +274,26 @@ export default function Profile() {
           </div>
         </div>
       )}
+        {showContractModal && (
+  <div className="modal" onClick={() => setShowContractModal(false)}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+
+      <h3 className="modal-title">Thông báo</h3>
+
+      <p className="modal-message">
+        {contractMessage}
+      </p>
+
+      <button
+        onClick={() => setShowContractModal(false)}
+        className="btn-ok"
+      >
+        OK
+      </button>
+
+    </div>
+  </div>
+)}
 
       </div>
     </div>

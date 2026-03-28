@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import toast from "react-hot-toast";
+import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 
 export default function DeleteDepartment() {
   const { id } = useParams();
@@ -12,6 +13,8 @@ export default function DeleteDepartment() {
   const [confirmCode, setConfirmCode] = useState("");
   const [checked, setChecked] = useState(false);
   const [targetDepartment, setTargetDepartment] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchDepartment();
@@ -25,6 +28,9 @@ export default function DeleteDepartment() {
       setDepartment(res.data);
     } catch (err) {
       console.log(err);
+      toast.error("Không tải được thông tin phòng ban");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,27 +43,30 @@ export default function DeleteDepartment() {
       setDepartments(res.data);
     } catch (err) {
       console.log(err);
+      toast.error("Không tải được danh sách phòng ban");
     }
   };
 
   // 🔥 XÓA
   const handleDelete = async () => {
-    if (confirmCode !== department.department_code) {
-      alert("❌ Mã phòng ban không đúng");
+    if (confirmCode.trim() !== String(department.department_code).trim()) {
+      toast.error("Mã phòng ban không đúng");
       return;
     }
 
     if (!checked) {
-      alert("❌ Bạn chưa xác nhận");
+      toast.error("Bạn chưa xác nhận");
       return;
     }
 
     if (department.total_employees > 0 && !targetDepartment) {
-      alert("❌ Phải chọn phòng ban chuyển nhân sự");
+      toast.error("Phải chọn phòng ban chuyển nhân sự");
       return;
     }
 
     try {
+      setDeleting(true);
+
       await axios.delete(
         `http://localhost:5000/api/departments/${id}`,
         {
@@ -67,24 +76,55 @@ export default function DeleteDepartment() {
         }
       );
 
-      alert("✅ Xoá thành công");
-      navigate("/GiamDoc/departments");
+      toast.success("Xoá phòng ban thành công");
+
+      setTimeout(() => {
+        navigate("/GiamDoc/departments");
+      }, 1000);
+
     } catch (err) {
       console.log(err);
-      alert("❌ Xoá thất bại");
+      toast.error("Xoá phòng ban thất bại");
+    } finally {
+      setDeleting(false);
     }
   };
 
-  if (!department) return <div className="p-6">Loading...</div>;
+  // 🔄 Loading page
+  if (loading) {
+    return (
+      <div className="p-10 flex justify-center items-center">
+        <div className="flex gap-3 text-blue-500">
+          <Loader2 className="animate-spin" />
+          Đang tải dữ liệu...
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Điều kiện bật nút xoá
+  const canDelete =
+    checked &&
+    confirmCode.trim() === String(department.department_code).trim() &&
+    (department.total_employees === 0 || targetDepartment);
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow border p-6 space-y-6">
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow border p-6 space-y-6 relative">
 
         {/* HEADER */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+        <div className="flex items-center justify-between relative">
+          {/* Nút quay lại góc trái */}
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg shadow hover:bg-gray-200 transition"
+          >
+            <ArrowLeft size={16} /> Quay lại
+          </button>
+
+          {/* Title */}
+          <div className="absolute left-1/2 -translate-x-1/2 text-center">
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 justify-center">
               <AlertTriangle className="text-red-500" />
               Xoá phòng ban
             </h2>
@@ -92,13 +132,6 @@ export default function DeleteDepartment() {
               Hành động này có thể ảnh hưởng đến cấu trúc nhân sự.
             </p>
           </div>
-
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-lg hover:bg-gray-200"
-          >
-            <ArrowLeft size={16} /> Quay lại
-          </button>
         </div>
 
         {/* INFO */}
@@ -133,12 +166,8 @@ export default function DeleteDepartment() {
         {/* WARNING */}
         {department.total_employees > 0 && (
           <div className="bg-red-50 border border-red-200 p-5 rounded-xl space-y-3">
-            <p className="text-red-600 font-semibold flex items-center gap-2">
-              ⚠️ Cảnh báo: Có {department.total_employees} nhân sự
-            </p>
-
-            <p className="text-sm text-red-500">
-              Phòng ban này đang có nhân viên. Bạn phải chuyển họ sang phòng ban khác trước khi xoá.
+            <p className="text-red-600 font-semibold">
+              ⚠️ Có {department.total_employees} nhân sự
             </p>
 
             <select
@@ -168,7 +197,6 @@ export default function DeleteDepartment() {
           <input
             type="text"
             className="w-full border p-2 rounded-lg"
-            placeholder="Nhập mã phòng ban..."
             value={confirmCode}
             onChange={(e) => setConfirmCode(e.target.value)}
           />
@@ -187,16 +215,21 @@ export default function DeleteDepartment() {
         <div className="flex justify-end gap-3 pt-4 border-t">
           <button
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-gray-200 rounded-lg"
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
           >
             Hủy thao tác
           </button>
 
           <button
             onClick={handleDelete}
-            className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed"
-            disabled={!checked || confirmCode !== department.department_code}
+            disabled={!canDelete || deleting}
+            className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 transition ${
+              !canDelete || deleting
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-red-500 hover:bg-red-600"
+            }`}
           >
+            {deleting && <Loader2 className="animate-spin" size={16} />}
             🗑️ Xoá phòng ban
           </button>
         </div>
