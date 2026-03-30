@@ -722,38 +722,37 @@ exports.getContract = async (req, res) => {
 // ==============================
 exports.createRequest = async (req, res) => {
   try {
-    const { employee_id, leave_type, start_datetime, end_datetime, reason } = req.body;
+    const {
+      userId,
+      leave_type,
+      start_datetime,
+      end_datetime,
+      reason,
+      approverId
+    } = req.body;
+
+    const file = req.file; // file upload từ multer
 
     // ✅ Validate
-    if (!employee_id || !leave_type || !start_datetime || !end_datetime) {
+    if (!userId || !leave_type || !start_datetime || !end_datetime) {
       return res.status(400).json({ message: 'Thiếu dữ liệu' });
     }
 
-    // ✅ Check ENUM hợp lệ (rất quan trọng)
+    // ✅ Check ENUM
     const validTypes = ['annual', 'sick', 'unpaid', 'maternity', 'bereavement'];
     if (!validTypes.includes(leave_type)) {
       return res.status(400).json({ message: 'Loại nghỉ không hợp lệ' });
     }
 
-    // ✅ Lấy manager duyệt
-    const manager = await db.query(
-      `SELECT direct_manager_id FROM employee WHERE id = $1`,
-      {
-        bind: [employee_id],
-        type: QueryTypes.SELECT
-      }
-    );
-
-    const approver_id = manager[0]?.direct_manager_id;
-
-    // ❗ Nếu không có manager → báo lỗi
-    if (!approver_id) {
-      return res.status(400).json({
-        message: 'Nhân viên chưa có người duyệt (manager)'
-      });
+    // ❗ bắt buộc phải chọn approver
+    if (!approverId) {
+      return res.status(400).json({ message: 'Chưa chọn người duyệt' });
     }
 
-    // ✅ Insert + RETURNING
+    // ✅ xử lý file
+    const filePath = file ? file.filename : null;
+
+    // ✅ insert DB
     const result = await db.query(
       `
       INSERT INTO leave_request (
@@ -762,21 +761,22 @@ exports.createRequest = async (req, res) => {
         start_datetime,
         end_datetime,
         reason,
-        approver_id
+        approver_id,
+        attachment
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
       `,
       {
         bind: [
-          employee_id,
+          userId,
           leave_type,
           start_datetime,
           end_datetime,
           reason,
-          approver_id
-        ],
-        type: QueryTypes.INSERT
+          approverId,
+          filePath
+        ]
       }
     );
 
@@ -832,5 +832,49 @@ exports.getMyRequests = async (req, res) => {
       message: 'Lỗi server',
       error: error.message
     });
+  }
+};
+
+//lấy kiểm duyệt 
+exports.getApprovers = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(`
+      SELECT DISTINCT 
+        e.id, 
+        e.full_name, 
+        p.position_name
+      FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
+      WHERE 
+        -- ✅ Quản lý trực tiếp
+        e.id = (
+          SELECT direct_manager_id 
+          FROM employee 
+          WHERE id = $1
+        )
+
+        -- ✅ Director
+        OR p.level = 'director'
+
+      ORDER BY e.full_name
+    `, {
+      bind: [id],
+      type: QueryTypes.SELECT
+    });
+
+    
+    if (result.length === 0) {
+      return res.status(400).json({
+        message: "Không tìm thấy người kiểm duyệt!"
+      });
+    }
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('getApprovers error:', error);
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };
