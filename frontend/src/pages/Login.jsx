@@ -68,13 +68,13 @@ const Login = () => {
           localStorage.setItem('user', JSON.stringify(data.user));
           localStorage.setItem('token', data.token);
 
-          // Chuyển hướng theo quyền
-          if (userRole === 'ADMIN') navigate('/Admin/users');
-          else if (userRole === 'DIRECTOR') navigate('/GiamDoc/Dashboard');
-          else if (userRole === 'MANAGER') navigate('/QuanLy/Dashboard');
-          else navigate('/NhanVien/Dashboard');
-        } else {
-          setError("Tài khoản chưa được phân quyền hệ thống!");
+        // Chuyển hướng theo quyền
+  if (userRole === 'ADMIN') navigate('/Admin/users');
+  else if (userRole === 'DIRECTOR') navigate('/GiamDoc/dashboard'); // Sửa thành d thường
+  else if (userRole === 'MANAGER') navigate('/QuanLy/dashboard');   // Sửa thành d thường
+  else navigate('/NhanVien/dashboard');                             // Sửa thành d thường
+} else {
+  setError("Tài khoản chưa được phân quyền hệ thống!");
         }
       } else {
         // 4. Sai Username hoặc Password (Ghi đè thông báo từ backend để khớp Test Case)

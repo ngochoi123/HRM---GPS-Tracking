@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShieldCheck, UserCog, Settings, LogOut, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, UserCog, Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon } from 'lucide-react';
 
 const SidebarAdmin = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 👉 1. State quản lý hiển thị Modal
+  // State quản lý hiển thị Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems = [
@@ -15,13 +15,13 @@ const SidebarAdmin = () => {
     { path: '/Admin/LocationSettings', icon: <Settings size={20} />, label: 'Cài đặt vị trí chấm công' },
   ];
 
-  // 👉 2. Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
+  // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
   const handleLogoutClick = (e) => {
     e.preventDefault();
     setShowLogoutModal(true);
   };
 
-  // 👉 3. Hàm thực thi khi bấm "Xác nhận" trong Modal
+  // Hàm thực thi khi bấm "Xác nhận" trong Modal
   const confirmLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token'); // Xóa luôn token cho an toàn
@@ -30,44 +30,56 @@ const SidebarAdmin = () => {
   };
 
   return (
-    <>
-      <aside className="sidebar">
-        <div className="logo" style={{ marginBottom: '40px' }}>
-          <img src="/logo.png" alt="HR PeopleTech" style={{ height: '40px' }} />
-        </div>
+    <aside className="sidebar">
+      {/* 1. LOGO */}
+      <div className="logo">
+        <img src="/logo.png" alt="HR PeopleTech" />
+      </div>
 
-        <nav style={{ flex: 1 }}>
-          <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px' }}>QUẢN TRỊ VIÊN</p>
-          {menuItems.map((item) => (
-            <Link 
-              key={item.path} 
-              to={item.path} 
-              className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
-            >
-              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+      {/* 2. MENU CHÍNH */}
+      <nav style={{ flex: 1 }}>
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>
+          QUẢN TRỊ VIÊN
+        </p>
 
-        <div className="sidebar-footer" style={{ borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
-          {/* 👉 Nút Đăng Xuất đã được gắn sự kiện gọi Modal */}
-          <button 
-            onClick={handleLogoutClick} 
-            className="menu-item" 
-            style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '12px', color: '#dc2626', display: 'flex', alignItems: 'center' }}
+        {menuItems.map((item) => (
+          <Link 
+            key={item.path} 
+            to={item.path} 
+            className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
           >
-            <LogOut size={20} /> <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
-          </button>
-        </div>
-      </aside>
+            {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
 
-      {/* 👉 4. MODAL XÁC NHẬN ĐĂNG XUẤT */}
+      {/* 3. MENU FOOTER (SUPPORT) */}
+      <div className="sidebar-footer">
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>
+          SUPPORT
+        </p>
+        
+        <Link to="/Admin/help" className="menu-item">
+          <HelpCircle size={20} /> <span style={{ marginLeft: '12px' }}>Trợ Giúp</span>
+        </Link>
+
+        {/* Nút Đăng Xuất gọi handleLogoutClick */}
+        <button 
+          onClick={handleLogoutClick} 
+          className="menu-item logout-btn" 
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center' }}
+        >
+          <LogOut size={20} /> <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
+        </button>
+      </div>
+
+      {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
       {showLogoutModal && (
         <div className="modal-overlay">
           <div className="logout-modal">
             <div className="modal-icon-container">
                <div className="icon-circle">
-                  <HelpCircle size={40} color="#16a34a" />
+                  <QuestionIcon size={40} color="#16a34a" />
                </div>
             </div>
             
@@ -81,7 +93,7 @@ const SidebarAdmin = () => {
           </div>
         </div>
       )}
-    </>
+    </aside>
   );
 };
 

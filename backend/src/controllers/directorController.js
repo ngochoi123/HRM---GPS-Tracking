@@ -1384,6 +1384,99 @@ const updateContract = async (req, res) => {
   }
 };
 
+// dashboardController.js
+const getDashboardOverview = async (req, res) => {
+  try {
+    // Thay thế Mục 1, 2, 3, 4 trong getDashboardOverview bằng đoạn này:
+
+    // 1. Tổng nhân sự active
+    const [[{ total_emp }]] = await db.query("SELECT COUNT(*)::int as total_emp FROM employee WHERE status = 'active'");
+    
+    // 2. Hiện diện hôm nay (on_time, late, early_leave)
+    const [[{ present_today }]] = await db.query(`
+      SELECT COUNT(DISTINCT employee_id)::int as present_today 
+      FROM attendance WHERE attendance_date = CURRENT_DATE AND status != 'absent'
+    `);
+
+    // 3. Tổng yêu cầu đang pending (Nghỉ phép + Tăng ca)
+    const [[{ total_req }]] = await db.query(`
+      SELECT (
+        (SELECT COUNT(*)::int FROM leave_request WHERE status = 'pending') +
+        (SELECT COUNT(*)::int FROM overtime_request WHERE status = 'pending')
+      ) as total_req
+    `);
+
+    // 4. Quỹ lương (Tổng base_salary của nhân viên active - lấy active contract mới nhất)
+    // Đã XÓA GROUP BY null và thêm ép kiểu
+    const [[{ total_salary }]] = await db.query(`
+      SELECT COALESCE(SUM(c.base_salary), 0)::float as total_salary 
+      FROM employee e
+      JOIN contract c ON e.id = c.employee_id AND c.is_active = true
+      WHERE e.status = 'active'
+    `);
+
+    // 5. Yêu cầu chờ duyệt (Lấy 8 cái mới nhất)
+    const [requests] = await db.query(`
+      SELECT lr.id, e.full_name as name, 'leave' as type, lr.created_at FROM leave_request lr JOIN employee e ON lr.employee_id = e.id WHERE lr.status = 'pending'
+      UNION ALL
+      SELECT ot.id, e.full_name as name, 'overtime' as type, ot.created_at FROM overtime_request ot JOIN employee e ON ot.employee_id = e.id WHERE ot.status = 'pending'
+      ORDER BY created_at DESC
+      LIMIT 8
+    `);
+
+    // 6. Trạng thái Trưởng phòng hôm nay
+    const [managers] = await db.query(`
+      SELECT e.full_name as name, d.department_name as dept, COALESCE(a.status, 'absent') as status 
+      FROM department d
+      LEFT JOIN employee e ON d.manager_id = e.id
+      LEFT JOIN attendance a ON e.id = a.employee_id AND a.attendance_date = CURRENT_DATE
+      WHERE e.id IS NOT NULL
+      ORDER BY d.department_name
+    `);
+
+    // 7. Thống kê theo phòng ban
+    const [departments] = await db.query(`
+      SELECT 
+        d.department_name as name,
+        COUNT(e.id) as total,
+        SUM(CASE WHEN a.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+        SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late,
+        SUM(CASE WHEN a.status = 'early_leave' THEN 1 ELSE 0 END) as early_leave
+      FROM department d
+      JOIN "position" p ON d.id = p.department_id
+      JOIN employee e ON p.id = e.position_id AND e.status = 'active'
+      LEFT JOIN attendance a ON e.id = a.employee_id AND a.attendance_date = CURRENT_DATE
+      GROUP BY d.id, d.department_name
+    `);
+
+    // Trả về đúng format UI cần
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total: total_emp || 0,
+          present: present_today || 0,
+          salary: total_salary || 0,
+          requests: total_req || 0
+        },
+        departments: (departments || []).map(d => ({
+          name: d.name,
+          total: d.total || 0,
+          on_time: d.on_time || 0,
+          late: d.late || 0,
+          early_leave: d.early_leave || 0
+        })),
+        managers: managers || [],
+        requests: requests || []
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+};
+
 // ================= EXPORT =================
 module.exports = {
   getSummary,
@@ -1411,5 +1504,6 @@ module.exports = {
   getContractFormOptions,
   createContract,
   updateContract,
-  getFormOptions
+  getFormOptions,
+  getDashboardOverview
 };

@@ -1,28 +1,33 @@
-import React, { useState } from 'react'; // Thêm useState
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-
-import { Home, MapPin, CreditCard, FileText, User, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
+import { Home, MapPin, CreditCard, FileText, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
 
 const SidebarNhanVien = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-
-  
-  // Trạng thái đóng/mở modal xác nhận
+  // State quản lý hiển thị Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems = [
-    { path: '/NhanVien/Dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
+    { path: '/NhanVien/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/NhanVien/checkin', icon: <MapPin size={20} />, label: 'Chấm công' },
     { path: '/NhanVien/payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
     { path: '/NhanVien/requests', icon: <FileText size={20} />, label: 'Đơn từ' },
-    { path: '/NhanVien/profile', icon: <User size={20} />, label: 'Hồ sơ cá nhân' },
+    // Đã xóa menu "Hồ sơ cá nhân" vì đã tích hợp trên Header dùng chung cho mọi Role
   ];
 
-  // Hàm thực hiện đăng xuất thật sự
+  // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
+  const handleLogoutClick = (e) => {
+    e.preventDefault();
+    setShowLogoutModal(true);
+  };
+
+  // Hàm thực thi khi bấm "Xác nhận" trong Modal
   const confirmLogout = () => {
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setShowLogoutModal(false);
     navigate('/login');
   };
 
@@ -35,7 +40,9 @@ const SidebarNhanVien = () => {
 
       {/* 2. MENU CHÍNH */}
       <nav style={{ flex: 1 }}>
-        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>TRANG CHỦ</p>
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
+          NHÂN VIÊN
+        </p>
         {menuItems.map((item) => (
           <Link 
             key={item.path} 
@@ -49,18 +56,23 @@ const SidebarNhanVien = () => {
 
       {/* 3. MENU FOOTER (SUPPORT) */}
       <div className="sidebar-footer">
-        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>SUPPORT</p>
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
+          SUPPORT
+        </p>
         
-        <Link to="/settings" className="menu-item">
+        <Link to="/NhanVien/settings" className="menu-item">
           <Settings size={20} /> <span style={{ marginLeft: '12px' }}>Cài Đặt</span>
         </Link>
         
-        <Link to="/help" className="menu-item">
+        <Link to="/NhanVien/help" className="menu-item">
           <HelpCircle size={20} /> <span style={{ marginLeft: '12px' }}>Trợ Giúp</span>
         </Link>
         
-        {/* Nhấn vào đây sẽ hiện Modal chứ chưa logout ngay */}
-        <button onClick={() => setShowLogoutModal(true)} className="menu-item logout-btn" style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center' }}>
+        <button 
+          onClick={handleLogoutClick} 
+          className="menu-item logout-btn" 
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center' }}
+        >
           <LogOut size={20} /> <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
         </button>
       </div>
