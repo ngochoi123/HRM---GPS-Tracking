@@ -11,6 +11,8 @@ export default function PositionManagement() {
   const [positionToDelete, setPositionToDelete] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [viewingPosition, setViewingPosition] = useState(null);
   
   // States cho bộ lọc
   const [searchTerm, setSearchTerm] = useState('');
@@ -223,6 +225,16 @@ export default function PositionManagement() {
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex justify-center gap-2">
+
+                          {/* 👉 NÚT XEM */}
+                          <button 
+                            onClick={() => setViewingPosition(pos)}
+                            className="w-8 h-8 rounded-full bg-cyan-50 flex items-center justify-center text-cyan-500 hover:bg-cyan-500 hover:text-white transition-colors" 
+                            title="Xem chi tiết"
+                          >
+                            <Eye size={15} />
+                          </button>
+
                           {/* 👉 NÚT SỬA */}
                           <button 
                             onClick={() => setEditingPosition(pos)}
@@ -309,6 +321,70 @@ export default function PositionManagement() {
                   Xác nhận xóa
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+        
+        {viewingPosition && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 border border-slate-100 animate-in fade-in zoom-in duration-200">
+              
+              {/* HEADER */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center">
+                  <Eye className="text-cyan-500" size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Chi tiết chức vụ
+                </h2>
+              </div>
+
+              {/* CONTENT */}
+              <div className="space-y-3 text-sm text-slate-600">
+                <div className="flex justify-between">
+                  <span className="font-medium">Mã:</span>
+                  <span className="text-slate-800 font-semibold">{viewingPosition.code}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="font-medium">Tên:</span>
+                  <span className="text-slate-800 font-semibold">{viewingPosition.name}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="font-medium">Phòng ban:</span>
+                  <span>{viewingPosition.department}</span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Cấp bậc:</span>
+                  {getLevelBadge(viewingPosition.level)}
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="font-medium">Lương tối thiểu:</span>
+                  <span className="text-emerald-600 font-bold">
+                    {formatCurrency(viewingPosition.baseSalaryMin)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="font-medium">Nhân sự:</span>
+                  <span>{viewingPosition.employeeCount}</span>
+                </div>
+              </div>
+
+              {/* FOOTER */}
+              <div className="flex justify-end mt-6">
+                <button 
+                  onClick={() => setViewingPosition(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition"
+                >
+                  Đóng
+                </button>
+              </div>
+
             </div>
           </div>
         )}

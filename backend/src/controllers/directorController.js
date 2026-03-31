@@ -1025,41 +1025,116 @@ const getPositions = async (req, res) => {
 // Thêm chức vụ mới
 const createPosition = async (req, res) => {
   try {
+
     const { position_code, position_name, department_id, level, base_salary_min } = req.body;
-    
-    const query = `
+
+    // ✅ Validate level
+    const validLevels = [
+      'intern','fresher','junior','middle','senior','manager','director'
+    ];
+
+    if (!validLevels.includes(level)) {
+      return res.status(400).json({
+        success: false,
+        message: "Level không hợp lệ!"
+      });
+    }
+
+    // 🔥 Check trùng
+    const exists = await db.query(`
+      SELECT id FROM position 
+      WHERE position_code = :code OR position_name = :name
+    `, {
+      replacements: {
+        code: position_code,
+        name: position_name
+      },
+      type: QueryTypes.SELECT
+    });
+
+    if (exists.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã hoặc tên chức vụ đã tồn tại!"
+      });
+    }
+
+    // ✅ Insert
+    await db.query(`
       INSERT INTO position (position_code, position_name, department_id, level, base_salary_min)
       VALUES (:position_code, :position_name, :department_id, :level, :base_salary_min)
-    `;
-
-    await db.query(query, {
+    `, {
       replacements: {
-        position_code, 
-        position_name, 
-        department_id: department_id || null, 
-        level, 
+        position_code,
+        position_name,
+        department_id: department_id || null,
+        level,
         base_salary_min: base_salary_min || 0
       },
-      type: db.QueryTypes.INSERT
+      type: QueryTypes.INSERT
     });
 
     res.status(201).json({ success: true, message: 'Thêm chức vụ thành công!' });
+
   } catch (error) {
     console.error('Lỗi API createPosition:', error);
+
     if (error.original && error.original.code === '23505') {
-      return res.status(400).json({ success: false, message: 'Mã chức vụ này đã tồn tại!' });
+      return res.status(400).json({
+        success: false,
+        message: 'Mã chức vụ này đã tồn tại!'
+      });
     }
-    res.status(500).json({ success: false, message: 'Lỗi Server khi thêm chức vụ' });
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi Server khi thêm chức vụ'
+    });
   }
 };
 
 // Cập nhật chức vụ
 const updatePosition = async (req, res) => {
   try {
+    // ✅ Lấy dữ liệu trước
     const { id } = req.params;
     const { position_code, position_name, department_id, level, base_salary_min } = req.body;
 
-    const query = `
+    // ✅ Validate level
+    const validLevels = [
+      'intern','fresher','junior','middle','senior','manager','director'
+    ];
+
+    if (!validLevels.includes(level)) {
+      return res.status(400).json({
+        success: false,
+        message: "Level không hợp lệ!"
+      });
+    }
+
+    // 🔥 Check trùng (trừ chính nó)
+    const exists = await db.query(`
+      SELECT id FROM position 
+      WHERE (position_code = :code OR position_name = :name)
+      AND id != :id
+    `, {
+      replacements: {
+        id,
+        code: position_code,
+        name: position_name
+      },
+      type: QueryTypes.SELECT
+    });
+
+    if (exists.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã hoặc tên chức vụ đã tồn tại!"
+      });
+    }
+
+    // ✅ Update
+    await db.query(`
       UPDATE position 
       SET position_code = :position_code,
           position_name = :position_name,
@@ -1067,25 +1142,34 @@ const updatePosition = async (req, res) => {
           level = :level,
           base_salary_min = :base_salary_min
       WHERE id = :id
-    `;
-
-    await db.query(query, {
+    `, {
       replacements: {
-        id, position_code, position_name, 
-        department_id: department_id || null, 
-        level, 
+        id,
+        position_code,
+        position_name,
+        department_id: department_id || null,
+        level,
         base_salary_min: base_salary_min || 0
       },
-      type: db.QueryTypes.UPDATE
+      type: QueryTypes.UPDATE
     });
 
     res.status(200).json({ success: true, message: 'Cập nhật chức vụ thành công!' });
+
   } catch (error) {
     console.error('Lỗi API updatePosition:', error);
+
     if (error.original && error.original.code === '23505') {
-      return res.status(400).json({ success: false, message: 'Mã chức vụ này đã bị trùng với chức vụ khác!' });
+      return res.status(400).json({
+        success: false,
+        message: 'Mã chức vụ này đã bị trùng với chức vụ khác!'
+      });
     }
-    res.status(500).json({ success: false, message: 'Lỗi Server khi cập nhật chức vụ' });
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi Server khi cập nhật chức vụ'
+    });
   }
 };
 

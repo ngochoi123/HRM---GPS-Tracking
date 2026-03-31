@@ -8,7 +8,7 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
     position_code: '',
     position_name: '',
     department_id: '',
-    level: 'employee',
+    level: 'intern',
     base_salary_min: ''
   });
   
@@ -33,10 +33,15 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
     if (isEdit) {
       const normalizedLevel = (() => {
         const lvl = String(position.level || '').toLowerCase();
-        if (['manager'].includes(lvl)) return 'manager';
-        if (['director'].includes(lvl)) return 'director';
-        // Chuyển mọi cấp độ staff hiện có thành employee
-        return 'employee';
+
+        if (lvl === 'manager') return 'manager';
+        if (lvl === 'director') return 'director';
+
+        if (['intern','fresher','junior','middle','senior'].includes(lvl)) {
+          return lvl;
+        }
+
+        return 'intern'; // ✅ fallback an toàn
       })();
 
       setFormData({
@@ -51,32 +56,87 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
   }, [position, isEdit]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+    let { name, value } = e.target;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = { ...formData };
-      if (!payload.department_id) payload.department_id = null;
-
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      
-      if (isEdit) {
-        await axios.put(`http://localhost:5000/api/director/positions/${position.id}`, payload, { headers });
-        alert('Cập nhật chức vụ thành công!');
-      } else {
-        await axios.post(`http://localhost:5000/api/director/positions`, payload, { headers });
-        alert('Thêm chức vụ mới thành công!');
-      }
-      onSaveSuccess();
-    } catch (error) {
-      alert(error.response?.data?.message || 'Có lỗi xảy ra!');
-    } finally {
-      setSaving(false);
+    // ✅ Chỉ cho chữ + số + khoảng trắng
+    if (name === "position_code" || name === "position_name") {
+      value = value.replace(/[^a-zA-Z0-9À-ỹ\s]/g, "");
     }
+
+    // ✅ Chỉ cho số
+    if (name === "base_salary_min") {
+      value = value.replace(/\D/g, "");
+    }
+    setFormData({ ...formData, [name]: value });
   };
+
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const textRegex = /^(?=.*[a-zA-Z])[a-zA-Z0-9À-ỹ\s]+$/;
+
+  // ✅ trim
+  if (!formData.position_code.trim()) {
+    alert("Mã chức vụ không được để trống!");
+    return;
+  }
+
+  if (!formData.position_name.trim()) {
+    alert("Tên chức vụ không được để trống!");
+    return;
+  }
+
+  // ✅ regex
+  if (!textRegex.test(formData.position_code)) {
+    alert("Mã chức vụ chỉ được chứa chữ, chữ + số!");
+    return;
+  }
+
+  if (!textRegex.test(formData.position_name)) {
+    alert("Tên chức vụ chỉ được chứa chữ, chữ + số!");
+    return;
+  }
+
+  // ✅ level
+  const validLevels = [
+    'intern','fresher','junior','middle','senior','manager','director'
+  ];
+
+  if (!validLevels.includes(formData.level)) {
+    alert("Level không hợp lệ!");
+    return;
+  }
+
+  // ✅ salary
+  if (formData.base_salary_min !== "" && isNaN(formData.base_salary_min)) {
+    alert("Lương phải là số!");
+    return;
+  }
+
+  setSaving(true);
+
+  try {
+    const payload = { ...formData };
+    if (!payload.department_id) payload.department_id = null;
+
+    const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+
+    if (isEdit) {
+      await axios.put(`http://localhost:5000/api/director/positions/${position.id}`, payload, { headers });
+      alert('Cập nhật chức vụ thành công!');
+    } else {
+      await axios.post(`http://localhost:5000/api/director/positions`, payload, { headers });
+      alert('Thêm chức vụ mới thành công!');
+    }
+
+    onSaveSuccess();
+
+  } catch (error) {
+    alert(error.response?.data?.message || 'Có lỗi xảy ra!');
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 font-sans">
@@ -122,10 +182,19 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-700">Cấp bậc (Level) <span className="text-red-500">*</span></label>
-              <select name="level" value={formData.level} onChange={handleChange} required
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none">
-                {/* Chỉ 3 cấp độ tương ứng role: employee/manager/director */}
-                <option value="employee">Employee / Nhân viên</option>
+              <select
+                name="level"
+                value={formData.level}
+                onChange={handleChange}
+                required
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none"
+              >
+                <option value="intern">Intern / Thực tập sinh</option>
+                <option value="fresher">Fresher / Mới ra trường</option>
+                <option value="junior">Junior / Nhân viên</option>
+                <option value="middle">Middle / Nhân viên</option>
+                <option value="senior">Senior / Nhân viên</option>
+
                 <option value="manager">Manager / Quản lý</option>
                 <option value="director">Director / Giám đốc</option>
               </select>

@@ -17,6 +17,8 @@ router.post("/departments", ctrl.createDepartment);
 router.put("/departments/:id", ctrl.updateDepartment);
 router.delete("/departments/:id", ctrl.deleteDepartment);
 
+router.get("/form-options", ctrl.getFormOptions);
+
 // ===== BRANCH =====
 router.get("/branches", ctrl.getBranches);            // Lấy danh sách chi nhánh
 router.get("/branches/:id/manager-candidates", ctrl.getBranchManagerCandidates);
