@@ -79,7 +79,7 @@
 }
 
 /* Các hộp thông tin trên Header */
-.datetime-box, .user-profile, .top-header button {
+.datetime-box, .user-profile, .top-header > button {
   background: #ffffff !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   border: none;

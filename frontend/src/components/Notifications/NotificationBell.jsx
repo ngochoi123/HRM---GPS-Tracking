@@ -33,6 +33,13 @@ export default function NotificationBell() {
   const user = userString ? JSON.parse(userString) : {};
   const myUserId = user.employee_id || user.id;
 
+  const isReadValue = (v) => {
+    if (v === true) return true;
+    if (v === 1) return true;
+    const sv = String(v).toLowerCase();
+    return sv === "true" || sv === "1";
+  };
+
   useEffect(() => {
     if (!myUserId) return undefined;
 
@@ -129,7 +136,7 @@ export default function NotificationBell() {
     setIsOpen(false);
     setIsExpanded(false);
 
-    if (!noti.is_read) {
+    if (!isReadValue(noti.is_read)) {
       try {
         setNotifications((prev) => prev.map((n) => (n.id === noti.id ? { ...n, is_read: true } : n)));
         await axios.put(`http://localhost:5000/api/notifications/read/${noti.id}`, { userId: myUserId });
@@ -169,7 +176,7 @@ export default function NotificationBell() {
     return `${text.slice(0, 72).trim()}…`;
   };
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !isReadValue(n.is_read)).length;
   const previewLimit = 5;
   const hasMoreThanPreview = notifications.length > previewLimit;
   const displayedNotifications = isExpanded || !hasMoreThanPreview ? notifications : notifications.slice(0, previewLimit);
@@ -238,19 +245,20 @@ export default function NotificationBell() {
               {displayedNotifications.length > 0 ? (
                 <ul className="flex flex-col gap-1.5 p-2.5">
                   {displayedNotifications.map((noti) => {
-                    const d = new Date(noti.created_at);
-                    const timeStr = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-                    const { icon, bg, textColor } = getSmartIcon(noti.title, noti.notification_type);
+                  const d = new Date(noti.created_at);
+                  const timeStr = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+                  const { icon, bg, textColor } = getSmartIcon(noti.title, noti.notification_type);
+                  const isUnread = !isReadValue(noti.is_read);
 
-                    return (
-                      <li key={noti.id} className="list-none">
+                  return (
+                  <li key={noti.id} className="list-none">
                         <button
                           type="button"
                           onClick={() => handleViewNotification(noti)}
-                          className={`group relative flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
-                            noti.is_read
-                              ? "border-transparent bg-white hover:bg-white hover:shadow-[0_1px_8px_rgba(15,23,42,0.06)]"
-                              : "border-teal-100/90 bg-white shadow-[inset_3px_0_0_0_rgb(20,184,166)] hover:border-teal-200/80"
+                          className={`group relative flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 ${
+                            isUnread
+                              ? "border-sky-300 bg-gradient-to-r from-sky-100 via-cyan-100 to-sky-100 hover:from-sky-100 hover:via-sky-200 hover:to-sky-100 shadow-[0_4px_12px_rgba(56,189,248,0.25)]"
+                              : "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 shadow-[0_1px_6px_rgba(15,23,42,0.04)]"
                           }`}
                         >
                           <div
@@ -262,13 +270,17 @@ export default function NotificationBell() {
                             <div className="flex items-start gap-2">
                               <p
                                 className={`min-w-0 flex-1 break-words line-clamp-2 text-[15px] leading-snug tracking-tight ${
-                                  noti.is_read ? "font-semibold text-slate-700" : "font-bold text-slate-900"
+                                  isUnread ? "font-semibold text-slate-900" : "font-medium text-slate-700"
                                 }`}
                               >
                                 {noti.title}
                               </p>
-                              {!noti.is_read && (
-                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" title="Chưa đọc" aria-hidden />
+                              {isUnread && (
+                                <span
+                                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 ring-2 ring-sky-200"
+                                  title="Chưa đọc"
+                                  aria-hidden
+                                />
                               )}
                             </div>
                             <p className="mt-1.5 break-words line-clamp-2 text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
