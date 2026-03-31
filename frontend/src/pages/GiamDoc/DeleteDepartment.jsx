@@ -14,61 +14,49 @@ export default function DeleteDepartment() {
   const [checked, setChecked] = useState(false);
   const [targetDepartment, setTargetDepartment] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [moveDepartmentId, setMoveDepartmentId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [hasEmployees, setHasEmployees] = useState(false);
-
+  
   // 🔥 Thêm state confirm đẹp
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
+    // 🔹 Lấy phòng ban hiện tại
+    const fetchDepartment = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(
+          `http://localhost:5000/api/director/departments/${id}`
+        );
+        const data = res.data?.data || res.data;
+        setDepartment(data);
+      } catch (err) {
+        console.log(err);
+        toast.error("Không tải được thông tin phòng ban");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 🔹 Dropdown phòng ban
+    const fetchDepartments = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5000/api/director/departments`
+        );
+        setDepartments(res.data?.data || res.data || []);
+      } catch (err) {
+        console.log(err);
+        toast.error("Không tải được danh sách phòng ban");
+      }
+    };
+
+    // Gọi hàm khi component mount hoặc khi id thay đổi
     fetchDepartment();
     fetchDepartments();
   }, [id]);
 
-  // 🔹 Lấy phòng ban hiện tại
-  const fetchDepartment = async () => {
-    try {
-      setLoading(true);
-
-      const res = await axios.get(
-        `http://localhost:5000/api/director/departments/${id}`
-      );
-
-      const data = res.data?.data || res.data;
-
-      setDepartment(data);
-
-      if (data?.total_employees > 0) {
-        setHasEmployees(true);
-      }
-
-    } catch (err) {
-      console.log(err);
-      toast.error("Không tải được thông tin phòng ban");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🔹 Dropdown phòng ban
-  const fetchDepartments = async () => {
-    try {
-      const res = await axios.get(
-        `http://localhost:5000/api/director/departments`
-      );
-
-      setDepartments(res.data?.data || res.data || []);
-
-    } catch (err) {
-      console.log(err);
-      toast.error("Không tải được danh sách phòng ban");
-    }
-  };
-
   // 🔥 XÓA
   const handleDelete = async () => {
-
     try {
       setDeleting(true);
 
@@ -86,7 +74,6 @@ export default function DeleteDepartment() {
 
     } catch (error) {
       console.error(error);
-
       toast.error(
         error.response?.data?.message || "Lỗi xoá phòng ban"
       );
@@ -166,12 +153,13 @@ export default function DeleteDepartment() {
           </div>
         </div>
 
-        {/* WARNING */}
+        {/* WARNING - NẾU CÒN NHÂN SỰ */}
         {department.total_employees > 0 && (
           <div className="bg-red-50 border border-red-200 p-5 rounded-xl space-y-3">
             <p className="text-red-600 font-semibold">
               ⚠️ Có {department.total_employees} nhân sự
             </p>
+            <p className="text-sm text-red-500">Vui lòng chọn phòng ban tiếp nhận để thuyên chuyển nhân sự trước khi xóa.</p>
 
             <select
               className="w-full border p-2 rounded-lg"
@@ -179,7 +167,6 @@ export default function DeleteDepartment() {
               onChange={(e) => setTargetDepartment(e.target.value)}
             >
               <option value="">-- Chọn phòng ban tiếp nhận --</option>
-
               {departments
                 .filter((d) => d.id !== department.id)
                 .map((d) => (
@@ -191,7 +178,7 @@ export default function DeleteDepartment() {
           </div>
         )}
 
-        {/* CONFIRM */}
+        {/* CONFIRM CODE */}
         <div className="border rounded-xl p-5 space-y-3">
           <p className="text-sm text-gray-500">
             Nhập mã <b>{department.department_code}</b> để xác nhận
@@ -251,7 +238,7 @@ export default function DeleteDepartment() {
             </div>
 
             <p className="text-gray-600 mb-6">
-              Bạn có chắc muốn xoá phòng ban này không?
+              Bạn có chắc muốn xoá phòng ban này không? {department.total_employees > 0 && "Toàn bộ nhân sự sẽ được chuyển sang phòng ban mới."}
             </p>
 
             <div className="flex justify-end gap-3">
@@ -267,7 +254,7 @@ export default function DeleteDepartment() {
                   setShowConfirm(false);
                   handleDelete();
                 }}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
               >
                 Xoá
               </button>

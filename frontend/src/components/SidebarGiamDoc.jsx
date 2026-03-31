@@ -1,12 +1,12 @@
-import React, { useState } from 'react'; // 👉 Thêm useState
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Building, Users, FileText, MapPin, Briefcase, CheckSquare, Settings, HelpCircle, LogOut } from 'lucide-react';
+import { Home, Building, Users, FileText, MapPin, Briefcase, CheckSquare, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
 
 const SidebarGiamDoc = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 👉 1. State quản lý hiển thị Modal
+  // State quản lý hiển thị Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems = [
@@ -18,13 +18,13 @@ const SidebarGiamDoc = () => {
     { path: '/GiamDoc/approvals', icon: <CheckSquare size={20} />, label: 'Phê duyệt' },
   ];
 
-  // 👉 2. Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
+  // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
   const handleLogoutClick = (e) => {
     e.preventDefault();
     setShowLogoutModal(true);
   };
 
-  // 👉 3. Hàm thực thi khi bấm "Xác nhận" trong Modal
+  // Hàm thực thi khi bấm "Xác nhận" trong Modal
   const confirmLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token'); // Xóa thêm token nếu có để bảo mật
@@ -33,78 +33,68 @@ const SidebarGiamDoc = () => {
   };
 
   return (
-    <>
-      <aside className="sidebar">
-        <div className="logo" style={{ marginBottom: '40px' }}>
-          <img src="/logo.png" alt="HR PeopleTech" style={{ height: '40px' }} />
-        </div>
+    <aside className="sidebar">
+      {/* 1. LOGO */}
+      <div className="logo">
+        <img src="/logo.png" alt="HR PeopleTech" />
+      </div>
 
-        <nav style={{ flex: 1 }}>
-          <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px' }}>
-            GIÁM ĐỐC
-          </p>
+      {/* 2. MENU CHÍNH */}
+      <nav style={{ flex: 1 }}>
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>
+          GIÁM ĐỐC
+        </p>
 
-          {menuItems.map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
+        {menuItems.map((item) => {
+          const isActive = location.pathname.startsWith(item.path);
 
-            return (
-              <Link 
-                key={item.path} 
-                to={item.path} 
-                className={`menu-item ${isActive ? 'active' : ''}`}
-              >
-                {item.icon}
-                <span style={{ marginLeft: '12px' }}>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+          return (
+            <Link 
+              key={item.path} 
+              to={item.path} 
+              className={`menu-item ${isActive ? 'active' : ''}`}
+            >
+              {item.icon}
+              <span style={{ marginLeft: '12px' }}>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        <div className="sidebar-footer">
-          <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px' }}>
-            SUPPORT
-          </p>
+      {/* 3. MENU FOOTER (SUPPORT) */}
+      <div className="sidebar-footer">
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px' }}>
+          SUPPORT
+        </p>
 
-          <Link to="/settings" className="menu-item">
-            <Settings size={20} /> 
-            <span style={{ marginLeft: '12px' }}>Cài Đặt</span>
-          </Link>
+        <Link to="/GiamDoc/settings" className="menu-item">
+          <Settings size={20} /> 
+          <span style={{ marginLeft: '12px' }}>Cài Đặt</span>
+        </Link>
 
-          <Link to="/help" className="menu-item">
-            <HelpCircle size={20} /> 
-            <span style={{ marginLeft: '12px' }}>Trợ Giúp</span>
-          </Link>
+        <Link to="/GiamDoc/help" className="menu-item">
+          <HelpCircle size={20} /> 
+          <span style={{ marginLeft: '12px' }}>Trợ Giúp</span>
+        </Link>
 
-          {/* 👉 Nút Đăng Xuất gắn với hàm handleLogoutClick */}
-          <button 
-            onClick={handleLogoutClick} 
-            className="menu-item"
-            style={{
-              width: '100%',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              padding: '12px',
-              color: '#6b7280',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <LogOut size={20} /> 
-            <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
-          </button>
-        </div>
-      </aside>
+        {/* Nút Đăng Xuất gắn với hàm handleLogoutClick */}
+        <button 
+          onClick={handleLogoutClick} 
+          className="menu-item logout-btn"
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center' }}
+        >
+          <LogOut size={20} /> 
+          <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
+        </button>
+      </div>
 
-      {/* 👉 4. MODAL XÁC NHẬN ĐĂNG XUẤT */}
+      {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
       {showLogoutModal && (
         <div className="modal-overlay">
           <div className="logout-modal">
             <div className="modal-icon-container">
                <div className="icon-circle">
-                  {/* Dùng tạm HelpCircle thay thế vì QuestionIcon chưa được import */}
-                  <HelpCircle size={40} color="#16a34a" />
+                  <QuestionIcon size={40} color="#16a34a" />
                </div>
             </div>
             
@@ -118,7 +108,7 @@ const SidebarGiamDoc = () => {
           </div>
         </div>
       )}
-    </>
+    </aside>
   );
 };
 

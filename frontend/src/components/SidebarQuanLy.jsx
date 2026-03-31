@@ -4,17 +4,17 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, Clock, FileText, Wallet, // Nhóm cá nhân
   Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
-  Settings, LogOut, HelpCircle // Thêm HelpCircle cho Modal
+  Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon // Thêm QuestionIcon cho khớp với Modal
 } from 'lucide-react';
 
 const SidebarQuanLy = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 👉 1. State quản lý hiển thị Modal
+  // State quản lý hiển thị Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // 1. NHÓM CHỨC NĂNG CÁ NHÂN (Thừa kế từ Nhân viên)
+  // 1. NHÓM CHỨC NĂNG CÁ NHÂN
   const personalItems = [
     { path: '/QuanLy/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/QuanLy/CheckIn', icon: <Clock size={20} />, label: 'Chấm công' },
@@ -31,86 +31,85 @@ const SidebarQuanLy = () => {
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];
 
-  // 👉 2. Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
-  const handleLogoutClick = (e) => {
-    e.preventDefault();
-    setShowLogoutModal(true);
-  };
-
-  // 👉 3. Hàm thực thi khi bấm "Xác nhận" trong Modal
+  // Hàm thực thi khi bấm "Xác nhận" trong Modal
   const confirmLogout = () => {
     localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    setShowLogoutModal(false);
+    localStorage.removeItem('token'); // Nếu có lưu token thì xóa luôn
     navigate('/login');
   };
 
-  // Render từng item để code gọn hơn
-  const renderMenuItem = (item) => (
-    <Link 
-      key={item.path} 
-      to={item.path} 
-      className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
-      style={{ display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', textDecoration: 'none', color: location.pathname === item.path ? '#4f46e5' : '#4b5563', backgroundColor: location.pathname === item.path ? '#e0e7ff' : 'transparent', marginBottom: '4px', transition: 'all 0.2s' }}
-    >
-      {item.icon} <span style={{ marginLeft: '12px', fontWeight: location.pathname === item.path ? '600' : '500' }}>{item.label}</span>
-    </Link>
-  );
-
   return (
-    <>
-      <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '20px', borderRight: '1px solid #e5e7eb', backgroundColor: '#ffffff', overflowY: 'auto' }}>
-        {/* LOGO */}
-        <div className="logo" style={{ marginBottom: '30px', paddingLeft: '10px' }}>
-          <img src="/logo.png" alt="HR PeopleTech" style={{ height: '40px' }} />
-        </div>
+    <aside className="sidebar">
+      {/* 1. LOGO */}
+      <div className="logo">
+        <img src="/logo.png" alt="HR PeopleTech" />
+      </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* KHU VỰC 1: CÁ NHÂN */}
-          <nav>
-            <p style={{ color: '#9ca3af', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '12px', paddingLeft: '15px' }}>
-              CÁ NHÂN
-            </p>
-            {personalItems.map(renderMenuItem)}
-          </nav>
+      {/* 2. MENU CHÍNH (Có cuộn nếu dài) */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        
+        {/* KHU VỰC 1: CÁ NHÂN */}
+        <nav style={{ marginBottom: '24px' }}>
+          <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
+            CÁ NHÂN
+          </p>
+          {personalItems.map((item) => (
+            <Link 
+              key={item.path} 
+              to={item.path} 
+              className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
+            >
+              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
 
-          {/* KHU VỰC 2: QUẢN LÝ */}
-          <nav>
-            <p style={{ color: '#9ca3af', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '12px', paddingLeft: '15px' }}>
-              QUẢN LÝ TRUNG TÂM
-            </p>
-            {managementItems.map(renderMenuItem)}
-          </nav>
+        {/* KHU VỰC 2: QUẢN LÝ TRUNG TÂM */}
+        <nav>
+          <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
+            QUẢN LÝ TRUNG TÂM
+          </p>
+          {managementItems.map((item) => (
+            <Link 
+              key={item.path} 
+              to={item.path} 
+              className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
+            >
+              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+      </div>
 
-        </div>
+      {/* 3. MENU FOOTER (SUPPORT) */}
+      <div className="sidebar-footer">
+        <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>SUPPORT</p>
+        
+        <Link to="/QuanLy/settings" className="menu-item">
+          <Settings size={20} /> <span style={{ marginLeft: '12px' }}>Cài Đặt</span>
+        </Link>
+        
+        <Link to="/QuanLy/help" className="menu-item">
+          <HelpCircle size={20} /> <span style={{ marginLeft: '12px' }}>Trợ Giúp</span>
+        </Link>
+        
+        {/* Nút Đăng xuất hiện Modal */}
+        <button 
+          onClick={() => setShowLogoutModal(true)} 
+          className="menu-item logout-btn" 
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center' }}
+        >
+          <LogOut size={20} /> <span style={{ marginLeft: '12px' }}>Đăng Xuất</span>
+        </button>
+      </div>
 
-        {/* FOOTER: CÀI ĐẶT & ĐĂNG XUẤT */}
-        <div className="sidebar-footer" style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
-          <Link to="/QuanLy/settings" className="menu-item" style={{ display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', textDecoration: 'none', color: '#4b5563', marginBottom: '4px' }}>
-            <Settings size={20} /> <span style={{ marginLeft: '12px', fontWeight: '500' }}>Cài đặt tài khoản</span>
-          </Link>
-          
-          {/* 👉 Nút Đăng Xuất gọi handleLogoutClick */}
-          <button 
-            onClick={handleLogoutClick} 
-            className="menu-item" 
-            style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '10px 15px', color: '#dc2626', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <LogOut size={20} /> <span style={{ marginLeft: '12px', fontWeight: '500' }}>Đăng xuất</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* 👉 4. MODAL XÁC NHẬN ĐĂNG XUẤT */}
+      {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
       {showLogoutModal && (
         <div className="modal-overlay">
           <div className="logout-modal">
             <div className="modal-icon-container">
                <div className="icon-circle">
-                  <HelpCircle size={40} color="#16a34a" />
+                  <QuestionIcon size={40} color="#16a34a" />
                </div>
             </div>
             
@@ -124,7 +123,7 @@ const SidebarQuanLy = () => {
           </div>
         </div>
       )}
-    </>
+    </aside>
   );
 };
 

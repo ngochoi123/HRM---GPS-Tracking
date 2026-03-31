@@ -8,7 +8,7 @@ router.get("/departments/stats", ctrl.getDepartmentsStats);
 router.get("/managers", ctrl.getManagers);
 router.get("/requests", ctrl.getRequests);
 router.get("/salary", ctrl.getSalary);
-
+router.get("/dashboard/overview", ctrl.getDashboardOverview); // Route mới cho dashboard overview
 // ===== DEPARTMENT =====
 router.get("/departments", ctrl.getDepartments);
 router.get("/departments/:id", ctrl.getDepartmentById);
@@ -16,8 +16,6 @@ router.get("/departments/:id/employees", ctrl.getEmployeesByDepartment);
 router.post("/departments", ctrl.createDepartment);
 router.put("/departments/:id", ctrl.updateDepartment);
 router.delete("/departments/:id", ctrl.deleteDepartment);
-
-router.get("/form-options", ctrl.getFormOptions);
 
 // ===== BRANCH =====
 router.get("/branches", ctrl.getBranches);            // Lấy danh sách chi nhánh
@@ -32,7 +30,7 @@ router.get('/positions', ctrl.getPositions);
 router.post('/positions', ctrl.createPosition);
 router.put('/positions/:id', ctrl.updatePosition);
 router.delete('/positions/:id', ctrl.deletePosition);
-
+router.get('/form-options', ctrl.getFormOptions); // Bổ sung Form options cho Giám đốc
 
 // ===== HỢP ĐỒNG LAO ĐỘNG =====
 router.get('/contracts', ctrl.getContracts);
