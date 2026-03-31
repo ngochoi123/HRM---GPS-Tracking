@@ -457,7 +457,9 @@ exports.getProfile = async (req, res) => {
         e.identity_card_number,
         e.date_of_birth,
         e.address,
+        e.direct_manager_id,
         e.bank_account_number,
+        e.bank_name,
         e.join_date,
 
         p.position_name,
@@ -468,12 +470,15 @@ exports.getProfile = async (req, res) => {
         c.start_date,
         c.end_date,
         c.base_salary,
-        c.is_active
+        c.is_active,
+
+        m.full_name AS manager_name 
 
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
       LEFT JOIN contract c ON c.employee_id = e.id
+      LEFT JOIN employee m ON e.direct_manager_id = m.id
 
       WHERE e.id = $1
       ORDER BY c.start_date DESC
