@@ -44,12 +44,16 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
         contract_type: contract.typeCode || 'probation',
         start_date: contract.startDate ? contract.startDate.split('T')[0] : '',
         end_date: contract.endDate ? contract.endDate.split('T')[0] : '',
-        base_salary_min: contract.basicSalary || 0
+        // 👉 FIX: Đảm bảo đọc đúng cột lương từ backend trả về
+        base_salary_min: contract.baseSalary || contract.basicSalary || 0
       });
       
       if (contract.allowances && Array.isArray(contract.allowances)) {
         setAllowances(contract.allowances);
       }
+    } else {
+      // Tự động tính ngày kết thúc cho chế độ "Thêm mới" ngay khi vừa load form
+      calculateAndSetEndDate('probation', new Date().toISOString().split('T')[0]);
     }
   }, [contract, isEdit]);
 
@@ -77,8 +81,39 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
     });
   };
 
+  // 👉 HÀM TÍNH TOÁN NGÀY KẾT THÚC CHUẨN HR
+  const calculateAndSetEndDate = (type, sDate) => {
+    let newEndDate = '';
+    
+    if (sDate && type !== 'indefinite') {
+      const d = new Date(sDate);
+      if (type === 'probation') d.setMonth(d.getMonth() + 2); // Thử việc 2 tháng
+      else if (type === 'fixed_1y') d.setFullYear(d.getFullYear() + 1); // 1 năm
+      else if (type === 'fixed_3y') d.setFullYear(d.getFullYear() + 3); // 3 năm
+      
+      // Trừ đi 1 ngày (Ví dụ: 01/01/2026 -> 31/12/2026)
+      d.setDate(d.getDate() - 1);
+      
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      newEndDate = `${year}-${month}-${day}`;
+    }
+
+    setFormData(prev => ({ ...prev, contract_type: type, start_date: sDate, end_date: newEndDate }));
+  };
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Nếu đổi Loại hợp đồng hoặc Ngày bắt đầu -> Gọi hàm tính ngày tự động
+    if (name === 'contract_type') {
+      calculateAndSetEndDate(value, formData.start_date);
+    } else if (name === 'start_date') {
+      calculateAndSetEndDate(formData.contract_type, value);
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleAddAllowance = () => { setAllowances([...allowances, { name: '', amount: 0 }]); };
@@ -93,7 +128,13 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...formData, allowances };
+      // 👉 FIX: Đổi tên base_salary_min thành basic_salary để khớp với Backend
+      const payload = { 
+        ...formData, 
+        basic_salary: formData.base_salary_min, 
+        allowances 
+      };
+      
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
       
       if (isEdit) {
@@ -233,7 +274,6 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
                 <label className="text-sm font-bold text-slate-700">Mức lương cơ bản (Theo ngạch bậc) <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₫</span>
-                  {/* VẪN MỞ KHÓA ĐỂ EDIT LƯƠNG NHƯ YÊU CẦU */}
                   <input type="number" name="base_salary_min" value={formData.base_salary_min} onChange={handleChange} required 
                     className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:outline-none transition-all" />
                 </div>
