@@ -51,12 +51,38 @@
 
 /* ===== BACK BUTTON ===== */
 .btn-back-outline {
-  border: 1px solid #dfe6e9;
-  background: #fff;
-  padding: 8px 16px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 10px 16px;
+  border-radius: 12px;
+
+  border: 1px solid #9d9d9d;
+  background: #eae5e5;
+
+  color: rgb(76, 94, 62);
+  font-size: 14px;
+  font-weight: 500;
+
   cursor: pointer;
-  font-size: 13px;
+  transition: all 0.25s ease;
+}
+
+/* hover */
+.btn-back-outline:hover {
+  background: #00b33c;
+  color: #fff;
+  border-color: #00b33c;
+
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 179, 60, 0.25);
+}
+
+/* click */
+.btn-back-outline:active {
+  transform: scale(0.96);
+  box-shadow: 0 3px 8px rgba(0, 179, 60, 0.2);
 }
 
 /* ===== SUMMARY ===== */
@@ -474,4 +500,40 @@
   color: #dc2626;
   font-weight: 300;
   margin-top: 5px;
+}
+
+.password-input {
+  position: relative;
+  margin-bottom: 10px;
+  
+}
+
+.password-input input {
+  width: 100%;
+  padding-right: 40px;
+  
+}
+
+.password-input span {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #666;
+}
+
+/* Ẩn icon mắt mặc định của trình duyệt */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+}
+
+.password-input span:hover {
+  color: #00b33c;
 }

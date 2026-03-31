@@ -7,6 +7,8 @@ import { LuPhone } from "react-icons/lu";
 import { MdOutlineEmail } from "react-icons/md";
 import { FaAddressBook } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { FiEye, FiEyeOff } from "react-icons/fi";
+import { ArrowLeft } from "lucide-react";
 
 import "./Profile.css";
 
@@ -22,6 +24,10 @@ const [contractMessage, setContractMessage] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleGoContract = () => {
     if (!user?.contract_type) {
@@ -141,7 +147,15 @@ const handleChangePassword = async () => {
                 Thông tin cá nhân, hợp đồng lao động của bạn.
               </p>
             </div>
-
+          
+            <div>
+              <button
+                className="btn-back-outline"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={16} /> Quay lại
+              </button>
+            </div>
 
           </div>
 
@@ -186,47 +200,54 @@ const handleChangePassword = async () => {
               </h4>
 
               <div className="data-row">
-                <span className="label">Họ và tên</span>
+                <span className="label">Họ và tên:</span>
                 <span className="value">{user.full_name}</span>
               </div>
 
               <div className="data-row">
-                <span className="label">CCCD</span>
+                <span className="label">CCCD:</span>
                 <span className="value">
                   {user.identity_card_number || "—"}
                 </span>
               </div>
 
               <div className="data-row">
-                <span className="label">Ngày sinh</span>
+                <span className="label">Ngày sinh:</span>
                 <span className="value">
                   {user.date_of_birth || "—"}
                 </span>
               </div>
 
               <div className="data-row">
-                <span className="label">Giới tính</span>
+                <span className="label">Giới tính:</span>
                 <span className="value">
                   {user.gender ? "Nam" : "Nữ"}
                 </span>
               </div>
 
               <div className="data-row">
-                <span className="label">Email cá nhân</span>
+                <span className="label">Email cá nhân:</span>
                 <span className="value">
                   {user.personal_email || "—"}
                 </span>
               </div>
+              
+              <div className="data-row">
+                <span className="label">Ngân hàng:</span>
+                <span className="value">
+                  {user.bank_name || "—"}
+                </span>
+              </div>
 
               <div className="data-row">
-                <span className="label">Tài khoản ngân hàng</span>
+                <span className="label">Số tài khoản:</span>
                 <span className="value">
                   {user.bank_account_number || "—"}
                 </span>
               </div>
 
               <div className="data-row">
-                <span className="label">Địa chỉ</span>
+                <span className="label">Địa chỉ:</span>
                 <span className="value">
                   {user.address || "—"}
                 </span>
@@ -240,17 +261,17 @@ const handleChangePassword = async () => {
               </h4>
 
               <div className="data-row">
-                <span className="label">Phòng ban</span>
+                <span className="label">Phòng ban:</span>
                 <span className="value">{user.department_name}</span>
               </div>
 
               <div className="data-row">
-                <span className="label">Chức vụ</span>
+                <span className="label">Chức vụ:</span>
                 <span className="value">{user.position_name}</span>
               </div>
 
               <div className="data-row">
-                <span className="label">Loại hợp đồng</span>
+                <span className="label">Loại hợp đồng:</span>
                 <span className="contract-badge">
                   {user.contract_type === "fixed_3y"
                     ? "Xác định thời hạn (3 năm)"
@@ -263,14 +284,14 @@ const handleChangePassword = async () => {
               </div>
 
               <div className="data-row">
-                <span className="label">Ngày gia nhập</span>
+                <span className="label">Ngày gia nhập:</span>
                 <span className="value">
                   {user.join_date || "—"}
                 </span>
               </div>
 
               <div className="data-row">
-                <span className="label">Quản lý trực tiếp</span>
+                <span className="label">Quản lý trực tiếp:</span>
                 <span className="value">
                   {user.manager_name || "—"}
                 </span>
@@ -297,26 +318,44 @@ const handleChangePassword = async () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Đổi mật khẩu</h3>
 
-              <input
-                type="password"
-                placeholder="Mật khẩu cũ"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-              />
+              <div className="password-input">
+                <input
+                  type={showOld ? "text" : "password"}
+                  placeholder="Mật khẩu cũ"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                />
 
-              <input
-                type="password"
-                placeholder="Mật khẩu mới"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+                <span onClick={() => setShowOld(!showOld)}>
+                  {showOld ? <FiEyeOff /> : <FiEye />}
+                </span>
+              </div>
 
-              <input
-                type="password"
-                placeholder="Xác nhận mật khẩu mới"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <div className="password-input">
+                  <input
+                    type={showNew ? "text" : "password"}
+                    placeholder="Mật khẩu mới"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+
+                  <span onClick={() => setShowNew(!showNew)}>
+                    {showNew ? <FiEyeOff /> : <FiEye />}
+                  </span>
+                </div>
+
+              <div className="password-input">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Xác nhận mật khẩu mới"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+
+                <span onClick={() => setShowConfirm(!showConfirm)}>
+                  {showConfirm ? <FiEyeOff /> : <FiEye />}
+                </span>
+              </div>
 
               {modalMessage && (
                 <p className={`modal-message-text ${modalMessage.includes("thành công") ? "success" : "error"}`}>
