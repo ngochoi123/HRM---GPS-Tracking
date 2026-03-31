@@ -30,7 +30,7 @@ router.get('/positions', ctrl.getPositions);
 router.post('/positions', ctrl.createPosition);
 router.put('/positions/:id', ctrl.updatePosition);
 router.delete('/positions/:id', ctrl.deletePosition);
-router.get('/form-options', ctrl.getFormOptions); // Bổ sung Form options cho Giám đốc
+
 
 // ===== HỢP ĐỒNG LAO ĐỘNG =====
 router.get('/contracts', ctrl.getContracts);

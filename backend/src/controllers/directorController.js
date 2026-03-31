@@ -1326,5 +1326,6 @@ module.exports = {
   getContracts,
   getContractFormOptions,
   createContract,
-  updateContract
+  updateContract,
+  getFormOptions
 };
