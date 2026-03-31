@@ -127,7 +127,7 @@
 }
 .info-section-bottom-right{
   font-weight: bold;
-  color: #00AE0C;
+  color: #00AE0C !important;
   font-size: 16px;
 }
 

@@ -20,6 +20,9 @@ const Requests = () => {
     reason: "",
   });
 
+  const [view, setView] = useState("create"); 
+// "create" | "history"
+
   const [notification, setNotification] = useState("");
   const [approvers, setApprovers] = useState([]); // danh sách người kiểm duyệt
   const [approverId, setApproverId] = useState(""); // id người được chọn
@@ -29,7 +32,7 @@ const Requests = () => {
 
   // ----------------- Load approvers (trưởng trực tiếp + Director) -----------------
   useEffect(() => {
-    if (!user?.id) return;
+    if (view==="history" &&!user?.id) return;
 
     axios
       .get(`http://localhost:5000/api/employee/approvers/${user.id}`)
@@ -38,7 +41,7 @@ const Requests = () => {
         setApprovers(res.data);
       })
       .catch((err) => console.error(err));
-  }, [user?.id]);
+  }, [view,user?.id]);
 
   // ----------------- Submit -----------------
   const handleSubmit = async (e) => {
@@ -105,147 +108,207 @@ const Requests = () => {
 
       {/* LEFT */}
       <div className="request-left">
-        {/* LEFT - header*/}
-        <div className="request-left-header">
-          <div className="header-left">
-            <h2>Tạo đơn nghỉ phép</h2>
-            <p>Tạo và quản lý đơn nghỉ của bạn.</p>
-          </div>
-          <div className="header-right">
-            <button className="btn-cannel">
-              <HiMiniXCircle /> Hủy
-            </button>
-          </div>
+
+        {view === "create" ? (
+    <>
+      {/* ================= HEADER ================= */}
+      <div className="request-left-header">
+        <div className="header-left">
+          <h2>Tạo đơn nghỉ phép</h2>
+          <p>Tạo và quản lý đơn nghỉ của bạn.</p>
         </div>
-
-        {/* LEFT - content */}
-        <div className="request-left-content">
-          <div className="info-section">
-            <h3 className="section-title">
-              <FaRegFileAlt className="icon" /> Thông tin chung
-            </h3>
-            <div className="input-grid">
-              <div className="input-group">
-                <label>Loại đơn</label>
-                <select
-                  className="input-option"
-                  value={form.type}
-                  onChange={(e) =>
-                    setForm({ ...form, type: e.target.value })
-                  }
-                >
-                  <option value="">Chọn loại đơn</option>
-                  <option value="annual">Nghỉ phép hàng năm</option>
-                  <option value="sick">Nghỉ ốm</option>
-                  <option value="unpaid">Nghỉ không lương</option>
-                  <option value="maternity">Nghỉ thai sản</option>
-                  <option value="bereavement">Nghỉ tang</option>
-                </select>
-              </div>
-
-              {/* -------- Người kiểm duyệt -------- */}
-              <div className="input-group">
-                <label>Người kiểm duyệt</label>
-                <select
-                  className="input-option"
-                  value={approverId}
-                  onChange={(e) => setApproverId(e.target.value)}
-                >
-                  <option value="" disabled hidden>
-                    Chọn người kiểm duyệt
-                  </option>
-                  {approvers.map((appr) => (
-                    <option key={appr.id} value={appr.id}>
-                      {appr.full_name} ({appr.position_name})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* LEFT - Thời gian nghỉ */}
-          <div className="info-section">
-            <h3 className="section-title">
-              <FaRegClock className="icon" /> Thời gian nghỉ
-            </h3>
-            <div className="input-grid">
-              <div className="input-group">
-                <label>Ngày bắt đầu</label>
-                <input
-                  type="date"
-                  className="input-option"
-                  value={form.startDate}
-                  onChange={(e) =>
-                    setForm({ ...form, startDate: e.target.value })
-                  }
-                />
-              </div>
-              <div className="input-group">
-                <label>Ngày kết thúc</label>
-                <input
-                  type="date"
-                  className="input-option"
-                  value={form.endDate}
-                  onChange={(e) =>
-                    setForm({ ...form, endDate: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-            <div className="info-section-bottom">
-              <div className="info-section-bottom-left">
-                <p>Tổng thời gian nghỉ dự kiến:</p>
-              </div>
-              <div className="info-section-bottom-right">
-                <p>{!form.startDate || !form.endDate
-                    ? "Chưa rõ"
-                    : `${calculateDays()} Ngày`}
-                    </p>
-              </div>
-            </div>
-          </div>
-
-          {/* LEFT - Chi tiết thêm */}
-          <div className="info-section">
-            <h3 className="section-title">
-              <MdChatBubbleOutline className="icon" /> Chi tiết thêm
-            </h3>
-            <div className="input-grid-1">
-              <div className="input-group" style={{ marginTop: "20px" }}>
-                <label>Lý do cụ thể</label>
-                <input
-                  type="text"
-                  className="input-option-1"
-                  placeholder="Nhập lý do..."
-                  value={form.reason}
-                  onChange={(e) =>
-                    setForm({ ...form, reason: e.target.value })
-                  }
-                />
-              </div>
-              <div className="input-group" style={{ marginTop: "20px" }}>
-                <label>Đính kèm tài liệu,tệp (Hình ảnh/PDF/Word)</label>
-                <label htmlFor="file-upload" className="file-uploader">
-                  <IoCloudUploadOutline className="file-icon" />
-                  <div className="file-text">
-                    <span className="file-bold">Nhấn để chọn file</span> hoặc kéo thả vào đây
-                  </div>
-                  <div className="file-note">
-                    Hỗ trợ định dạng: PNG, JPG, PDF, Word (Tối đa 10MB)
-                  </div>
-                  <input ref={fileRef} id="file-upload" type="file" hidden />
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="acction-footer">
-          <button className="btn-request" onClick={handleSubmit}>
-            <BsSend /> Gửi
+        <div className="header-right">
+          <button className="btn-cannel">
+            <HiMiniXCircle /> Hủy
           </button>
         </div>
+      </div>
+
+      {/* ================= CONTENT ================= */}
+      <div className="request-left-content">
+
+        {/* THÔNG TIN CHUNG */}
+        <div className="info-section">
+          <h3 className="section-title">
+            <FaRegFileAlt className="icon" /> Thông tin chung
+          </h3>
+
+          <div className="input-grid">
+            <div className="input-group">
+              <label>Loại đơn</label>
+              <select
+                className="input-option"
+                value={form.type}
+                onChange={(e) =>
+                  setForm({ ...form, type: e.target.value })
+                }
+              >
+                <option value="">Chọn loại đơn</option>
+                <option value="annual">Nghỉ phép hàng năm</option>
+                <option value="sick">Nghỉ ốm</option>
+                <option value="unpaid">Nghỉ không lương</option>
+                <option value="maternity">Nghỉ thai sản</option>
+                <option value="bereavement">Nghỉ tang</option>
+              </select>
+            </div>
+
+            <div className="input-group">
+              <label>Người kiểm duyệt</label>
+              <select
+                className="input-option"
+                value={approverId}
+                onChange={(e) => setApproverId(e.target.value)}
+              >
+                <option value="" disabled hidden>
+                  Chọn người kiểm duyệt
+                </option>
+                {approvers.map((appr) => (
+                  <option key={appr.id} value={appr.id}>
+                    {appr.full_name} ({appr.position_name})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* THỜI GIAN */}
+        <div className="info-section">
+          <h3 className="section-title">
+            <FaRegClock className="icon" /> Thời gian nghỉ
+          </h3>
+
+          <div className="input-grid">
+            <div className="input-group">
+              <label>Ngày bắt đầu</label>
+              <input
+                type="date"
+                className="input-option"
+                value={form.startDate}
+                onChange={(e) =>
+                  setForm({ ...form, startDate: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="input-group">
+              <label>Ngày kết thúc</label>
+              <input
+                type="date"
+                className="input-option"
+                value={form.endDate}
+                onChange={(e) =>
+                  setForm({ ...form, endDate: e.target.value })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="info-section-bottom">
+            <div className="info-section-bottom-left">
+              <p>Tổng thời gian nghỉ dự kiến:</p>
+            </div>
+            <div className="info-section-bottom-right">
+              <p>
+                {!form.startDate || !form.endDate
+                  ? "Chưa rõ"
+                  : `${calculateDays()} Ngày`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* CHI TIẾT */}
+        <div className="info-section">
+          <h3 className="section-title">
+            <MdChatBubbleOutline className="icon" /> Chi tiết thêm
+          </h3>
+
+          <div className="input-grid-1">
+            <div className="input-group" style={{ marginTop: "20px" }}>
+              <label>Lý do cụ thể</label>
+              <input
+                type="text"
+                className="input-option-1"
+                placeholder="Nhập lý do..."
+                value={form.reason}
+                onChange={(e) =>
+                  setForm({ ...form, reason: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="input-group" style={{ marginTop: "20px" }}>
+              <label>Đính kèm tài liệu</label>
+              <label htmlFor="file-upload" className="file-uploader">
+                <IoCloudUploadOutline className="file-icon" />
+                <div className="file-text">
+                  <span className="file-bold">Nhấn để chọn file</span>
+                </div>
+                <div className="file-note">
+                  PNG, JPG, PDF, Word (Max 10MB)
+                </div>
+                <input ref={fileRef} id="file-upload" type="file" hidden />
+              </label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ================= FOOTER ================= */}
+      <div className="acction-footer">
+        <button className="btn-request" onClick={handleSubmit}>
+          <BsSend /> Gửi
+        </button>
+      </div>
+    </>
+  ) : (
+    <>
+      {/* ================= HISTORY ================= */}
+      <div className="history-header">
+        <h2>Đơn đã gửi</h2>
+
+        <div style={{ display: "flex", gap: "10px" }}>
+          <input type="month" />
+          <button>🔍</button>
+
+          <button onClick={() => setView("create")}>
+            ← Quay lại
+          </button>
+        </div>
+      </div>
+
+      <table className="history-table">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th>Loại đơn</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {requests.length === 0 ? (
+            <tr>
+              <td colSpan="3">Không có dữ liệu</td>
+            </tr>
+          ) : (
+            requests.map((r) => (
+              <tr key={r.id}>
+                <td>{r.start_datetime}</td>
+                <td>{r.leave_type}</td>
+                <td>{r.status}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </>
+  )}
+
+
+
       </div>
 
       {/* RIGHT */}
@@ -295,12 +358,14 @@ const Requests = () => {
               />
               Đơn gần đây
             </h3>
-            <button className="btn-all">Xem tất cả</button>
+            <button className="btn-all" onClick={() => setView("history")} >Xem tất cả</button>
           </div>
 
           <div className="card-content-bot">{/* load đơn gần đây */}</div>
         </div>
       </div>
+
+
     </div>
   );
 };

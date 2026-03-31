@@ -43,10 +43,40 @@ const [contractMessage, setContractMessage] = useState("");
     navigate("/NhanVien/contracts");
   };
 
+const handleCloseModal = () => {
+  setShowModal(false);
+
+  // reset toàn bộ form
+  setOldPassword("");
+  setNewPassword("");
+  setConfirmPassword("");
+  setModalMessage("");
+};
+
 const handleChangePassword = async () => {
+
+  if (!oldPassword || !newPassword || !confirmPassword) {
+  setModalMessage("Vui lòng nhập đầy đủ thông tin!");
+  return;
+  }
+
+  if (oldPassword === newPassword) {
+    setModalMessage("Mật khẩu mới không được trùng mật khẩu!");
+    return;
+  }
+
   // Kiểm tra mật khẩu mới vs xác nhận
   if (newPassword !== confirmPassword) {
     setModalMessage("Mật khẩu mới và xác nhận không khớp!");
+    return;
+  }
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
+
+  if (!passwordRegex.test(newPassword)) {
+    setModalMessage(
+      "Mật khẩu mới phải tối thiểu 6 ký tự, gồm chữ thường, chữ hoa và số!"
+    );
     return;
   }
 
@@ -61,15 +91,19 @@ const handleChangePassword = async () => {
         newPassword,
       }
     );
+      setModalMessage("Đổi mật khẩu thành công!");
 
-    // Thành công
-    setShowModal(false);
-    setOldPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setModalMessage("");
+      // reset input
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
 
-    alert(res.data.message);
+      // tự đóng sau 2s
+      setTimeout(() => {
+        setShowModal(false);
+        setModalMessage("");
+      }, 2000);
+
 
   } catch (err) {
     setModalMessage(err.response?.data?.message || "Lỗi khi đổi mật khẩu");
@@ -259,7 +293,7 @@ const handleChangePassword = async () => {
         </div>
 
        {showModal && (
-          <div className="modal" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={handleCloseModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Đổi mật khẩu</h3>
 
@@ -284,13 +318,17 @@ const handleChangePassword = async () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
 
-              {modalMessage && <p className="modal-error">{modalMessage}</p>}
+              {modalMessage && (
+                <p className={`modal-message-text ${modalMessage.includes("thành công") ? "success" : "error"}`}>
+                  {modalMessage}
+                </p>
+              )}
 
               <button onClick={handleChangePassword} className="accpet">
                 Xác nhận
               </button>
 
-              <button onClick={() => setShowModal(false)} className="canncel">
+              <button onClick={handleCloseModal} className="canncel">
                 Huỷ
               </button>
             </div>
