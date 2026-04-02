@@ -113,13 +113,13 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/55 backdrop-blur-md font-sans overflow-y-auto overflow-x-hidden"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/55 backdrop-blur-md font-sans overflow-y-auto overflow-x-hidden"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-[#f8fafc] w-full max-w-[min(96vw,72rem)] max-h-[min(92vh,920px)] my-auto rounded-2xl shadow-[0_25px_80px_-12px_rgba(15,23,42,0.45)] border border-slate-200/90 flex flex-col min-h-0 overflow-hidden animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
+        className="bg-[#f8fafc] w-full max-w-[96vw] sm:max-w-[72rem] max-h-[min(92vh,920px)] my-auto rounded-2xl shadow-[0_25px_80px_-12px_rgba(15,23,42,0.45)] border border-slate-200/90 flex flex-col min-h-0 min-w-0 overflow-hidden animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="notif-doc-title"
@@ -197,7 +197,7 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
               <div className="shrink-0 px-5 sm:px-8 pb-4">
                 <h2
                   id="notif-doc-title"
-                  className="text-2xl sm:text-3xl md:text-[2rem] font-extrabold text-slate-900 leading-[1.2] tracking-tight"
+                  className="text-2xl sm:text-3xl md:text-[2rem] font-extrabold text-slate-900 leading-[1.2] tracking-tight break-words max-w-full"
                 >
                   {title}
                 </h2>
@@ -293,7 +293,9 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
                   </div>
                   <div
                     className="px-5 sm:px-6 py-5 text-slate-800 leading-[1.75] text-base sm:text-lg
-                      [&_a]:text-teal-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-sm
+                      overflow-x-hidden break-words max-w-full
+                      [&_a]:text-teal-600 [&_a]:underline [&_a]:break-all [&_a]:break-words
+                      [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-sm
                       [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3
                       [&_p]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-3"
                     dangerouslySetInnerHTML={{ __html: contentHtml || desc || "" }}
