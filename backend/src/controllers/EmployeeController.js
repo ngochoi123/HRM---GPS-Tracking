@@ -58,27 +58,24 @@ const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
   return checkOutMinutes < shift.endMinutes ? 'early_leave' : 'on_time';
 };
 
-// ----------------------------
-// HQ tạm thời (chưa có ADMIN set khu vực) — mọi nhân viên dùng chung
-// ----------------------------
-const TEMP_HEADQUARTERS = {
-  location_name: 'Trụ sở chính (tạm thời)',
-  latitude: 16.05963797280072,
-  longitude: 108.17468278677039,
-  radius_meters: 500
-};
+// ==========================================
+// 🔴 CHỈNH SỬA: Sửa hàm normalizeWorkLocation
+// ==========================================
+const normalizeWorkLocation = (row) => {
+  // Nếu nhân viên chưa được phân công địa điểm (row là undefined), trả về null
+  if (!row || !row.work_location_id) return null; 
 
-/** Luôn trả về vùng chấm công = HQ tạm + 500m; giữ work_location_id / branch từ DB nếu có */
-const normalizeWorkLocation = (row) => ({
-  work_location_id: row?.work_location_id ?? null,
-  location_name: TEMP_HEADQUARTERS.location_name,
-  latitude: TEMP_HEADQUARTERS.latitude,
-  longitude: TEMP_HEADQUARTERS.longitude,
-  radius_meters: TEMP_HEADQUARTERS.radius_meters,
-  branch_id: row?.branch_id ?? null,
-  branch_code: row?.branch_code ?? null,
-  branch_name: row?.branch_name ?? null
-});
+  return {
+    work_location_id: row.work_location_id,
+    location_name: row.location_name,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    radius_meters: row.radius_meters,
+    branch_id: row.branch_id,
+    branch_code: row.branch_code,
+    branch_name: row.branch_name
+  };
+};
 
 // ----------------------------
 // Existing dashboard
@@ -200,7 +197,7 @@ exports.getAttendanceSummary = async (req, res) => {
       success: true,
       data: {
 server_date: new Date().toISOString().slice(0, 10),
-        workLocation: {
+        workLocation: workLocation ? {
           work_location_id: workLocation.work_location_id,
           location_name: workLocation.location_name,
           latitude: workLocation.latitude,
@@ -211,7 +208,7 @@ server_date: new Date().toISOString().slice(0, 10),
             branch_code: workLocation.branch_code,
             branch_name: workLocation.branch_name
           }
-        },
+        } : null, // Trả về null nếu nhân viên không có địa điểm
         attendanceToday: {
           attendance_date: attendanceToday.attendance_date,
           checkInTime: attendanceToday.check_in_time,
@@ -265,6 +262,13 @@ exports.checkIn = async (req, res) => {
     );
 
     const workLocation = normalizeWorkLocation(locationResult[0]);
+
+    // ==========================================
+    // 🔴 CHỈNH SỬA: Chặn lỗi nếu nhân viên chưa có địa điểm
+    // ==========================================
+    if (!workLocation) {
+      return res.status(403).json({ success: false, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' });
+    }
 
     const centerLat = Number(workLocation.latitude);
     const centerLng = Number(workLocation.longitude);
@@ -381,6 +385,14 @@ w.radius_meters
     );
 
     const workLocation = normalizeWorkLocation(locationResult[0]);
+
+    // ==========================================
+    // 🔴 CHỈNH SỬA: Chặn lỗi nếu nhân viên chưa có địa điểm
+    // ==========================================
+    if (!workLocation) {
+      return res.status(403).json({ success: false, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' });
+    }
+
     const centerLat = Number(workLocation.latitude);
     const centerLng = Number(workLocation.longitude);
     const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
