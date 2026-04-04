@@ -1,51 +1,37 @@
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
 
-
 // ----------------------------
 // GPS helpers
 // ----------------------------
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
 const haversineDistanceMeters = (lat1, lng1, lat2, lng2) => {
-  // Radius of Earth (meters)
   const R = 6371000;
   const dLat = toRadians(lat2 - lat1);
   const dLng = toRadians(lng2 - lng1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
 const getShiftForDate = (dateObj) => {
-  // ca sáng: 08:00-12:00 ; ca chiều: 13:00-17:00 (giống logic Frontend Dashboard.jsx)
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-
   const morningStart = 8 * 60;
   const morningEnd = 12 * 60;
   const afternoonStart = 13 * 60;
   const afternoonEnd = 17 * 60;
 
-  if (minutes >= morningStart && minutes <= morningEnd) {
-    return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
-  }
-
-  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
-    return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
-  }
-
+  if (minutes >= morningStart && minutes <= morningEnd) return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
+  if (minutes >= afternoonStart && minutes <= afternoonEnd) return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
   return null;
 };
 
 const getAttendanceStatusForCheckIn = (dateObj) => {
   const shift = getShiftForDate(dateObj);
   if (!shift) return null;
-
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
   return minutes <= shift.startMinutes ? 'on_time' : 'late';
 };
@@ -53,18 +39,12 @@ const getAttendanceStatusForCheckIn = (dateObj) => {
 const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
   const shift = getShiftForDate(checkInDateObj);
   if (!shift) return null;
-
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
   return checkOutMinutes < shift.endMinutes ? 'early_leave' : 'on_time';
 };
 
-// ==========================================
-// 🔴 CHỈNH SỬA: Sửa hàm normalizeWorkLocation
-// ==========================================
 const normalizeWorkLocation = (row) => {
-  // Nếu nhân viên chưa được phân công địa điểm (row là undefined), trả về null
   if (!row || !row.work_location_id) return null; 
-
   return {
     work_location_id: row.work_location_id,
     location_name: row.location_name,
@@ -77,53 +57,24 @@ const normalizeWorkLocation = (row) => {
   };
 };
 
-// ----------------------------
-// Existing dashboard
-// ----------------------------
 exports.getDashboard = async (req, res) => {
-  try {
+ try {
     const { id } = req.params;
+    const employeeResult = await db.query(`SELECT full_name FROM employee WHERE id = $1`, { bind: [id], type: QueryTypes.SELECT });
+    const employee = employeeResult[0];
+    if (!employee) return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
 
-    console.log("ID:", id);
+    const statsResult = await db.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status = 'on_time')::int AS present,
+        COUNT(*) FILTER (WHERE status IN ('late','early_leave'))::int AS late,
+        COUNT(*) FILTER (WHERE status = 'absent')::int AS absent
+      FROM attendance
+      WHERE employee_id = $1 AND EXTRACT(MONTH FROM attendance_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM attendance_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+    `, { bind: [id], type: QueryTypes.SELECT });
 
-    // 1. Nhân viên
-   const employeeResult = await db.query(
-`SELECT full_name FROM employee WHERE id = $1`,
-  {
-    bind: [id],
-    type: QueryTypes.SELECT
-  }
-    );
-
-const employee = employeeResult[0];
-
-    if (!employee) {
-      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
-    }
-
-        const statsResult = await db.query(`
-              SELECT 
-                COUNT(*) FILTER (WHERE status = 'on_time')::int AS present,
-                COUNT(*) FILTER (WHERE status IN ('late','early_leave'))::int AS late,
-                COUNT(*) FILTER (WHERE status = 'absent')::int AS absent
-              FROM attendance
-              WHERE employee_id = $1
-              AND EXTRACT(MONTH FROM attendance_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-              AND EXTRACT(YEAR FROM attendance_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-            `, {
-              bind: [id],
-              type: QueryTypes.SELECT
-            });
-
-        const stats = statsResult[0];
-
-    res.json({
-      employee,
-      stats
-    });
-
+    res.json({ employee, stats: statsResult[0] });
   } catch (error) {
-    console.error("🔥 LỖI:", error);
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };
@@ -196,7 +147,7 @@ exports.getAttendanceSummary = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-server_date: new Date().toISOString().slice(0, 10),
+        server_date: new Date().toISOString().slice(0, 10),
         workLocation: workLocation ? {
           work_location_id: workLocation.work_location_id,
           location_name: workLocation.location_name,
@@ -208,7 +159,7 @@ server_date: new Date().toISOString().slice(0, 10),
             branch_code: workLocation.branch_code,
             branch_name: workLocation.branch_name
           }
-        } : null, // Trả về null nếu nhân viên không có địa điểm
+        } : null,
         attendanceToday: {
           attendance_date: attendanceToday.attendance_date,
           checkInTime: attendanceToday.check_in_time,
@@ -242,14 +193,14 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu latitude/longitude hợp lệ.' });
     }
 
-    // Lấy work_location (ĐÃ SỬA LẠI JOIN)
     const locationResult = await db.query(
       `
         SELECT
           w.id AS work_location_id,
           w.latitude,
           w.longitude,
-          w.radius_meters
+          w.radius_meters,
+          b.id AS branch_id
         FROM employee e
         LEFT JOIN position p ON e.position_id = p.id
         LEFT JOIN department d ON p.department_id = d.id
@@ -263,9 +214,6 @@ exports.checkIn = async (req, res) => {
 
     const workLocation = normalizeWorkLocation(locationResult[0]);
 
-    // ==========================================
-    // 🔴 CHỈNH SỬA: Chặn lỗi nếu nhân viên chưa có địa điểm
-    // ==========================================
     if (!workLocation) {
       return res.status(403).json({ success: false, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' });
     }
@@ -274,19 +222,17 @@ exports.checkIn = async (req, res) => {
     const centerLng = Number(workLocation.longitude);
     const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
 
-    // Kiểm tra nằm trong bán kính GPS (nếu radius_meters có giá trị)
     if (radiusMeters != null) {
       const distanceMeters = haversineDistanceMeters(lat, lng, centerLat, centerLng);
       if (distanceMeters > radiusMeters) {
         return res.status(403).json({
           success: false,
           message: 'Bạn đang ở ngoài vùng GPS cho phép.',
-distance_meters: Number(distanceMeters.toFixed(2))
+          distance_meters: Number(distanceMeters.toFixed(2))
         });
       }
     }
 
-    // Kiểm tra attendance hôm nay (unique: employee_id + attendance_date)
     const attendanceResult = await db.query(
       `
         SELECT id, check_in_time, check_out_time
@@ -305,8 +251,10 @@ distance_meters: Number(distanceMeters.toFixed(2))
     const now = new Date();
     const status = getAttendanceStatusForCheckIn(now);
 
+    // ==========================================
+    // UPDATE CHECKIN + SOCKET.IO
+    // ==========================================
     if (attendanceToday && !attendanceToday.check_in_time) {
-      // Trường hợp record hôm nay tồn tại nhưng chưa có check_in_time => cập nhật thay vì insert
       const sql = `
         UPDATE attendance
         SET
@@ -324,9 +272,22 @@ distance_meters: Number(distanceMeters.toFixed(2))
         bind: [attendanceToday.id, workLocation.work_location_id, lat, lng, req.ip, status]
       });
 
+      // ⚡ PHÁT TÍN HIỆU SOCKET.IO
+      const io = req.app.get('socketio');
+      if (io && workLocation.branch_id) {
+        io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+          message: 'Có nhân viên vừa Check-in',
+          employee_id: id,
+          type: 'checkin'
+        });
+      }
+
       return res.status(200).json({ success: true, message: 'Check-in thành công!', data: updateRows[0] });
     }
 
+    // ==========================================
+    // INSERT CHECKIN + SOCKET.IO
+    // ==========================================
     const sql = `
       INSERT INTO attendance (
         employee_id,
@@ -346,6 +307,16 @@ distance_meters: Number(distanceMeters.toFixed(2))
       bind: [id, workLocation.work_location_id, lat, lng, req.ip, status]
     });
 
+    // ⚡ PHÁT TÍN HIỆU SOCKET.IO
+    const io = req.app.get('socketio');
+    if (io && workLocation.branch_id) {
+      io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+        message: 'Có nhân viên vừa Check-in',
+        employee_id: id,
+        type: 'checkin'
+      });
+    }
+
     return res.status(201).json({ success: true, message: 'Check-in thành công!', data: insertRows[0] });
   } catch (error) {
     console.error('checkIn error:', error);
@@ -354,6 +325,9 @@ distance_meters: Number(distanceMeters.toFixed(2))
 };
 
 
+// ----------------------------
+// Check-out
+// ----------------------------
 exports.checkOut = async (req, res) => {
   try {
     const { id } = req.params;
@@ -365,14 +339,14 @@ exports.checkOut = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu latitude/longitude hợp lệ.' });
     }
 
-    // Lấy work_location (ĐÃ SỬA LẠI JOIN)
     const locationResult = await db.query(
       `
         SELECT
           w.id AS work_location_id,
           w.latitude,
           w.longitude,
-w.radius_meters
+          w.radius_meters,
+          b.id AS branch_id
         FROM employee e
         LEFT JOIN position p ON e.position_id = p.id
         LEFT JOIN department d ON p.department_id = d.id
@@ -386,9 +360,6 @@ w.radius_meters
 
     const workLocation = normalizeWorkLocation(locationResult[0]);
 
-    // ==========================================
-    // 🔴 CHỈNH SỬA: Chặn lỗi nếu nhân viên chưa có địa điểm
-    // ==========================================
     if (!workLocation) {
       return res.status(403).json({ success: false, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' });
     }
@@ -408,7 +379,6 @@ w.radius_meters
       }
     }
 
-    // Lấy attendance hôm nay
     const attendanceResult = await db.query(
       `
         SELECT id, check_in_time, check_out_time
@@ -448,12 +418,23 @@ w.radius_meters
       bind: [attendanceToday.id, lat, lng, req.ip, status]
     });
 
+    // ⚡ PHÁT TÍN HIỆU SOCKET.IO
+    const io = req.app.get('socketio');
+    if (io && workLocation.branch_id) {
+      io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+        message: 'Có nhân viên vừa Check-out',
+        employee_id: id,
+        type: 'checkout'
+      });
+    }
+
     return res.status(200).json({ success: true, message: 'Checkout thành công!', data: updateRows[0] });
   } catch (error) {
     console.error('checkOut error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
 };
+
 exports.getProfile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -516,7 +497,6 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: "Thiếu dữ liệu" });
     }
 
-    // 1. Kiểm tra mật khẩu cũ
     const checkQuery = `
       SELECT id FROM user_account
       WHERE employee_id = $1
@@ -532,7 +512,6 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: "Mật khẩu cũ không đúng!" });
     }
 
-    // 2. Update mật khẩu mới
     const updateQuery = `
       UPDATE user_account
       SET password_hash = crypt($1, gen_salt('bf'))
@@ -551,67 +530,19 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-exports.getManagerZoneAttendance = async (req, res) => {
+exports.getManagerZoneAttendance = async (req, res) => { 
   try {
     const { id } = req.params;
-
-    // 1) Xác định zone làm việc của quản lý (ĐÃ SỬA LẠI JOIN)
     const managerLocationResult = await db.query(
-      `
-        SELECT
-          w.id AS work_location_id,
-          w.location_name,
-          w.latitude,
-          w.longitude,
-          w.radius_meters,
-          b.id AS branch_id,
-          b.branch_code,
-          b.branch_name
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
-        WHERE e.id = $1
-        LIMIT 1
-      `,
+      `SELECT w.id AS work_location_id, w.location_name, w.latitude, w.longitude, w.radius_meters, b.id AS branch_id, b.branch_code, b.branch_name FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN branch b ON d.branch_id = b.id LEFT JOIN work_location w ON w.branch_id = b.id WHERE e.id = $1 LIMIT 1`,
       { bind: [id], type: QueryTypes.SELECT }
     );
-
-    if (!managerLocationResult[0]) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý.' });
-    }
+    if (!managerLocationResult[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý.' });
 
     const workLocation = normalizeWorkLocation(managerLocationResult[0]);
 
-    // 2) Lấy toàn bộ nhân viên cùng chi nhánh đã check-in hôm nay
     const teamAttendanceResult = await db.query(
-      `
-        SELECT
-          e.id AS employee_id,
-          e.employee_code,
-          e.full_name,
-          d.department_name,
-          p.position_name,
-          a.check_in_time,
-          a.check_out_time,
-          a.status,
-          a.check_in_latitude,
-          a.check_in_longitude,
-          a.check_out_latitude,
-          a.check_out_longitude,
-          COALESCE(a.check_out_latitude, a.check_in_latitude) AS live_latitude,
-          COALESCE(a.check_out_longitude, a.check_in_longitude) AS live_longitude
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN attendance a
-          ON a.employee_id = e.id
-         AND a.attendance_date = CURRENT_DATE
-        WHERE d.branch_id = $1
-          AND a.check_in_time IS NOT NULL
-        ORDER BY a.check_in_time DESC
-      `,
+      `SELECT e.id AS employee_id, e.employee_code, e.full_name, d.department_name, p.position_name, a.check_in_time, a.check_out_time, a.status, a.check_in_latitude, a.check_in_longitude, a.check_out_latitude, a.check_out_longitude, COALESCE(a.check_out_latitude, a.check_in_latitude) AS live_latitude, COALESCE(a.check_out_longitude, a.check_in_longitude) AS live_longitude FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN attendance a ON a.employee_id = e.id AND a.attendance_date = CURRENT_DATE WHERE d.branch_id = $1 AND a.check_in_time IS NOT NULL ORDER BY a.check_in_time DESC`,
       { bind: [workLocation.branch_id], type: QueryTypes.SELECT }
     );
 
@@ -619,65 +550,20 @@ exports.getManagerZoneAttendance = async (req, res) => {
     const centerLng = Number(workLocation.longitude);
     const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
 
-    const attendees = teamAttendanceResult
-      .map((row) => {
-const lat = Number(row.live_latitude);
+    const attendees = teamAttendanceResult.map((row) => {
+        const lat = Number(row.live_latitude);
         const lng = Number(row.live_longitude);
         const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-
-        const distanceMeters =
-          hasCoords && radiusMeters != null
-            ? haversineDistanceMeters(lat, lng, centerLat, centerLng)
-            : null;
+        const distanceMeters = hasCoords && radiusMeters != null ? haversineDistanceMeters(lat, lng, centerLat, centerLng) : null;
         const isInsideZone = radiusMeters == null ? hasCoords : hasCoords && distanceMeters <= radiusMeters;
-
-        return {
-          employeeId: row.employee_id,
-          employeeCode: row.employee_code || null,
-          fullName: row.full_name || 'Nhân viên',
-          departmentName: row.department_name || null,
-          positionName: row.position_name || null,
-          checkInTime: row.check_in_time,
-          checkOutTime: row.check_out_time,
-          status: row.status || null,
-          latitude: hasCoords ? lat : null,
-          longitude: hasCoords ? lng : null,
-          distanceMeters: distanceMeters == null ? null : Number(distanceMeters.toFixed(2)),
-          isInsideZone
-        };
-      })
-      .filter((item) => item.isInsideZone);
+        return { employeeId: row.employee_id, employeeCode: row.employee_code || null, fullName: row.full_name || 'Nhân viên', departmentName: row.department_name || null, positionName: row.position_name || null, checkInTime: row.check_in_time, checkOutTime: row.check_out_time, status: row.status || null, latitude: hasCoords ? lat : null, longitude: hasCoords ? lng : null, distanceMeters: distanceMeters == null ? null : Number(distanceMeters.toFixed(2)), isInsideZone };
+      }).filter((item) => item.isInsideZone);
 
     const checkedOutCount = attendees.filter((item) => item.checkOutTime).length;
     const checkedInOnlyCount = attendees.length - checkedOutCount;
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        workLocation: {
-          work_location_id: workLocation.work_location_id,
-          location_name: workLocation.location_name,
-          latitude: workLocation.latitude,
-          longitude: workLocation.longitude,
-          radius_meters: workLocation.radius_meters,
-          branch: {
-            branch_id: workLocation.branch_id,
-            branch_code: workLocation.branch_code,
-            branch_name: workLocation.branch_name
-          }
-        },
-        zoneStats: {
-          totalInZone: attendees.length,
-          checkedInOnly: checkedInOnlyCount,
-          checkedOut: checkedOutCount
-        },
-        attendees
-      }
-    });
-  } catch (error) {
-    console.error('getManagerZoneAttendance error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
-  } 
+    return res.status(200).json({ success: true, data: { workLocation, zoneStats: { totalInZone: attendees.length, checkedInOnly: checkedInOnlyCount, checkedOut: checkedOutCount }, attendees } });
+  } catch (error) { return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message }); } 
 };
 
 exports.getContract = async (req, res) => {
@@ -748,28 +634,23 @@ exports.createRequest = async (req, res) => {
       approverId
     } = req.body;
 
-    const file = req.file; // file upload từ multer
+    const file = req.file;
 
-    // ✅ Validate
     if (!userId || !leave_type || !start_datetime || !end_datetime) {
       return res.status(400).json({ message: 'Thiếu dữ liệu' });
     }
 
-    // ✅ Check ENUM
     const validTypes = ['annual', 'sick', 'unpaid', 'maternity', 'bereavement'];
     if (!validTypes.includes(leave_type)) {
       return res.status(400).json({ message: 'Loại nghỉ không hợp lệ' });
     }
 
-    // ❗ bắt buộc phải chọn approver
     if (!approverId) {
       return res.status(400).json({ message: 'Chưa chọn người duyệt' });
     }
 
-    // ✅ xử lý file
     const filePath = file ? file.filename : null;
 
-    // ✅ insert DB
     const result = await db.query(
       `
       INSERT INTO leave_request (
@@ -811,7 +692,6 @@ exports.createRequest = async (req, res) => {
   }
 };
 
-
 // ==============================
 // 🔵 LẤY DANH SÁCH ĐƠN
 // ==============================
@@ -852,7 +732,6 @@ exports.getMyRequests = async (req, res) => {
   }
 };
 
-//lấy kiểm duyệt 
 exports.getApprovers = async (req, res) => {
   try {
     const { id } = req.params;
@@ -865,23 +744,18 @@ exports.getApprovers = async (req, res) => {
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       WHERE 
-        -- ✅ Quản lý trực tiếp
         e.id = (
           SELECT direct_manager_id 
           FROM employee 
           WHERE id = $1
         )
-
-        -- ✅ Director
         OR p.level = 'director'
-
       ORDER BY e.full_name
     `, {
       bind: [id],
       type: QueryTypes.SELECT
     });
 
-    
     if (result.length === 0) {
       return res.status(400).json({
         message: "Không tìm thấy người kiểm duyệt!"
