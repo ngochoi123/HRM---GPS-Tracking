@@ -274,12 +274,17 @@ exports.checkIn = async (req, res) => {
 
       // ⚡ PHÁT TÍN HIỆU SOCKET.IO
       const io = req.app.get('socketio');
-      if (io && workLocation.branch_id) {
-        io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+      const room = workLocation.branch_id != null ? `branch_${String(workLocation.branch_id)}` : null;
+      if (io && room) {
+        const n = io.sockets.adapter.rooms.get(room)?.size ?? 0;
+        console.log('[Socket] emit attendance_changed (checkin update)', { room, branch_id: workLocation.branch_id, branch_idType: typeof workLocation.branch_id, subscribersInRoom: n, employee_id: id });
+        io.to(room).emit('attendance_changed', {
           message: 'Có nhân viên vừa Check-in',
           employee_id: id,
           type: 'checkin'
         });
+      } else {
+        console.log('[Socket] skip emit checkin (update):', { hasIo: !!io, room, branch_id: workLocation.branch_id });
       }
 
       return res.status(200).json({ success: true, message: 'Check-in thành công!', data: updateRows[0] });
@@ -309,12 +314,17 @@ exports.checkIn = async (req, res) => {
 
     // ⚡ PHÁT TÍN HIỆU SOCKET.IO
     const io = req.app.get('socketio');
-    if (io && workLocation.branch_id) {
-      io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+    const room = workLocation.branch_id != null ? `branch_${String(workLocation.branch_id)}` : null;
+    if (io && room) {
+      const n = io.sockets.adapter.rooms.get(room)?.size ?? 0;
+      console.log('[Socket] emit attendance_changed (checkin insert)', { room, branch_id: workLocation.branch_id, branch_idType: typeof workLocation.branch_id, subscribersInRoom: n, employee_id: id });
+      io.to(room).emit('attendance_changed', {
         message: 'Có nhân viên vừa Check-in',
         employee_id: id,
         type: 'checkin'
       });
+    } else {
+      console.log('[Socket] skip emit checkin (insert):', { hasIo: !!io, room, branch_id: workLocation.branch_id });
     }
 
     return res.status(201).json({ success: true, message: 'Check-in thành công!', data: insertRows[0] });
@@ -420,12 +430,17 @@ exports.checkOut = async (req, res) => {
 
     // ⚡ PHÁT TÍN HIỆU SOCKET.IO
     const io = req.app.get('socketio');
-    if (io && workLocation.branch_id) {
-      io.to(`branch_${workLocation.branch_id}`).emit('attendance_changed', {
+    const room = workLocation.branch_id != null ? `branch_${String(workLocation.branch_id)}` : null;
+    if (io && room) {
+      const n = io.sockets.adapter.rooms.get(room)?.size ?? 0;
+      console.log('[Socket] emit attendance_changed (checkout)', { room, branch_id: workLocation.branch_id, branch_idType: typeof workLocation.branch_id, subscribersInRoom: n, employee_id: id });
+      io.to(room).emit('attendance_changed', {
         message: 'Có nhân viên vừa Check-out',
         employee_id: id,
         type: 'checkout'
       });
+    } else {
+      console.log('[Socket] skip emit checkout:', { hasIo: !!io, room, branch_id: workLocation.branch_id });
     }
 
     return res.status(200).json({ success: true, message: 'Checkout thành công!', data: updateRows[0] });

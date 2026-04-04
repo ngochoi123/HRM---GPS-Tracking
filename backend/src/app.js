@@ -7,50 +7,85 @@ require('dotenv').config();
 
 const app = express();
 
-// 3. Tạo HTTP Server bọc Express app
-const server = http.createServer(app);
+// ================= 1. MIDDLEWARE =================
+app.use(cors());
+app.use(express.json({ limit: '100mb' })); 
+app.use(express.urlencoded({ limit: '100mb', extended: true, parameterLimit: 100000 }));
+app.use('/uploads', express.static('uploads'));
 
-// 4. Khởi tạo Socket.io với cấu hình CORS
+// ================= 2. KHỞI TẠO SOCKET.IO =================
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Cho phép tất cả (hoặc cấu hình IP cụ thể của máy Leader)
+    origin: "*", 
     methods: ["GET", "POST"]
   }
 });
 
-// 5. Gắn io vào app để các Controller có thể lấy ra dùng bằng req.app.get('socketio')
+// Gắn io vào app để các Controller có thể lấy ra dùng
 app.set('socketio', io);
 
-app.use(cors());
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ limit: '100mb', extended: true }));
-app.use('/uploads', express.static('uploads'));
-
-// ... (Các phần IMPORT và USE ROUTES giữ nguyên như code của bạn) ...
-
-// 6. Quản lý kết nối Socket
+// Quản lý kết nối Socket
 io.on('connection', (socket) => {
   console.log('⚡ Một thiết bị đã kết nối Socket:', socket.id);
 
-  // Khi Quản lý vào trang giám sát, họ sẽ "join" vào phòng của chi nhánh đó
   socket.on('join_branch_room', (branchId) => {
-    socket.join(`branch_${branchId}`);
-    console.log(`👤 Manager đã vào phòng giám sát chi nhánh: ${branchId}`);
+    const room = `branch_${String(branchId)}`;
+    socket.join(room);
+    const inRoom = io.sockets.adapter.rooms.get(room)?.size ?? 0;
+    console.log('[Socket] join_branch_room', { branchId, branchIdType: typeof branchId, room, socketId: socket.id, clientsInRoom: inRoom });
   });
 
   socket.on('disconnect', () => {
-    console.log('❌ Thiết bị ngắt kết nối');
+    console.log('❌ Thiết bị ngắt kết nối:', socket.id);
   });
 });
 
+// ================= 3. IMPORT ROUTES =================
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/AdminRoutes');
+const directorRoutes = require('./routes/directorRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
+const managementRoutes = require('./routes/managementRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+
+// ================= 4. USE ROUTES =================
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/director', directorRoutes);
+app.use('/api/employee', employeeRoutes);
+app.use('/api/manager', managementRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// --- ROUTES TEST ---
+app.get('/', (req, res) => {
+  res.send('🚀 API GPS Attendance đang hoạt động...');
+});
+
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API đang hoạt động tốt!' });
+});
+
+// ================= 5. GLOBAL ERROR HANDLER =================
+app.use((err, req, res, next) => {
+  console.error('🔥 GLOBAL ERROR:', err);
+  res.status(500).json({
+    message: 'Lỗi server',
+    error: err.message
+  });
+}); 
+
+// ================= 6. CONNECT DB & START SERVER =================
 const PORT = process.env.PORT || 5000;
 
 db.authenticate()
   .then(() => {
     console.log('✅ Kết nối Database thành công!');
-    // 7. QUAN TRỌNG: Đổi từ app.listen sang server.listen
+    // Chạy server.listen thay vì app.listen
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Real-time Server running: Port ${PORT}`);
+      console.log(`🚀 Real-time Server running trên mọi thiết bị mạng nội bộ: Port ${PORT}`);
     });
   })
-  .catch(err => console.error('❌ Lỗi DB:', err));
+  .catch(err => {
+    console.error('❌ Lỗi kết nối Database:', err);
+  });

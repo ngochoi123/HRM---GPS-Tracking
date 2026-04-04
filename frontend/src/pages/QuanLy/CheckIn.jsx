@@ -138,25 +138,41 @@ const ManagerCheckIn = () => {
     setAttendees(Array.isArray(json.data.attendees) ? json.data.attendees : []);
   }, [managerId]);
 
+  // API attendance/summary trả branch_id trong workLocation.branch — không có workLocation.branch_id phẳng
+  const branchIdForSocket = useMemo(() => {
+    const raw = workLocation?.branch?.branch_id ?? workLocation?.branch_id;
+    if (raw == null || raw === '') return null;
+    return String(raw);
+  }, [workLocation]);
+
   // 3. EFFECT ĐỂ KẾT NỐI VÀ LẮNG NGHE SOCKET.IO
   useEffect(() => {
-    if (!workLocation?.branch_id) return;
+    if (!branchIdForSocket) {
+      console.log('[Socket] Chưa join room — thiếu branch_id (cần workLocation.branch.branch_id hoặc workLocation.branch_id)');
+      return;
+    }
 
-    // Quản lý gia nhập đúng phòng của chi nhánh
-    socket.emit('join_branch_room', workLocation.branch_id);
+    const roomName = `branch_${branchIdForSocket}`;
+    console.log('[Socket] emit join_branch_room', { branchIdForSocket, roomName, socketId: socket.id, connected: socket.connected });
 
-    // Lắng nghe tín hiệu chấm công từ server
+    const tryJoin = () => {
+      socket.emit('join_branch_room', branchIdForSocket);
+    };
+    socket.on('connect', tryJoin);
+    if (socket.connected) tryJoin();
+
     const handleAttendanceUpdate = (data) => {
-      console.log("⚡ [LIVE] Dữ liệu vừa cập nhật:", data);
-      fetchZoneAttendance(); // Cập nhật lại bản đồ ngay lập tức
+      console.log('[Socket] attendance_changed received', { data, roomExpected: roomName });
+      void fetchZoneAttendance().catch((err) => console.error('[Socket] fetchZoneAttendance sau attendance_changed:', err));
     };
 
     socket.on('attendance_changed', handleAttendanceUpdate);
 
     return () => {
+      socket.off('connect', tryJoin);
       socket.off('attendance_changed', handleAttendanceUpdate);
     };
-  }, [workLocation?.branch_id, fetchZoneAttendance]);
+  }, [branchIdForSocket, fetchZoneAttendance]);
 
   useEffect(() => {
     if (!managerId) return;
