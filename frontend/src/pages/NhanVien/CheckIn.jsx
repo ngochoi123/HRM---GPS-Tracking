@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Circle, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, Fingerprint, Wifi, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, Wifi, AlertTriangle, History } from 'lucide-react';
 import { getManagerSocket, socketOriginFromApiBase } from '../../services/managerSocket';
+import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
 
 import './CheckIn.css';
 
@@ -97,6 +98,15 @@ const CheckIn = () => {
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [checkoutPreviewTime, setCheckoutPreviewTime] = useState('');
   const [showAttendanceCard, setShowAttendanceCard] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyData, setHistoryData] = useState(null);
+  const [monthYear, setMonthYear] = useState(() => {
+    const now = new Date();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${m}`;
+  });
   /** Trạng thái WiFi IP (theo API summary / lỗi backend khi chấm công). */
   const [isWifiValid, setIsWifiValid] = useState(true);
   /** true = ngoài vùng bán kính (khóa chấm công khi có radius). */
@@ -208,6 +218,28 @@ const CheckIn = () => {
   useEffect(() => {
     void fetchSummary();
   }, [fetchSummary]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!employeeId) return;
+    const [y, m] = String(monthYear || '').split('-');
+    const year = Number(y);
+    const month = Number(m);
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const qs = Number.isFinite(month) && Number.isFinite(year) ? `?month=${month}&year=${year}` : '';
+      const res = await fetch(`${API_BASE}/employee/attendance/history/${employeeId}${qs}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || `Lỗi ${res.status}`);
+      }
+      setHistoryData(json.data || null);
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [employeeId, monthYear]);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -508,6 +540,19 @@ const CheckIn = () => {
           </button>
 
           <div className={`checkin-fab-card ${showAttendanceCard ? 'open' : 'closed'}`}>
+            <div className="checkin-fab-top-actions">
+              <button
+                type="button"
+                className="checkin-history-btn"
+                onClick={() => {
+                setHistoryOpen(true);
+                void fetchHistory();
+                }}
+                aria-label="Xem lịch sử chấm công"
+              >
+                <History size={18} />
+              </button>
+            </div>
             <button
               className={`checkin-fab-button ${buttonVariant}`}
               onClick={handleAttendanceAction}
@@ -615,6 +660,16 @@ const CheckIn = () => {
             </div>
           </div>
         )}
+        <AttendanceHistoryModal
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          monthYear={monthYear}
+          setMonthYear={setMonthYear}
+          loading={historyLoading}
+          error={historyError}
+          data={historyData}
+          onSearch={() => void fetchHistory()}
+        />
       </div>
     </div>
   );

@@ -308,6 +308,42 @@
   line-height: 1.35;
 }
 
+/* Top actions inside the attendance card */
+.checkin-fab-top-actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: -6px;
+  padding-left: 4px;
+}
+
+/* History icon button (inside attendance card) */
+.checkin-history-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.34);
+  color: rgba(17, 24, 39, 0.92);
+  padding: 0;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.checkin-history-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(245, 158, 11, 0.5);
+}
+
+.checkin-history-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.45);
+}
+
 .checkin-confirm-overlay {
   position: absolute;
   inset: 0;
@@ -328,6 +364,98 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
   padding: clamp(20px, 3.2vw, 30px);
   font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+/* Shared modern history modal */
+.checkin-history-modal {
+  width: min(640px, 100%);
+  background: radial-gradient(circle at top left, #eff6ff 0, #ffffff 42%, #f9fafb 100%);
+  border-radius: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.3);
+  padding: 22px 22px 18px;
+  font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+.checkin-history-modal h3 {
+  margin: 6px 0 14px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.checkin-history-body {
+  background: rgba(248, 250, 252, 0.9);
+  border-radius: 16px;
+  padding: 12px 14px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.checkin-history-loading,
+.checkin-history-error,
+.checkin-history-empty {
+  font-size: 14px;
+  color: #4b5563;
+  text-align: center;
+  padding: 40px 16px;
+}
+
+.checkin-history-error {
+  color: #b91c1c;
+}
+
+.checkin-history-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.checkin-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.checkin-history-table thead tr {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.checkin-history-table th,
+.checkin-history-table td {
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.checkin-history-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.checkin-history-table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.checkin-history-table tbody tr:hover {
+  background: #e5f3ff;
+}
+
+.checkin-history-status {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.checkin-history-status.on_time {
+  color: #16a34a;
+}
+
+.checkin-history-status.late,
+.checkin-history-status.early_leave {
+  color: #ea580c;
+}
+
+.checkin-history-status.absent {
+  color: #b91c1c;
 }
 
 .checkin-confirm-badge {

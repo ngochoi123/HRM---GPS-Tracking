@@ -35,6 +35,7 @@ router.get('/approvers/:id', employeeController.getApprovers);
 
 // Chấm công (Attendance + GPS)
 router.get('/attendance/summary/:id', employeeController.getAttendanceSummary);
+router.get('/attendance/history/:id', employeeController.getAttendanceHistory);
 router.post('/attendance/checkin/:id', employeeController.checkIn);
 router.post('/attendance/checkout/:id', employeeController.checkOut);
 router.get('/attendance/manager-zone/:id', employeeController.getManagerZoneAttendance);

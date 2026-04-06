@@ -134,6 +134,75 @@ exports.getAttendanceSummary = async (req, res) => {
 };
 
 // ----------------------------
+// Attendance history (month filter + summary)
+// ----------------------------
+exports.getAttendanceHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const month = req.query?.month ? Number(req.query.month) : null; // 1-12
+    const year = req.query?.year ? Number(req.query.year) : null;
+
+    const hasMonthYear = Number.isFinite(month) && Number.isFinite(year) && month >= 1 && month <= 12 && year >= 1970;
+    const rows = await db.query(
+      `
+        SELECT
+          attendance_date,
+          check_in_time,
+          check_out_time,
+          status,
+          total_work_hours
+        FROM attendance
+        WHERE employee_id = $1
+          AND ($2::int IS NULL OR EXTRACT(MONTH FROM attendance_date) = $2)
+          AND ($3::int IS NULL OR EXTRACT(YEAR FROM attendance_date) = $3)
+        ORDER BY attendance_date DESC
+      `,
+      { bind: [id, hasMonthYear ? month : null, hasMonthYear ? year : null], type: QueryTypes.SELECT }
+    );
+
+    const finalizedRows = rows.filter((r) => r.check_in_time != null && r.check_out_time != null);
+    const totalHours = finalizedRows.reduce((sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0), 0);
+    const daysWorked = rows.filter((r) => r.check_in_time != null).length;
+    const lateOrEarlyCount = finalizedRows.filter((r) => r.status === 'late' || r.status === 'early_leave').length;
+
+    let workingDaysInMonth = null;
+    if (hasMonthYear) {
+      // Quy ước: 1 tháng nghỉ 4 ngày => số ngày công chuẩn tháng = số ngày trong tháng - 4
+      const mIndex = month - 1;
+      const last = new Date(year, mIndex + 1, 0);
+      const daysInMonth = last.getDate();
+      workingDaysInMonth = Math.max(0, daysInMonth - 4);
+    }
+
+    const compliancePercent =
+      workingDaysInMonth && workingDaysInMonth > 0 ? Math.round((daysWorked / workingDaysInMonth) * 100) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        rows,
+        summary: {
+          month: hasMonthYear ? month : null,
+          year: hasMonthYear ? year : null,
+          totalHours: Number(totalHours.toFixed(2)),
+          daysWorked,
+          workingDaysInMonth,
+          lateOrEarlyCount,
+          compliancePercent
+        }
+      }
+    });
+  } catch (error) {
+    console.error('getAttendanceHistory error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi tải lịch sử chấm công',
+      error: error.message
+    });
+  }
+};
+
+// ----------------------------
 // Check-in
 // ----------------------------
 exports.checkIn = async (req, res) => {

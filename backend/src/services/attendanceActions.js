@@ -5,8 +5,8 @@ const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
 const getShiftForDate = (dateObj) => {
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-  const morningStart = 8 * 60;
-  const morningEnd = 12 * 60;
+  const morningStart = 7 * 60 + 30;
+  const morningEnd = 11 * 60 + 30;
   const afternoonStart = 13 * 60;
   const afternoonEnd = 17 * 60;
 
@@ -23,10 +23,43 @@ const getAttendanceStatusForCheckIn = (dateObj) => {
 };
 
 const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
-  const shift = getShiftForDate(checkInDateObj);
-  if (!shift) return null;
+  const shiftEndMinutes = 17 * 60;
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
-  return checkOutMinutes < shift.endMinutes ? 'early_leave' : 'on_time';
+  return checkOutMinutes < shiftEndMinutes ? 'early_leave' : 'on_time';
+};
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+/**
+ * Giờ công chuẩn:
+ * - Giờ làm: 07:30 -> 17:00
+ * - Nghỉ trưa: 11:30 -> 13:00 (không tính công)
+ * - Tổng công tối đa: 8.00 giờ/ngày (không tính quá, OT xử lý ở module xin phép)
+ */
+const calcStandardWorkHours = (checkInDateObj, checkOutDateObj) => {
+  if (!(checkInDateObj instanceof Date) || Number.isNaN(checkInDateObj.getTime())) return 0;
+  if (!(checkOutDateObj instanceof Date) || Number.isNaN(checkOutDateObj.getTime())) return 0;
+
+  const start = 7 * 60 + 30;
+  const end = 17 * 60;
+  const lunchStart = 11 * 60 + 30;
+  const lunchEnd = 13 * 60;
+
+  const inMinRaw = checkInDateObj.getHours() * 60 + checkInDateObj.getMinutes();
+  const outMinRaw = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
+
+  const inMin = clamp(inMinRaw, start, end);
+  const outMin = clamp(outMinRaw, start, end);
+
+  if (outMin <= inMin) return 0;
+
+  const overlap = outMin - inMin;
+  const lunchOverlap = Math.max(0, Math.min(outMin, lunchEnd) - Math.max(inMin, lunchStart));
+  const effectiveMinutes = Math.max(0, overlap - lunchOverlap);
+
+  const cappedMinutes = Math.min(effectiveMinutes, 8 * 60);
+  const hours = cappedMinutes / 60;
+  return Math.round(hours * 100) / 100;
 };
 
 const normalizeWorkLocation = (row) => {
@@ -246,6 +279,7 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
   const now = new Date();
   const checkInDateObj = new Date(attendanceToday.check_in_time);
   const status = getAttendanceStatusForCheckOut(checkInDateObj, now);
+  const standardWorkHours = calcStandardWorkHours(checkInDateObj, now);
 
   const sql = `
     UPDATE attendance
@@ -255,14 +289,14 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
       check_out_longitude = $3,
       device_ip = $4,
       status = $5,
-      total_work_hours = ROUND(EXTRACT(EPOCH FROM (NOW() - check_in_time))/3600::numeric, 2),
+      total_work_hours = $7,
       check_out_note = COALESCE($6, check_out_note)
     WHERE id = $1
     RETURNING id, attendance_date, check_in_time, check_out_time, status, total_work_hours
   `;
 
   const [updateRows] = await db.query(sql, {
-    bind: [attendanceToday.id, lat, lng, deviceIp, status, checkOutNote],
+    bind: [attendanceToday.id, lat, lng, deviceIp, status, checkOutNote, standardWorkHours],
   });
   emitAttendanceChanged(io, workLocation, employeeId, 'checkout');
   return { ok: true, statusCode: 200, data: updateRows[0], workLocation };

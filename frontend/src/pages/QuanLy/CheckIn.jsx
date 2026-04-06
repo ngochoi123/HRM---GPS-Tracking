@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Circle, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, Fingerprint, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, PanelLeftClose, PanelLeftOpen, History } from 'lucide-react';
 import { useManagerBranchSocket } from '../../hooks/useManagerBranchSocket';
 import { socketOriginFromApiBase } from '../../services/managerSocket';
+import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
 
 import './CheckIn.css';
 
@@ -88,6 +89,15 @@ const ManagerCheckIn = () => {
   const [showAttendanceCard, setShowAttendanceCard] = useState(true);
   const [managerAlerts, setManagerAlerts] = useState([]);
   const [isOutZone, setIsOutZone] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyData, setHistoryData] = useState(null);
+  const [monthYear, setMonthYear] = useState(() => {
+    const now = new Date();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${m}`;
+  });
   /** Vị trí realtime từ mobile (employee_location_update), key = employee id */
   const [employeePositions, setEmployeePositions] = useState({});
 
@@ -162,6 +172,28 @@ const ManagerCheckIn = () => {
     setZoneStats(json.data.zoneStats || { totalInZone: 0, checkedInOnly: 0, checkedOut: 0 });
     setAttendees(Array.isArray(json.data.attendees) ? json.data.attendees : []);
   }, [managerId]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!managerId) return;
+    const [y, m] = String(monthYear || '').split('-');
+    const year = Number(y);
+    const month = Number(m);
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const qs = Number.isFinite(month) && Number.isFinite(year) ? `?month=${month}&year=${year}` : '';
+      const res = await fetch(`${API_BASE}/employee/attendance/history/${managerId}${qs}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || `Lỗi ${res.status}`);
+      }
+      setHistoryData(json.data || null);
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [managerId, monthYear]);
 
   // API attendance/summary trả branch_id trong workLocation.branch — không có workLocation.branch_id phẳng
   const branchIdForSocket = useMemo(() => {
@@ -401,6 +433,19 @@ return (
           </button>
 
           <div className={`checkin-fab-card ${showAttendanceCard ? 'open' : 'closed'}`}>
+              <div className="checkin-fab-top-actions">
+                <button
+                  type="button"
+                  className="checkin-history-btn"
+                  onClick={() => {
+                    setHistoryOpen(true);
+                    void fetchHistory();
+                  }}
+                  aria-label="Xem lịch sử chấm công"
+                >
+                  <History size={18} />
+                </button>
+              </div>
               <button className={`checkin-fab-button ${!isDone && !canCheckOut ? 'checkin' : canCheckOut ? 'checkout' : 'done'}`} onClick={handleAttendanceAction} disabled={!showAttendanceCard || actionDisabled} type="button">
                 <Fingerprint size={44} color="#fff" />
                 <div className="checkin-fab-text">{isDone ? 'ĐÃ CHECK OUT' : canCheckOut ? 'CHECK OUT' : 'CHECK IN'}</div>
@@ -478,6 +523,16 @@ return (
             </div>
           </div>
         )}
+        <AttendanceHistoryModal
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          monthYear={monthYear}
+          setMonthYear={setMonthYear}
+          loading={historyLoading}
+          error={historyError}
+          data={historyData}
+          onSearch={() => void fetchHistory()}
+        />
 
       </div>
     </div>
