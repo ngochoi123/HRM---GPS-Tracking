@@ -7,12 +7,18 @@ import { BsSend } from "react-icons/bs";
 import { FiClock } from "react-icons/fi";
 import { PiClockCounterClockwise } from "react-icons/pi";
 import axios from "axios";
+import { MdCalendarMonth } from "react-icons/md";
+import { CiSearch } from "react-icons/ci";
+import { GoCheckCircle } from "react-icons/go";
+import { LuClock2 } from "react-icons/lu";
+import { IoArrowBack } from "react-icons/io5";
 
 import "./Requests.css";
 
 const Requests = () => {
   const fileRef = useRef();
   const [requests, setRequests] = useState([]);
+  console.log("REQUESTS:", requests);
   const [form, setForm] = useState({
     type: "annual",
     startDate: "",
@@ -22,17 +28,128 @@ const Requests = () => {
 
   const [view, setView] = useState("create"); 
 // "create" | "history"
-
+  const [recentRequests, setRecentRequests] = useState([]);
   const [notification, setNotification] = useState("");
+  const [filterMonth, setFilterMonth] = useState(""); // yyyy-mm
+
   const [approvers, setApprovers] = useState([]); // danh sách người kiểm duyệt
   const [approverId, setApproverId] = useState(""); // id người được chọn
 
   const user = JSON.parse(localStorage.getItem("user"));
 
+  const [selectedRequest, setSelectedRequest] = useState(null);
+const [showModal, setShowModal] = useState(false);
+
+// Hàm mở modal khi click vào dòng
+const handleRowClick = (request) => {
+  setSelectedRequest(request);
+  setShowModal(true);
+};
+
+// Hàm đóng modal
+const closeModal = () => {
+  setShowModal(false);
+  setSelectedRequest(null);
+};
+
+
+  // Mapping loại đơn từ Database sang Tiếng Việt
+const getLeaveTypeText = (type) => {
+  const types = {
+    annual: "Nghỉ phép năm",
+    sick: "Nghỉ ốm",
+    unpaid: "Nghỉ không lương",
+    ot: "Nghỉ bù (OT)",
+    maternity: "Nghỉ thai sản",
+    bereavement: "Nghỉ tang"
+  };
+  return types[type] || type;
+};
+
+const filteredRequests = filterMonth
+  ? requests.filter((r) => {
+      const date = new Date(r.start_datetime); // hoặc r.created_at nếu muốn theo ngày tạo
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      return yearMonth === filterMonth;
+    })
+  : requests;
+
+// Định dạng ngày hiển thị (dd/mm/yyyy)
+const formatDate = (dateStr) => {
+  if (!dateStr) return "---";
+  return new Date(dateStr).toLocaleDateString('vi-VN');
+};
+
+const getLatestMonthYear = () => {
+  if (!requests || requests.length === 0) return "";
+
+  // Sắp xếp theo ngày bắt đầu giảm dần
+  const sorted = [...requests].sort(
+    (a, b) => new Date(b.start_datetime) - new Date(a.start_datetime)
+  );
+
+  const latest = new Date(sorted[0].start_datetime);
+  const month = latest.getMonth() + 1; // 0-indexed
+  const year = latest.getFullYear();
+
+  return `${month.toString().padStart(2, "0")}/${year}`;
+};
+
+// Tính tổng số ngày nghỉ dự kiến
+const calculateTotalDays = (start, end) => {
+  if (!start || !end) return "0 ngày";
+
+  let startDate = new Date(start);
+  let endDate = new Date(end);
+
+  // reset giờ để tránh lệch timezone
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  let count = 0;
+
+  while (startDate <= endDate) {
+    const day = startDate.getDay(); // 0 = Chủ nhật
+
+    if (day !== 0) {
+      count++;
+    }
+
+    startDate.setDate(startDate.getDate() + 1);
+  }
+
+  return `${count} ngày`;
+};
+
+  useEffect(() => {
+  if (!user?.id) return;
+
+  axios
+    .get(`http://localhost:5000/api/employee/leave-request/${user.id}`)
+    .then((res) => {
+      setRecentRequests(res.data.slice(0, 3)); // lấy 3 đơn gần nhất
+    })
+    .catch((err) => console.error(err));
+}, [user?.id]);
+
+  useEffect(() => {
+  if (view !== "history") return;
+  if (!user?.id) return;
+
+  axios
+    .get(`http://localhost:5000/api/employee/leave-request/${user.id}`)
+    .then((res) => {
+      console.log("DATA:", res.data); // debug
+      setRequests(res.data);
+    })
+    .catch((err) => console.error(err));
+  }, [view, user?.id]);
 
   // ----------------- Load approvers (trưởng trực tiếp + Director) -----------------
   useEffect(() => {
-    if (view==="history" &&!user?.id) return;
+
+     if (view !== "create") return;
+    if (!user?.id) return;
 
     axios
       .get(`http://localhost:5000/api/employee/approvers/${user.id}`)
@@ -266,50 +383,209 @@ const Requests = () => {
   ) : (
     <>
       {/* ================= HISTORY ================= */}
-      <div className="history-header">
-        <h2>Đơn đã gửi</h2>
-
-        <div style={{ display: "flex", gap: "10px" }}>
-          <input type="month" />
-          <button>🔍</button>
-
-          <button onClick={() => setView("create")}>
-            ← Quay lại
-          </button>
+      <div className="history-page-header">
+        <div>
+          <h2>Đơn đã gửi</h2>
+          <p>Tất cả các đơn bạn đã gửi</p>
         </div>
+
+        <button className="btn-back" onClick={() => setView("create")}>
+          <IoArrowBack /> Quay lại
+        </button>
       </div>
 
-      <table className="history-table">
-        <thead>
-          <tr>
-            <th>Ngày</th>
-            <th>Loại đơn</th>
-            <th>Trạng thái</th>
-          </tr>
-        </thead>
+      {/* CARD */}
+      <div className="history-card">
 
-        <tbody>
-          {requests.length === 0 ? (
-            <tr>
-              <td colSpan="3">Không có dữ liệu</td>
-            </tr>
-          ) : (
-            requests.map((r) => (
-              <tr key={r.id}>
-                <td>{r.start_datetime}</td>
-                <td>{r.leave_type}</td>
-                <td>{r.status}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+        {/* FILTER */}
+        <div className="history-filter">
+          <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
+
+          <div className="filter-right">
+            <div className="filter-right-search">
+              <MdCalendarMonth className="month-icon" />
+              <span> Tháng: </span>
+              </div>
+            <input
+              className="input-month-search"
+              type="month"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+            />
+            <button className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
+          </div>
+        </div>
+
+        {/* TABLE */}
+          <div className="history-table-container">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Ngày</th>
+                  <th>Loại đơn</th>
+                  <th>Ngày bắt đầu</th>
+                  <th>Ngày kết thúc</th>
+                  <th>Tổng ngày nghỉ</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+               {requests.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="empty">Không có dữ liệu đơn đã gửi</td>
+                  </tr>
+                ) : (
+                  filteredRequests.map((r) => (
+                    <tr key={r.id} 
+                      onClick={() => handleRowClick(r)} 
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* Cột Ngày: Hiển thị ngày tạo đơn (created_at) */}
+                      <td>{formatDate(r.created_at)}</td>
+
+                      {/* Cột Loại đơn */}
+                      <td style={{ fontWeight: "500" }}>{getLeaveTypeText(r.leave_type)}</td>
+
+                      {/* Cột Ngày bắt đầu */}
+                      <td>{formatDate(r.start_datetime)}</td>
+
+                      {/* Cột Ngày kết thúc */}
+                      <td>{formatDate(r.end_datetime)}</td>
+
+                      {/* Cột Tổng ngày nghỉ */}
+                      <td>{calculateTotalDays(r.start_datetime, r.end_datetime)}</td>
+
+                      {/* Cột Trạng thái với Style Pill (giống ảnh image_192663.png) */}
+                      <td>
+                        <span className={`status-pill ${r.status}`}>
+                          <span className="dot">● </span>
+                          {r.status === 'approved' ? 'Đã duyệt' : 
+                          r.status === 'pending' ? 'Chờ duyệt' : 'Từ chối'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+      </div>
     </>
   )}
 
 
 
       </div>
+      {showModal && selectedRequest && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{marginBottom:"20px",fontSize:"20px"}}>Chi tiết đơn nghỉ phép</h2>
+
+            {/* THÔNG TIN CHUNG */}
+            <div className="info-section">
+              <h3 className="section-title">
+                <FaRegFileAlt className="icon" /> Thông tin chung
+              </h3>
+              <div className="input-grid">
+                <div className="input-group-1">
+                  <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Loại đơn</label>
+                  <input
+                    type="text"
+                    className="input-option-2"
+                    value={getLeaveTypeText(selectedRequest.leave_type)}
+                    readOnly
+                  />
+                </div>
+                <div className="input-group-1">
+                  <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Người kiểm duyệt</label>
+                  <input
+                    type="text"
+                    className="input-option-2"
+                    value={selectedRequest.approver_name || "---"}
+                    readOnly
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* THỜI GIAN */}
+            <div className="info-section">
+              <h3 className="section-title">
+                <FaRegClock className="icon" /> Thời gian nghỉ
+              </h3>
+              <div className="input-grid">
+                <div className="input-group-1">
+                  <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Ngày bắt đầu</label>
+                  <input
+                    type="date"
+                    className="input-option-2"
+                    value={selectedRequest.start_datetime?.split("T")[0] || ""}
+                    readOnly
+                  />
+                </div>
+                <div className="input-group-1">
+                  <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Ngày kết thúc</label>
+                  <input
+                    type="date"
+                    className="input-option-2"
+                    value={selectedRequest.end_datetime?.split("T")[0] || ""}
+                    readOnly
+                  />
+                </div>
+              </div>
+              <div className="info-section-bottom-1">
+                <div className="info-section-bottom-left">
+                  <p>Tổng thời gian nghỉ :</p>
+                </div>
+                <div className="info-section-bottom-right">
+                  <p>
+                    {calculateTotalDays(selectedRequest.start_datetime, selectedRequest.end_datetime)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CHI TIẾT */}
+            <div className="info-section">
+              <h3 className="section-title">
+                <MdChatBubbleOutline className="icon" /> Chi tiết thêm
+              </h3>
+              <div className="input-grid-1">
+                <div className="input-group" style={{ marginTop: "20px" }}>
+                  <label>Lý do cụ thể</label>
+                  <textarea
+                    className="input-option-3"
+                    value={selectedRequest.reason}
+                    readOnly
+                  />
+                </div>
+
+                {selectedRequest.attachment && (
+                  <div className="input-group" style={{ marginTop: "20px" }}>
+                    <label>File đính kèm</label>
+                    <a
+                      href={selectedRequest.attachment}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="file-link"
+                    >
+                      Xem file
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <button onClick={closeModal} className="btn-close-modal">
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* RIGHT */}
       <div className="request-right">
@@ -361,10 +637,43 @@ const Requests = () => {
             <button className="btn-all" onClick={() => setView("history")} >Xem tất cả</button>
           </div>
 
-          <div className="card-content-bot">{/* load đơn gần đây */}</div>
+          <div className="card-content-bot">
+            {recentRequests.length === 0 ? (
+              <p className="empty-text">Chưa có đơn nào</p>
+            ) : (
+              recentRequests.map((r) => (
+                <div className="recent-item" key={r.id}>
+                  {/* Phần icon bên trái */}
+                  <div className={`recent-icon-wrapper ${r.status}`}>
+                    {r.status === "approved" ? <GoCheckCircle /> : <LuClock2 />}
+                  </div>
+
+                  {/* Phần nội dung giữa */}
+                  <div className="recent-info">
+                    <p className="recent-type">{getLeaveTypeText(r.leave_type)}</p>
+                    <p className="recent-date">
+                      {formatDate(r.start_datetime)} - {formatDate(r.end_datetime)} ({calculateTotalDays(r.start_datetime, r.end_datetime)})
+                    </p>
+                  </div>
+
+                  {/* Phần nhãn trạng thái bên phải */}
+                  <div className="recent-right">
+                    <span  className={`status-pill ${r.status}`}>
+                      {r.status === "approved"
+                        ? "ĐÃ DUYỆT"
+                        : r.status === "pending"
+                        ? "CHỜ DUYỆT"
+                        : "TỪ CHỐI"}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
-
+      
+      
 
     </div>
   );
