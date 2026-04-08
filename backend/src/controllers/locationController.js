@@ -49,7 +49,7 @@ const getLocations = async (req, res) => {
     w.longitude, 
     w.radius_meters
   FROM branch b
-  INNER JOIN work_location w ON w.branch_id = b.id
+  LEFT JOIN work_location w ON w.branch_id = b.id
   ORDER BY b.id ASC;
 `;
     const locations = await db.query(query, { type: db.QueryTypes.SELECT });

@@ -50,8 +50,10 @@ const LocationSettings = () => {
                     }
                     setBranches(uniqueBranches);
 
-                    const formattedLocations = apiData.map(item => ({
-                        id: item.work_location_id || `temp_${item.id}`,
+                    const validWorkLocations = apiData.filter(item => item.work_location_id != null);
+
+                    const formattedLocations = validWorkLocations.map(item => ({
+                        id: item.work_location_id,
                         work_location_id: item.work_location_id,
                         branch_id: item.id,
                         location_name: item.location_name || 'Chưa đặt tên khu vực',
@@ -70,7 +72,11 @@ const LocationSettings = () => {
                     }));
 
                     setLocations(formattedLocations);
-                    setSelectedLoc(formattedLocations[0]);
+                    if (formattedLocations.length > 0) {
+                        setSelectedLoc(formattedLocations[0]);
+                    } else {
+                        handleAddNewLocation();
+                    }
                 } else {
                     handleAddNewLocation();
                 }
