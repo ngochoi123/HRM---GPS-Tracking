@@ -60,18 +60,11 @@ const getLocations = async (req, res) => {
   }
 };
 
-// ==========================================================
-// 2. THÊM MỚI (Tạo Branch trước -> Lấy ID -> Tạo Bản đồ sau)
-// ==========================================================
-// --- ĐÈ HÀM TẠO MỚI ---
 const createLocation = async (req, res) => {
   const transaction = await db.transaction();
   try {
     const {
-      id,
-      branch_code,
-      branch_name,
-      address,
+      branch_id,
       location_name,
       location_type,
       latitude,
@@ -82,74 +75,65 @@ const createLocation = async (req, res) => {
 
     const allowedIpsArr = parseAllowedIpsBody(allowedIpsRaw);
 
+    // 1. Validate dữ liệu GPS
     if (!location_name || latitude === undefined || longitude === undefined || radius_meters === undefined) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: "Thiếu dữ liệu cấu hình GPS bắt buộc!" });
     }
 
-    let finalBranchId = id; // id này do Frontend gửi lên (nếu chọn chi nhánh cũ)
+    // 2. KHÓA CHẶT: Bắt buộc phải có branch_id (KHÔNG BAO GIỜ TỰ TẠO CHI NHÁNH)
+    if (!branch_id) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "Bắt buộc phải chọn một chi nhánh quản lý để gắn khu vực chấm công!" });
+    }
 
-    // CHỈ tạo chi nhánh mới nếu Frontend KHÔNG gửi id lên
-    if (!finalBranchId) {
-      if (!branch_name) {
-        await transaction.rollback();
-        return res.status(400).json({ success: false, message: "Vui lòng chọn hoặc nhập tên chi nhánh quản lý!" });
-      }
-      
-      const branchQuery = `
-        INSERT INTO branch (branch_code, branch_name, address, is_active, allowed_ips)
-        VALUES ($1, $2, $3, true, $4::text[])
-        RETURNING id
-      `;
-      const [newBranchRows] = await db.query(branchQuery, {
-        bind: [branch_code || `BR-${Date.now()}`, branch_name, address || null, allowedIpsArr],
-        transaction,
-      });
-      finalBranchId = newBranchRows[0].id;
-    } else if (allowedIpsRaw !== undefined) {
+    // 3. Cập nhật danh sách IP cho chi nhánh cũ (nếu có)
+    if (allowedIpsRaw !== undefined) {
       await db.query(`UPDATE branch SET allowed_ips = $1::text[] WHERE id = $2`, {
-        bind: [allowedIpsArr, finalBranchId],
+        bind: [allowedIpsArr || [], branch_id],
         transaction,
       });
     }
 
-    // Luôn luôn tạo Work Location mới (Dùng location_name)
+    // 4. Luôn luôn tạo Work Location mới gắn vào branch_id
     const workLocQuery = `
       INSERT INTO work_location (branch_id, location_name, location_type, latitude, longitude, radius_meters)
       VALUES (:branchId, :locName, :locType, :lat, :lng, :radius)
       RETURNING id
     `;
-    await db.query(workLocQuery, { 
+    const [newWorkLocRows] = await db.query(workLocQuery, { 
       replacements: { 
-        branchId: finalBranchId, 
+        branchId: branch_id, 
         locName: location_name, 
         locType: location_type || 'branch', 
-        lat: latitude, lng: longitude, radius: radius_meters 
+        lat: latitude, 
+        lng: longitude, 
+        radius: radius_meters 
       }, 
       transaction 
     });
 
     await transaction.commit();
     emitAdminLocationsUpdated(req);
-    res.status(201).json({
+    
+    return res.status(201).json({
       success: true,
       message: "Thêm khu vực chấm công thành công!",
-      data: { id: finalBranchId },
+      data: { branch_id, work_location_id: newWorkLocRows[0].id }
     });
 
   } catch (error) {
-    await transaction.rollback();
+    if (!transaction.finished) await transaction.rollback();
     console.error("LỖI SQL KHI TẠO:", error);
-    res.status(500).json({ success: false, message: "Lỗi lưu dữ liệu: " + error.message });
+    return res.status(500).json({ success: false, message: "Lỗi lưu dữ liệu: " + error.message });
   }
 };
-
-// --- ĐÈ HÀM CẬP NHẬT ---
 const updateLocationSettings = async (req, res) => {
   const transaction = await db.transaction();
   try {
-    const branchId = req.params.id;
+    const branchId = req.params.id; // Đây là branch_id mới mà client gửi lên trên URL
     const {
+      branch_id, // Lấy branch_id từ body
       branch_name,
       is_active,
       location_name,
@@ -162,8 +146,9 @@ const updateLocationSettings = async (req, res) => {
     } = req.body;
 
     const allowedIpsArr = parseAllowedIpsBody(allowedIpsRaw);
+    const targetBranchId = branch_id || branchId;
 
-    // 1. Cập nhật Branch (tên, trạng thái, allowed_ips)
+    // 1. Cập nhật Branch (tên, trạng thái, allowed_ips) dành cho chi nhánh đích
     if (branch_name !== undefined || is_active !== undefined || allowedIpsRaw !== undefined) {
       await db.query(
         `
@@ -179,14 +164,14 @@ const updateLocationSettings = async (req, res) => {
             is_active !== undefined ? is_active : null,
             allowedIpsRaw !== undefined,
             allowedIpsRaw !== undefined ? allowedIpsArr : [],
-            branchId,
+            targetBranchId,
           ],
           transaction,
         }
       );
     }
 
-    // 2. Cập nhật Work Location (Bắt buộc phải có work_location_id để không update nhầm)
+    // 2. Cập nhật Work Location: Set branch_id mới và bỏ check OLD branch_id trong WHERE
     if (work_location_id) {
       await db.query(`
         UPDATE work_location 
@@ -194,8 +179,9 @@ const updateLocationSettings = async (req, res) => {
             location_type = COALESCE(:locType, location_type),
             latitude = COALESCE(:lat, latitude),
             longitude = COALESCE(:lng, longitude),
-            radius_meters = COALESCE(:radius, radius_meters)
-        WHERE id = :workLocId AND branch_id = :branchId
+            radius_meters = COALESCE(:radius, radius_meters),
+            branch_id = COALESCE(:newBranchId, branch_id)
+        WHERE id = :workLocId
       `, { 
         replacements: { 
           locName: location_name !== undefined ? location_name : null, 
@@ -203,8 +189,8 @@ const updateLocationSettings = async (req, res) => {
           lat: latitude !== undefined ? latitude : null, 
           lng: longitude !== undefined ? longitude : null, 
           radius: radius_meters !== undefined ? radius_meters : null, 
-          workLocId: work_location_id,
-          branchId: branchId
+          newBranchId: targetBranchId,
+          workLocId: work_location_id
         }, 
         transaction 
       });
@@ -215,7 +201,7 @@ const updateLocationSettings = async (req, res) => {
     res.status(200).json({ success: true, message: "Cập nhật khu vực thành công!" });
 
   } catch (error) {
-    await transaction.rollback();
+    if (!transaction.finished) await transaction.rollback();
     console.error("LỖI SQL KHI CẬP NHẬT:", error);
     res.status(500).json({ success: false, message: "Lỗi lưu dữ liệu: " + error.message });
   }

@@ -12,7 +12,7 @@ const {
   isWeakGpsAccuracy,
 } = require('../utils/geoUtils');
 const {
-  fetchWorkLocation,
+  fetchWorkLocations,
   fetchTodayAttendance,
   checkInEmployee,
   checkOutEmployee,
@@ -88,8 +88,8 @@ function getOutZoneStartMs(uid) {
   return null;
 }
 
-function setOutZoneStart(uid) {
-  outOfZoneTrackers[uid] = { startTime: Date.now() };
+function setOutZoneStart(uid, lat, lng, workLocationId, beyondHard = false) {
+  outOfZoneTrackers[uid] = { startTime: Date.now(), lat, lng, workLocationId, beyondHard };
 }
 
 /** Đồng bộ đồng hồ client + quản lý: secondsRemaining null = trong vùng / không áp dụng. */
@@ -137,8 +137,8 @@ async function processTrackLocation(io, employeeId, payload) {
             { lat, lng, t: now }
           );
     if (speed != null && speed > MAX_SPEED_MPS) {
-      const workLocation = await fetchWorkLocation(employeeId);
-      emitManagerAlert(io, workLocation?.branch_id, {
+      const wls = await fetchWorkLocations(employeeId);
+      emitManagerAlert(io, wls?.[0]?.branch_id, {
         type: 'speed_anomaly',
         severity: 'warning',
         employee_id: employeeId,
@@ -150,8 +150,8 @@ async function processTrackLocation(io, employeeId, payload) {
   }
 
   if (isWeakGpsAccuracy(accuracy, ACCURACY_WARN_M)) {
-    const workLocation = await fetchWorkLocation(employeeId);
-    emitManagerAlert(io, workLocation?.branch_id, {
+    const wls = await fetchWorkLocations(employeeId);
+    emitManagerAlert(io, wls?.[0]?.branch_id, {
       type: 'poor_accuracy',
       severity: 'info',
       employee_id: employeeId,
@@ -162,18 +162,46 @@ async function processTrackLocation(io, employeeId, payload) {
 
   setState(employeeId, { last: { lat, lng, t: now, accuracy } });
 
-  const workLocation = await fetchWorkLocation(employeeId);
-  if (!workLocation) {
+  const workLocations = await fetchWorkLocations(employeeId);
+  if (!workLocations || workLocations.length === 0) {
     emitEmployee(io, employeeId, 'tracking_error', { message: 'Chưa cấu hình địa điểm chấm công' });
     return;
   }
 
-  const centerLat = Number(workLocation.latitude);
-  const centerLng = Number(workLocation.longitude);
-  const radius = workLocation.radius_meters == null ? 100 : Number(workLocation.radius_meters);
-  const dist = getDistanceFromLatLonInMeters(lat, lng, centerLat, centerLng);
-  const inside = dist <= radius;
-  const beyondHard = dist > radius + HARD_BUFFER_M;
+  let inside = false;
+  let beyondHard = true;
+  let minDistance = Infinity;
+  let closestRadius = 100;
+  let bestWorkLocation = workLocations[0];
+
+  for (const wl of workLocations) {
+    const centerLat = Number(wl.latitude);
+    const centerLng = Number(wl.longitude);
+    const rad = wl.radius_meters == null ? 100 : Number(wl.radius_meters);
+    const d = getDistanceFromLatLonInMeters(lat, lng, centerLat, centerLng);
+    
+    if (d <= rad) {
+      inside = true;
+      beyondHard = false;
+      bestWorkLocation = wl;
+      minDistance = d;
+      closestRadius = rad;
+      break;
+    }
+    
+    if (d < minDistance) {
+      minDistance = d;
+      closestRadius = rad;
+      bestWorkLocation = wl;
+      if (d <= rad + HARD_BUFFER_M) {
+        beyondHard = false;
+      }
+    }
+  }
+
+  const workLocation = bestWorkLocation;
+  const dist = minDistance;
+  const radius = closestRadius;
 
   const attendance = await fetchTodayAttendance(employeeId);
   const hasCheckIn = Boolean(attendance?.check_in_time);
@@ -187,6 +215,7 @@ async function processTrackLocation(io, employeeId, payload) {
       io,
       skipGeofenceValidation: true,
       skipWifiIpValidation: true,
+      forceWorkLocationId: bestWorkLocation.work_location_id
     });
     if (result.ok) {
       emitEmployee(io, employeeId, 'geofence_auto_checkin', {
@@ -217,66 +246,65 @@ async function processTrackLocation(io, employeeId, payload) {
   }
 
   // Ra khỏi vùng
-  if (beyondHard) {
-    delete outOfZoneTrackers[employeeId];
-    clearGraceTimer(employeeId);
-    const out = await checkOutEmployee(employeeId, lat, lng, {
-      deviceIp: 'socket:geofence',
-      io,
-      skipGeofenceValidation: true,
-      skipWifiIpValidation: true,
-      checkOutNote: AUTO_CHECKOUT_NOTE_HARD,
-    });
-    if (out.ok) {
-      emitEmployee(io, employeeId, 'geofence_auto_checkout', {
-        message: AUTO_CHECKOUT_NOTE_HARD,
-        data: out.data,
-      });
-    }
-    emitOutOfZoneStatus(io, workLocation, employeeId, null);
-    clearGraceTimer(employeeId);
-    return;
+  if (beyondHard && false) { // Vô hiệu hoá auto checkout tức thì do lỗi nhảy GPS
+    // (Đã xóa xử lý checkout tức thì, gộp chung vào hẹn giờ bên dưới)
   }
 
-  // Ngoài vùng nhưng chưa vượt ngưỡng cứng → theo dõi theo giây (mỗi track_location)
+  // Ngoài vùng (dù xa hay gần) -> Cập nhật/Sinh tracker
+  const uid = employeeId;
+  const nowMs = Date.now();
+  if (getOutZoneStartMs(uid) == null) {
+      setOutZoneStart(uid, lat, lng, bestWorkLocation?.work_location_id, beyondHard);
+  } else {
+      // Cập nhật toạ độ mới nhất vào tracker để nếu có sweep sẽ lấy toạ độ này
+      outOfZoneTrackers[uid].lat = lat;
+      outOfZoneTrackers[uid].lng = lng;
+      outOfZoneTrackers[uid].beyondHard = beyondHard;
+  }
+  
+  const startTime = getOutZoneStartMs(uid);
+  const diffSeconds = startTime != null ? (nowMs - startTime) / 1000 : 0;
+
+  // Thời gian đếm tuỳ theo mức độ (vượt giới hạn cứng -> 60s, vượt cảnh báo -> 5 phút)
+  const isHard = outOfZoneTrackers[uid]?.beyondHard;
+  const AT_SEC = isHard ? 60 : OUT_ZONE_AUTO_SEC;
+
+  // Nếu là GPS bị nhảy, ta không cảnh báo ngay để tránh spam màn hình
+  const DEBOUNCE_UI_SEC = 20;
+
   const st = employeeTrackState.get(employeeId) || {};
-  if (!st.leaveWarningSent) {
+  if (!st.leaveWarningSent && diffSeconds >= DEBOUNCE_UI_SEC) {
     setState(employeeId, { leaveWarningSent: true });
     emitEmployee(io, employeeId, 'geofence_leave_warning', {
-      message: 'Bạn đã ra khỏi vùng chấm công, vui lòng quay lại trong 5 phút',
-      grace_ms: GRACE_MS,
+      message: isHard ? 'Lưu ý: Bạn đã rời khu vực quá xa, sẽ tự Checkout sau 1 phút' : 'Bạn đã ra khỏi vùng chấm công, vui lòng quay lại trong 5 phút',
+      grace_ms: Math.max(0, AT_SEC * 1000 - DEBOUNCE_UI_SEC * 1000), // trừ đi thời gian đã debounce
       distance_meters: Number(dist.toFixed(2)),
       radius_meters: radius,
     });
   }
 
-  const uid = employeeId;
-  if (getOutZoneStartMs(uid) == null) setOutZoneStart(uid);
-  const startTime = getOutZoneStartMs(uid);
-  const diffSeconds = startTime != null ? (Date.now() - startTime) / 1000 : 0;
-
-  if (diffSeconds >= OUT_ZONE_AUTO_SEC) {
+  if (diffSeconds >= AT_SEC) {
     try {
-      const [updateRows] = await db.query(
-        `UPDATE attendance
-         SET check_out_time = NOW(), status = 'early_leave'
-         WHERE employee_id = $1
-           AND check_out_time IS NULL
-           AND DATE(check_in_time) = CURRENT_DATE
-         RETURNING id`,
-        { bind: [employeeId] }
-      );
-      const row0 = updateRows?.[0];
+      const tracker = outOfZoneTrackers[uid] || {};
+      // Nếu là beyondHard mà quá 5p, lấy note tương ứng
+      const finalNote = (beyondHard && diffSeconds > 60) ? AUTO_CHECKOUT_NOTE_HARD : 'Tự động Checkout: Rời vùng chấm công > 5 phút.';
+      const out = await checkOutEmployee(uid, tracker.lat || lat, tracker.lng || lng, {
+        deviceIp: 'socket:geofence',
+        io,
+        skipGeofenceValidation: true,
+        skipWifiIpValidation: true,
+        checkOutNote: finalNote,
+        forceWorkLocationId: tracker.workLocationId || bestWorkLocation?.work_location_id
+      });
       delete outOfZoneTrackers[uid];
-      emitOutOfZoneStatus(io, workLocation, employeeId, null);
-      if (row0?.id != null) {
+      emitOutOfZoneStatus(io, workLocation, uid, null);
+      if (out.ok) {
         const msg = 'Hệ thống đã tự động Check-out do rời vùng quá 5 phút.';
         io.emit(`personal_event_${uid}`, { action: 'AUTO_CHECKOUT', message: msg });
-        clearGraceTimer(employeeId);
-        emitAttendanceChanged(io, workLocation, employeeId, 'checkout');
-        emitEmployee(io, employeeId, 'geofence_auto_checkout', {
+        clearGraceTimer(uid);
+        emitEmployee(io, uid, 'geofence_auto_checkout', {
           message: msg,
-          data: row0,
+          data: out.data,
         });
       }
     } catch (e) {
@@ -285,8 +313,10 @@ async function processTrackLocation(io, employeeId, payload) {
     return;
   }
 
-  const secondsRemaining = Math.max(0, OUT_ZONE_AUTO_SEC - diffSeconds);
-  emitOutOfZoneStatus(io, workLocation, employeeId, secondsRemaining);
+  if (diffSeconds >= DEBOUNCE_UI_SEC) {
+    const secondsRemaining = Math.max(0, AT_SEC - diffSeconds);
+    emitOutOfZoneStatus(io, workLocation, employeeId, secondsRemaining);
+  }
 }
 
 function registerGeofencingSocket(io) {
@@ -298,11 +328,11 @@ function registerGeofencingSocket(io) {
         socket.data.employeeId = employeeId;
         socket.join(`employee_${employeeId}`);
 
-        const wl = await fetchWorkLocation(employeeId);
-        const room = branchRoom(wl?.branch_id);
+        const wls = await fetchWorkLocations(employeeId);
+        const room = branchRoom(wls?.[0]?.branch_id);
         if (room) socket.join(room);
 
-        const reply = { ok: true, employee_id: employeeId, branch_id: wl?.branch_id ?? null };
+        const reply = { ok: true, employee_id: employeeId, branch_id: wls?.[0]?.branch_id ?? null };
         if (typeof ack === 'function') ack(reply);
         socket.emit('tracking_authenticated', reply);
       } catch (e) {
@@ -343,6 +373,43 @@ function registerGeofencingSocket(io) {
       // outOfZoneTrackers giữ theo employeeId — không xóa khi socket rớt (mobile có thể tạm ngắt).
     });
   });
+
+  setInterval(async () => {
+    const now = Date.now();
+    for (const [uid, tracker] of Object.entries(outOfZoneTrackers)) {
+      if (typeof tracker === 'object' && tracker.startTime) {
+        const diffSeconds = (now - tracker.startTime) / 1000;
+        const AT_SEC = tracker.beyondHard ? 60 : OUT_ZONE_AUTO_SEC;
+        if (diffSeconds >= AT_SEC) {
+          console.log(`[Sweep] Tự động checkout nhân viên ${uid} bị disconnect khi đang ra vùng`);
+          try {
+            const finalNote = tracker.beyondHard ? AUTO_CHECKOUT_NOTE_HARD : 'Tự động Checkout: Rời vùng chấm công > 5 phút.';
+            const out = await checkOutEmployee(uid, tracker.lat, tracker.lng, {
+              deviceIp: 'socket:sweep',
+              io,
+              skipGeofenceValidation: true,
+              skipWifiIpValidation: true,
+              checkOutNote: finalNote,
+              forceWorkLocationId: tracker.workLocationId
+            });
+            delete outOfZoneTrackers[uid];
+            clearGraceTimer(uid);
+            emitOutOfZoneStatus(io, null, uid, null);
+            if (out.ok) {
+              const msg = `Hệ thống tự động Check-out. Ngoại tuyến > ${AT_SEC}s.`;
+              io.emit(`personal_event_${uid}`, { action: 'AUTO_CHECKOUT', message: msg });
+              emitEmployee(io, uid, 'geofence_auto_checkout', {
+                message: msg,
+                data: out.data,
+              });
+            }
+          } catch (e) {
+            console.error('[sweep auto checkout error]', e);
+          }
+        }
+      }
+    }
+  }, 15000);
 
   console.log('[Geofence] Socket handlers đã đăng ký (authenticate_tracking, track_location)');
 }

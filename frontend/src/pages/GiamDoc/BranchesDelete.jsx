@@ -49,17 +49,22 @@ export default function BranchesDelete() {
     load();
   }, [load]);
 
-  const totalEmployees = branch?.total_employees ?? 0;
-  const totalDepartments = branch?.total_departments ?? 0;
+const totalEmployees = Number(branch?.total_employees) || 0;
+  const totalDepartments = Number(branch?.total_departments) || 0;
 
   const codeMatch =
     branch &&
     confirmCode.trim().toLowerCase() ===
       String(branch.branch_code || "").trim().toLowerCase();
 
-  const transferOk = totalEmployees === 0 || Boolean(moveToBranchId);
+  const transferOk = totalEmployees <= 0 || Boolean(moveToBranchId);
   const canDelete = Boolean(branch) && checked && codeMatch && transferOk;
-
+  let missingStep = "";
+    if (branch) {
+      if (!codeMatch && confirmCode.length > 0) missingStep = "Mã xác nhận chưa khớp.";
+      else if (codeMatch && !transferOk) missingStep = "Vui lòng chọn chi nhánh tiếp nhận nhân sự.";
+      else if (codeMatch && transferOk && !checked) missingStep = "Vui lòng tick chọn ô xác nhận bên trên.";
+    }
   const handleDelete = async () => {
     if (!canDelete) return;
     try {
@@ -226,31 +231,40 @@ export default function BranchesDelete() {
         </section>
 
         {/* ACTIONS */}
-        <div className="flex flex-wrap justify-end gap-3 pb-8">
-          <button
-            type="button"
-            onClick={() => navigate("/GiamDoc/branches")}
-            className="px-6 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-800 font-medium hover:bg-gray-50"
-          >
-            Hủy thao tác
-          </button>
-          <button
-            type="button"
-            disabled={!canDelete || deleting || (totalEmployees > 0 && otherBranches.length === 0)}
-            onClick={handleDelete}
-            className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium shadow-sm transition ${
-              canDelete && !(totalEmployees > 0 && otherBranches.length === 0)
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            {deleting ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <Trash2 size={18} />
-            )}
-            Xóa chi nhánh
-          </button>
+        <div className="flex flex-col items-end gap-2 pb-8">
+          {/* Hiển thị gợi ý nếu chưa đủ điều kiện */}
+          {!canDelete && missingStep && (
+            <p className="text-sm font-medium text-red-500 animate-pulse">
+              * {missingStep}
+            </p>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/GiamDoc/branches")}
+              className="px-6 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-800 font-medium hover:bg-gray-50"
+            >
+              Hủy thao tác
+            </button>
+            <button
+              type="button"
+              disabled={!canDelete || deleting || (totalEmployees > 0 && otherBranches.length === 0)}
+              onClick={handleDelete}
+              className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium shadow-sm transition ${
+                canDelete && !(totalEmployees > 0 && otherBranches.length === 0)
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {deleting ? (
+                <Loader2 className="animate-spin" size={18} />
+              ) : (
+                <Trash2 size={18} />
+              )}
+              Xóa chi nhánh
+            </button>
+          </div>
         </div>
       </div>
     </div>

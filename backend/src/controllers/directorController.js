@@ -763,223 +763,83 @@ const updateBranch = async (req, res) => {
 };
 
 const deleteBranch = async (req, res) => {
+  const { id: branchId } = req.params;
+  const { transfer_to_branch_id } = req.body;
+
+  // Bước 1: Validate dữ liệu đầu vào (Early Return)
+  if (!branchId) {
+    return res.status(400).json({ success: false, message: "Thiếu ID chi nhánh cần xóa!" });
+  }
+
   const transaction = await db.transaction();
+
   try {
-    const branchId = req.params.id;
-    const confirm_code = req.body?.confirm_code ?? req.body?.confirmCode ?? "";
-    const move_to_branch_id =
-      req.body?.move_to_branch_id ??
-      req.body?.moveToBranchId ??
-      null;
+    // Bước 2: Truy vấn Database - Kiểm tra nhân sự trực thuộc
+    const checkQuery = `
+      SELECT COUNT(*) as count 
+      FROM location_assignment la
+      JOIN work_location wl ON la.work_location_id = wl.id
+      WHERE wl.branch_id = :branchId
+    `;
+    const [result] = await db.query(checkQuery, { replacements: { branchId }, transaction });
+    const affectedEmployees = parseInt(result[0].count, 10);
 
-    const branchRows = await db.query(
-      `
-      SELECT id, branch_code, branch_name
-      FROM branch WHERE id = :id
-    `,
-      {
-        replacements: { id: branchId },
-        type: QueryTypes.SELECT,
-        transaction
-      }
-    );
-
-    if (!branchRows.length) {
-      await transaction.rollback();
-      return res.status(404).json({ message: "Chi nhánh không tồn tại" });
-    }
-
-    const expectedCode = String(branchRows[0].branch_code || "").trim();
-    const got = String(confirm_code || "").trim();
-    if (!got || expectedCode.toLowerCase() !== got.toLowerCase()) {
-      await transaction.rollback();
-      return res.status(400).json({ message: "Mã xác nhận không khớp với mã chi nhánh" });
-    }
-
-    const empCountRows = await db.query(
-      `
-      SELECT COUNT(DISTINCT e.id)::int AS total
-      FROM employee e
-      INNER JOIN position p ON e.position_id = p.id
-      INNER JOIN department d ON p.department_id = d.id
-      WHERE d.branch_id = :branchId
-    `,
-      {
-        replacements: { branchId },
-        type: QueryTypes.SELECT,
-        transaction
-      }
-    );
-
-    const totalEmployees = empCountRows[0]?.total ?? 0;
-
-    if (totalEmployees > 0) {
-      const tid = move_to_branch_id != null ? String(move_to_branch_id) : "";
-      if (!tid) {
-        await transaction.rollback();
-        return res.status(400).json({
-          message: "Chi nhánh còn nhân sự — vui lòng chọn chi nhánh tiếp nhận"
-        });
-      }
-      if (tid === String(branchId)) {
-        await transaction.rollback();
-        return res.status(400).json({
-          message: "Không thể chuyển nhân sự sang chính chi nhánh này"
+    // Bước 3: Logic nghiệp vụ (Guard Clauses)
+    if (affectedEmployees > 0) {
+      if (!transfer_to_branch_id) {
+        await transaction.rollback(); // Hủy DB ngay lập tức
+        return res.status(400).json({ 
+          success: false, 
+          requires_transfer: true,
+          affected_count: affectedEmployees,
+          message: `Chi nhánh đang có ${affectedEmployees} nhân sự. Vui lòng chọn chi nhánh tiếp nhận!` 
         });
       }
 
-      const target = await db.query(
-        `SELECT id FROM branch WHERE id = :id`,
-        {
-          replacements: { id: tid },
-          type: QueryTypes.SELECT,
-          transaction
-        }
-      );
-      if (!target.length) {
-        await transaction.rollback();
-        return res.status(400).json({ message: "Chi nhánh tiếp nhận không tồn tại" });
-      }
-
-      let deptRows = await db.query(
-        `
-        SELECT id FROM department
-        WHERE branch_id = :bid
-        ORDER BY id ASC
-        LIMIT 1
-      `,
-        {
-          replacements: { bid: tid },
-          type: QueryTypes.SELECT,
-          transaction
-        }
-      );
-
-      let targetDeptId;
-      if (!deptRows.length) {
-        const deptCode = `PB_TX_${Date.now()}`;
-        const insDept = await db.query(
-          `
-          INSERT INTO department (
-            department_code,
-            department_name,
-            branch_id,
-            is_active
-          )
-          VALUES (
-            :department_code,
-            'Tiếp nhận nhân sự',
-            :branch_id,
-            true
-          )
-          RETURNING id
-        `,
-          {
-            replacements: {
-              department_code: deptCode,
-              branch_id: tid
-            },
-            type: QueryTypes.INSERT,
-            transaction
-          }
-        );
-        targetDeptId = insDept[0][0].id;
-      } else {
-        targetDeptId = deptRows[0].id;
-      }
-
-      let posRows = await db.query(
-        `
-        SELECT id FROM position
-        WHERE department_id = :dept
-        LIMIT 1
-      `,
-        {
-          replacements: { dept: targetDeptId },
-          type: QueryTypes.SELECT,
-          transaction
-        }
-      );
-
-      let targetPositionId;
-      if (!posRows.length) {
-        const position_code = `VT_${Date.now()}`;
-        const insPos = await db.query(
-          `
-          INSERT INTO position (
-            position_code,
-            position_name,
-            department_id,
-            level,
-            base_salary_min
-          )
-          VALUES (
-            :position_code,
-            'Nhân viên',
-            :dept,
-            'junior',
-            0
-          )
-          RETURNING id
-        `,
-          {
-            replacements: {
-              position_code,
-              dept: targetDeptId
-            },
-            type: QueryTypes.INSERT,
-            transaction
-          }
-        );
-        targetPositionId = insPos[0][0].id;
-      } else {
-        targetPositionId = posRows[0].id;
-      }
-
-      await db.query(
-        `
-        UPDATE employee e
-        SET position_id = :newPos
-        WHERE e.id IN (
-          SELECT DISTINCT e2.id
-          FROM employee e2
-          INNER JOIN position p2 ON e2.position_id = p2.id
-          INNER JOIN department d2 ON p2.department_id = d2.id
-          WHERE d2.branch_id = :sourceBranch
-        )
-      `,
-        {
-          replacements: {
-            newPos: targetPositionId,
-            sourceBranch: branchId
-          },
-          transaction
-        }
-      );
+      // Thực hiện dời nhân sự sang nơi mới
+      await db.query(`
+        UPDATE work_location 
+        SET branch_id = :transferTo 
+        WHERE branch_id = :oldBranchId
+      `, { 
+        replacements: { transferTo: transfer_to_branch_id, oldBranchId: branchId },
+        transaction 
+      });
     }
 
-    await db.query(
-      `DELETE FROM department WHERE branch_id = :id`,
-      {
-        replacements: { id: branchId },
-        transaction
-      }
-    );
+    // Bước 4: Xóa chi nhánh (khi đã trống)
+    await db.query(`DELETE FROM branch WHERE id = :branchId`, {
+      replacements: { branchId },
+      transaction
+    });
 
-    await db.query(
-      `DELETE FROM branch WHERE id = :id`,
-      {
-        replacements: { id: branchId },
-        transaction
-      }
-    );
-
+    // Bước 5: Chốt giao dịch (Mọi thay đổi trên DB được lưu vĩnh viễn)
     await transaction.commit();
-    res.json({ message: "Xoá chi nhánh thành công" });
-  } catch (err) {
-    await transaction.rollback();
-    console.error("🔥 DELETE BRANCH ERROR:", err);
-    res.status(500).json({ message: err.message });
+
+    // Bước 6: Các tác vụ phụ (Side Effects) - Tách biệt hoàn toàn khỏi DB
+    try {
+      emitAdminLocationsUpdated(req);
+    } catch (socketErr) {
+      console.warn("[Socket Warning] Lỗi cập nhật realtime:", socketErr.message);
+    }
+
+    // Bước 7: Trả về kết quả cho Frontend
+    return res.status(200).json({ 
+      success: true, 
+      message: affectedEmployees > 0 
+        ? `Đã chuyển ${affectedEmployees} nhân sự và xóa chi nhánh thành công!` 
+        : `Đã xóa chi nhánh thành công!` 
+    });
+
+  } catch (error) {
+    // KỸ THUẬT SẠCH NHẤT: Khai thác thuộc tính native của Sequelize
+    // Chỉ rollback nếu giao dịch chưa có trạng thái 'commit' hoặc 'rollback'
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+    
+    console.error("[deleteBranch] LỖI XÓA CHI NHÁNH:", error);
+    return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xóa: " + error.message });
   }
 };
 const getPositions = async (req, res) => {

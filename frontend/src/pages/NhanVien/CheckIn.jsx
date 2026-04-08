@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Circle, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, Fingerprint, Wifi, AlertTriangle, History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, Wifi, AlertTriangle, History, Loader2, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getManagerSocket, socketOriginFromApiBase } from '../../services/managerSocket';
 import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
+import { useLocationOptimizer } from '../../hooks/useLocationOptimizer';
 
 import './CheckIn.css';
 
@@ -86,7 +87,10 @@ const MapInstanceRef = ({ mapRef, setIsMapReady }) => {
 };
 
 const CheckIn = () => {
+  const { gpsOptions, deviceTier } = useLocationOptimizer();
+  const [isLocating, setIsLocating] = useState(false);
   const [workLocation, setWorkLocation] = useState(null);
+  const [workLocations, setWorkLocations] = useState([]);
   const [attendanceToday, setAttendanceToday] = useState({
     checkInTime: null,
     checkOutTime: null,
@@ -124,7 +128,6 @@ const CheckIn = () => {
   const [serverOutZoneSynced, setServerOutZoneSynced] = useState(false);
   const [outZoneUiTick, setOutZoneUiTick] = useState(0);
 
-  const watchIdRef = useRef(null);
   const mapRef = useRef(null);
   const gpsPosRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -153,23 +156,29 @@ const CheckIn = () => {
   }, [workLocation, gps.position]);
 
   useEffect(() => {
-    if (!gps.position || !workLocation) {
+    if (!gps.position || (!workLocation && workLocations.length === 0)) {
       setIsOutZone(true);
       return;
     }
-    const r = workLocation.radius_meters;
-    if (r == null || r === '' || Number(r) <= 0) {
-      setIsOutZone(false);
-      return;
+    const locationsToCheck = workLocations.length > 0 ? workLocations : (workLocation ? [workLocation] : []);
+    let anyInside = false;
+    for (const wl of locationsToCheck) {
+      const r = wl.radius_meters;
+      if (r == null || r === '' || Number(r) <= 0) {
+        anyInside = true; break;
+      }
+      const distance = haversineDistanceMeters(
+        gps.position.latitude,
+        gps.position.longitude,
+        wl.latitude,
+        wl.longitude
+      );
+      if (distance <= Number(r)) {
+        anyInside = true; break;
+      }
     }
-    const distance = haversineDistanceMeters(
-      gps.position.latitude,
-      gps.position.longitude,
-      workLocation.latitude,
-      workLocation.longitude
-    );
-    setIsOutZone(distance > Number(r));
-  }, [gps.position, workLocation]);
+    setIsOutZone(!anyInside);
+  }, [gps.position, workLocation, workLocations]);
 
   const isInsideRadius = !isOutZone;
 
@@ -183,21 +192,56 @@ const CheckIn = () => {
   const buttonVariant = isDone ? 'done' : canCheckOut ? 'checkout' : 'checkin';
   const zoneDisplayName = workLocation?.location_name || 'Trụ sở chính';
 
-  const recenterToMe = useCallback(() => {
-    const map = mapRef.current;
-    const pos = gpsPosRef.current;
-    if (!map) {
-      setActionError('Bản đồ chưa sẵn sàng. Đợi vài giây hoặc tải lại trang rồi thử lại.');
+  const fetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      const msg = 'Trình duyệt không hỗ trợ GPS.';
+      setGps({ status: 'error', position: null, errorMessage: msg });
+      toast.error(msg);
       return;
     }
-    if (!pos) {
-      setActionError('Chưa có GPS. Vui lòng bật quyền truy cập vị trí.');
-      return;
-    }
-    map.invalidateSize();
-    const target = [pos.latitude, pos.longitude];
-    if (typeof map.flyTo === 'function') map.flyTo(target, 17, { duration: 1 });
-    else map.setView(target, 17, { animate: true });
+
+    setIsLocating(true);
+    setGps(prev => ({ ...prev, errorMessage: '' }));
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = toNumberSafe(pos.coords.latitude);
+        const lng = toNumberSafe(pos.coords.longitude);
+        if (lat != null && lng != null) {
+          setGps({ status: 'ready', position: { latitude: lat, longitude: lng }, errorMessage: '' });
+          if (mapRef.current) {
+            mapRef.current.setView([lat, lng], 17);
+          }
+          toast.success('Đã làm mới vị trí');
+        }
+        setIsLocating(false);
+      },
+      (err) => {
+        setIsLocating(false);
+        let errMsg = 'Không thể lấy vị trí GPS. Vui lòng bật quyền truy cập vị trí.';
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            errMsg = 'Bạn đã từ chối quyền truy cập vị trí GPS.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errMsg = 'Thông tin vị trí không khả dụng (Không có sóng GPS).';
+            break;
+          case err.TIMEOUT:
+            errMsg = 'Hết thời gian chờ lấy vị trí. Vui lòng thử lại.';
+            break;
+          default:
+            errMsg = err.message || errMsg;
+        }
+        setGps({ status: 'error', position: null, errorMessage: errMsg });
+        toast.error(errMsg);
+      },
+      gpsOptions
+    );
+  }, [gpsOptions]);
+
+  useEffect(() => {
+    fetchLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -214,7 +258,9 @@ const CheckIn = () => {
         throw new Error(json.message || `Lỗi ${res.status}`);
       }
       const wl = json.data.workLocation;
+      const wls = json.data.workLocations || (wl ? [wl] : []);
       setWorkLocation(wl);
+      setWorkLocations(wls);
       if (!wl || !wl.wifi_ip_required) {
         setIsWifiValid(true);
       } else {
@@ -346,37 +392,7 @@ const CheckIn = () => {
           return Math.max(0, remaining - (Date.now() - at) / 1000);
         })();
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setGps({ status: 'error', position: null, errorMessage: 'Trình duyệt không hỗ trợ GPS.' });
-      return;
-    }
 
-    const success = (pos) => {
-      const lat = toNumberSafe(pos.coords.latitude);
-      const lng = toNumberSafe(pos.coords.longitude);
-      if (lat == null || lng == null) return;
-      setGps({ status: 'ready', position: { latitude: lat, longitude: lng }, errorMessage: '' });
-    };
-
-    const error = (err) => {
-      setGps({
-        status: 'error',
-        position: null,
-        errorMessage: err?.message || 'Không thể lấy vị trí GPS. Vui lòng bật quyền truy cập vị trí.'
-      });
-    };
-
-    watchIdRef.current = navigator.geolocation.watchPosition(success, error, {
-      enableHighAccuracy: true,
-      maximumAge: 1000,
-      timeout: 15000
-    });
-
-    return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     const t = setInterval(() => void fetchSummary(), 30000);
@@ -409,7 +425,41 @@ const CheckIn = () => {
       return;
     }
     if (isDone) {
-      setMessage('Bạn đã checkout hôm nay.');
+      if (attendanceToday.checkOutLatitude && attendanceToday.checkOutLongitude && workLocations) {
+        const locationsToCheck = workLocations.length > 0 ? workLocations : (workLocation ? [workLocation] : []);
+        let minDistance = Infinity;
+        let matchedRadius = 500;
+        
+        for (const wl of locationsToCheck) {
+          const r = wl.radius_meters ? Number(wl.radius_meters) : 500;
+          if (r <= 0) continue;
+          
+          const d = haversineDistanceMeters(
+            attendanceToday.checkOutLatitude,
+            attendanceToday.checkOutLongitude,
+            wl.latitude,
+            wl.longitude
+          );
+          
+          if (d < minDistance) {
+            minDistance = d;
+            matchedRadius = r;
+          }
+        }
+        
+        if (minDistance !== Infinity) {
+          if (minDistance > matchedRadius + 300) {
+            setMessage('Bạn đã bị tự động checkout rời khỏi vùng chấm công quá xa');
+          } else if (minDistance > matchedRadius) {
+            setMessage('Bạn đã bị tự checkout khi ra khỏi vùng chấm công quá 5 phút');
+          } else {
+            setMessage(`Bạn đã check out thành công lúc ${formatTime(attendanceToday.checkOutTime)} giờ`);
+          }
+          return;
+        }
+      }
+      
+      setMessage(`Bạn đã check out thành công lúc ${formatTime(attendanceToday.checkOutTime)} giờ`);
       return;
     }
     if (canCheckOut) {
@@ -429,7 +479,7 @@ const CheckIn = () => {
       return;
     }
     setMessage('Nhấn CHECK IN để bắt đầu ca.');
-  }, [workLocation, gps.position, isInsideRadius, canCheckOut, isDone, actionError, wifiIpBlocks]);
+  }, [workLocation, workLocations, gps.position, isInsideRadius, canCheckOut, isDone, actionError, wifiIpBlocks, attendanceToday]);
 
   useEffect(() => {
     if (!canCheckOut) setShowCheckoutConfirm(false);
@@ -546,36 +596,41 @@ const CheckIn = () => {
             />
           )}
 
-          {workLocation && (
-            <>
-              <Circle
-                center={[workLocation.latitude, workLocation.longitude]}
-                radius={workLocation.radius_meters || TEMP_HQ.radiusMeters}
-                pathOptions={{
-                  color: radarColor,
-                  weight: 3,
-                  fillColor: radarColor,
-                  fillOpacity: 0.2
-                }}
-              />
-              <Circle
-                center={[workLocation.latitude, workLocation.longitude]}
-                radius={workLocation.radius_meters || TEMP_HQ.radiusMeters}
-                pathOptions={{ color: radarColor, weight: 2, fillOpacity: 0, dashArray: '6 6' }}
-              />
-              <Marker
-                position={[workLocation.latitude, workLocation.longitude]}
-                icon={buildPingIcon('#16a34a', 'Trụ sở chính')}
-              >
-                <Popup>
-                  <div>
-                    <strong>{zoneDisplayName}</strong>
-                    <div>Bán kính: {Math.round(workLocation.radius_meters || TEMP_HQ.radiusMeters)} m</div>
-                  </div>
-                </Popup>
-              </Marker>
-            </>
-          )}
+          {workLocations.map((loc, idx) => {
+            const lat = loc.latitude;
+            const lng = loc.longitude;
+            if (!lat || !lng) return null;
+            return (
+              <React.Fragment key={loc.work_location_id || idx}>
+                <Circle
+                  center={[lat, lng]}
+                  radius={loc.radius_meters || TEMP_HQ.radiusMeters}
+                  pathOptions={{
+                    color: radarColor,
+                    weight: 3,
+                    fillColor: radarColor,
+                    fillOpacity: 0.2
+                  }}
+                />
+                <Circle
+                  center={[lat, lng]}
+                  radius={loc.radius_meters || TEMP_HQ.radiusMeters}
+                  pathOptions={{ color: radarColor, weight: 2, fillOpacity: 0, dashArray: '6 6' }}
+                />
+                <Marker
+                  position={[lat, lng]}
+                  icon={buildPingIcon('#16a34a', loc.location_name || 'Khu vực chấm công')}
+                >
+                  <Popup>
+                    <div>
+                      <strong>{loc.location_name || zoneDisplayName}</strong>
+                      <div>Bán kính: {Math.round(loc.radius_meters || TEMP_HQ.radiusMeters)} m</div>
+                    </div>
+                  </Popup>
+                </Marker>
+              </React.Fragment>
+            );
+          })}
 
           {gps.position && (
             <>
@@ -610,9 +665,6 @@ const CheckIn = () => {
         </MapContainer>
 
         <div className="checkin-map-ui" aria-hidden={false}>
-          <button type="button" className="checkin-recenter-btn" onClick={recenterToMe}>
-            Về tôi
-          </button>
 
           <div className="checkin-radar-label">
             <div className="checkin-radar-title">
@@ -691,6 +743,33 @@ const CheckIn = () => {
             </div>
 
             <div className="checkin-fab-subtext">{message}</div>
+
+            {/* Nút Lấy vị trí */}
+            <div className="w-full px-4 mb-3 mt-1 flex flex-col justify-center">
+              <button
+                type="button"
+                onClick={fetchLocation}
+                disabled={isLocating}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLocating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin text-blue-600" />
+                    Đang quét vị trí (Có thể mất vài giây)...
+                  </>
+                ) : (
+                  <>
+                    <MapPin size={16} className="text-blue-600" />
+                    Lấy vị trí GPS
+                  </>
+                )}
+              </button>
+              {isLocating && (deviceTier === 'Low' || deviceTier === 'Mid') && (
+                <p className="text-xs text-orange-600 mt-1.5 text-center leading-[1.3] opacity-90">
+                  Mạng yếu. Đang cố gắng lấy tọa độ chính xác nhất, vui lòng không tắt trình duyệt.
+                </p>
+              )}
+            </div>
 
             <div
               className={`checkin-wifi-bar ${isWifiValid ? 'checkin-wifi-bar--ok' : 'checkin-wifi-bar--bad'}`}

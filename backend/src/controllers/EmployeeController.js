@@ -52,12 +52,12 @@ exports.getAttendanceSummary = async (req, res) => {
         LEFT JOIN branch b ON d.branch_id = b.id
         LEFT JOIN work_location w ON w.branch_id = b.id
         WHERE e.id = $1
-        LIMIT 1
       `,
       { bind: [id], type: QueryTypes.SELECT }
     );
 
-    const workLocation = normalizeWorkLocation(locationResult[0]);
+    const workLocations = locationResult.map(normalizeWorkLocation).filter(Boolean);
+    const workLocation = workLocations[0] || null;
     const allowedParsed = parseAllowedIps(locationResult[0]?.allowed_ips);
     const clientIp = getClientIp(req);
     const wifiIpRequired = allowedParsed.length > 0;
@@ -100,6 +100,20 @@ exports.getAttendanceSummary = async (req, res) => {
       success: true,
       data: {
         server_date: new Date().toISOString().slice(0, 10),
+        workLocations: workLocations.map(wl => ({
+          work_location_id: wl.work_location_id,
+          location_name: wl.location_name,
+          latitude: wl.latitude,
+          longitude: wl.longitude,
+          radius_meters: wl.radius_meters,
+          wifi_ip_required: wifiIpRequired,
+          client_ip_allowed: clientIpAllowed,
+          branch: {
+            branch_id: wl.branch_id,
+            branch_code: wl.branch_code,
+            branch_name: wl.branch_name
+          }
+        })),
         workLocation: workLocation ? {
           work_location_id: workLocation.work_location_id,
           location_name: workLocation.location_name,

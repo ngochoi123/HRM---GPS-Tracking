@@ -77,7 +77,7 @@ const normalizeWorkLocation = (row) => {
   };
 };
 
-async function fetchWorkLocation(employeeId) {
+async function fetchWorkLocations(employeeId) {
   const locationResult = await db.query(
     `
       SELECT
@@ -96,11 +96,10 @@ async function fetchWorkLocation(employeeId) {
       LEFT JOIN branch b ON d.branch_id = b.id
       LEFT JOIN work_location w ON w.branch_id = b.id
       WHERE e.id = $1
-      LIMIT 1
     `,
     { bind: [employeeId], type: QueryTypes.SELECT }
   );
-  return normalizeWorkLocation(locationResult[0]);
+  return locationResult.map(normalizeWorkLocation).filter(Boolean);
 }
 
 async function fetchTodayAttendance(employeeId) {
@@ -141,38 +140,55 @@ async function checkInEmployee(employeeId, lat, lng, options = {}) {
     io = null,
     skipGeofenceValidation = false,
     skipWifiIpValidation = false,
+    forceWorkLocationId = null,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { ok: false, statusCode: 400, message: 'Thiếu latitude/longitude hợp lệ.' };
   }
 
-  const workLocation = await fetchWorkLocation(employeeId);
-  if (!workLocation) {
+  const workLocations = await fetchWorkLocations(employeeId);
+  if (!workLocations || workLocations.length === 0) {
     return { ok: false, statusCode: 403, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' };
   }
 
-  if (!skipWifiIpValidation) {
-    const clientIpStr = deviceIp == null ? '' : String(deviceIp);
-    if (!isIpAllowed(clientIpStr, workLocation.allowed_ips)) {
-      return { ok: false, statusCode: 403, message: WIFI_IP_DENIED_MESSAGE };
+  let workLocation = null;
+  let bestDistance = Infinity;
+  let errorMsg = WIFI_IP_DENIED_MESSAGE;
+  let statusCode = 403;
+  let extraRes = null;
+
+  for (const wl of workLocations) {
+    if (forceWorkLocationId && wl.work_location_id !== forceWorkLocationId) continue;
+    let isValidIp = true;
+    if (!skipWifiIpValidation) {
+      const clientIpStr = deviceIp == null ? '' : String(deviceIp);
+      isValidIp = isIpAllowed(clientIpStr, wl.allowed_ips);
+    }
+
+    let isValidGps = true;
+    let distanceMeters = 0;
+    if (wl.radius_meters != null && !skipGeofenceValidation) {
+      distanceMeters = haversineDistanceMeters(lat, lng, Number(wl.latitude), Number(wl.longitude));
+      if (distanceMeters > Number(wl.radius_meters)) {
+        isValidGps = false;
+        if (distanceMeters < bestDistance) {
+          bestDistance = distanceMeters;
+          errorMsg = 'Bạn đang ở ngoài vùng GPS cho phép.';
+          statusCode = 403;
+          extraRes = { distance_meters: Number(distanceMeters.toFixed(2)) };
+        }
+      }
+    }
+
+    if (isValidIp && isValidGps) {
+      workLocation = wl;
+      break;
     }
   }
 
-  const centerLat = Number(workLocation.latitude);
-  const centerLng = Number(workLocation.longitude);
-  const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
-
-  if (!skipGeofenceValidation && radiusMeters != null) {
-    const distanceMeters = haversineDistanceMeters(lat, lng, centerLat, centerLng);
-    if (distanceMeters > radiusMeters) {
-      return {
-        ok: false,
-        statusCode: 403,
-        message: 'Bạn đang ở ngoài vùng GPS cho phép.',
-        extra: { distance_meters: Number(distanceMeters.toFixed(2)) },
-      };
-    }
+  if (!workLocation) {
+    return { ok: false, statusCode, message: errorMsg, extra: extraRes };
   }
 
   const attendanceToday = await fetchTodayAttendance(employeeId);
@@ -234,38 +250,55 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
     skipGeofenceValidation = false,
     checkOutNote = null,
     skipWifiIpValidation = false,
+    forceWorkLocationId = null,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { ok: false, statusCode: 400, message: 'Thiếu latitude/longitude hợp lệ.' };
   }
 
-  const workLocation = await fetchWorkLocation(employeeId);
-  if (!workLocation) {
+  const workLocations = await fetchWorkLocations(employeeId);
+  if (!workLocations || workLocations.length === 0) {
     return { ok: false, statusCode: 403, message: 'Bạn chưa được phân công địa điểm chấm công. Vui lòng liên hệ HR.' };
   }
 
-  if (!skipWifiIpValidation) {
-    const clientIpStr = deviceIp == null ? '' : String(deviceIp);
-    if (!isIpAllowed(clientIpStr, workLocation.allowed_ips)) {
-      return { ok: false, statusCode: 403, message: WIFI_IP_DENIED_MESSAGE };
+  let workLocation = null;
+  let bestDistance = Infinity;
+  let errorMsg = WIFI_IP_DENIED_MESSAGE;
+  let statusCode = 403;
+  let extraRes = null;
+
+  for (const wl of workLocations) {
+    if (forceWorkLocationId && wl.work_location_id !== forceWorkLocationId) continue;
+    let isValidIp = true;
+    if (!skipWifiIpValidation) {
+      const clientIpStr = deviceIp == null ? '' : String(deviceIp);
+      isValidIp = isIpAllowed(clientIpStr, wl.allowed_ips);
+    }
+
+    let isValidGps = true;
+    let distanceMeters = 0;
+    if (wl.radius_meters != null && !skipGeofenceValidation) {
+      distanceMeters = haversineDistanceMeters(lat, lng, Number(wl.latitude), Number(wl.longitude));
+      if (distanceMeters > Number(wl.radius_meters)) {
+        isValidGps = false;
+        if (distanceMeters < bestDistance) {
+          bestDistance = distanceMeters;
+          errorMsg = 'Bạn đang ở ngoài vùng GPS cho phép. Không thể checkout.';
+          statusCode = 403;
+          extraRes = { distance_meters: Number(distanceMeters.toFixed(2)) };
+        }
+      }
+    }
+
+    if (isValidIp && isValidGps) {
+      workLocation = wl;
+      break;
     }
   }
 
-  const centerLat = Number(workLocation.latitude);
-  const centerLng = Number(workLocation.longitude);
-  const radiusMeters = workLocation.radius_meters == null ? null : Number(workLocation.radius_meters);
-
-  if (!skipGeofenceValidation && radiusMeters != null) {
-    const distanceMeters = haversineDistanceMeters(lat, lng, centerLat, centerLng);
-    if (distanceMeters > radiusMeters) {
-      return {
-        ok: false,
-        statusCode: 403,
-        message: 'Bạn đang ở ngoài vùng GPS cho phép. Không thể checkout.',
-        extra: { distance_meters: Number(distanceMeters.toFixed(2)) },
-      };
-    }
+  if (!workLocation) {
+    return { ok: false, statusCode, message: errorMsg, extra: extraRes };
   }
 
   const attendanceToday = await fetchTodayAttendance(employeeId);
@@ -303,7 +336,7 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
 }
 
 module.exports = {
-  fetchWorkLocation,
+  fetchWorkLocations,
   fetchTodayAttendance,
   checkInEmployee,
   checkOutEmployee,

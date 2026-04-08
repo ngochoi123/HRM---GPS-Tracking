@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MapPin, Wifi, Save, Navigation, Trash2, Plus, Edit2, CheckCircle, Map as MapIcon } from 'lucide-react';
 import LocationMap from './LocationMap';
 import axios from 'axios';
-
+import toast from 'react-hot-toast';
 const LocationSettings = () => {
     const [locations, setLocations] = useState([]);
     const [selectedLoc, setSelectedLoc] = useState(null);
@@ -81,44 +81,53 @@ const LocationSettings = () => {
         fetchLocations();
     }, [handleAddNewLocation]);
 
-    const handleSaveConfig = async () => {
-        const idNum = typeof selectedLoc.id === 'number' ? selectedLoc.id : NaN;
-        /** Timestamp (Date.now()) vượt giới hạn PostgreSQL INTEGER — không gửi xuống API */
-        const idLooksLikeClientTimestamp = Number.isFinite(idNum) && idNum > 2147483647;
+const handleSaveConfig = async () => {
+    if (!selectedLoc || !selectedLoc.branch_id) {
+        toast.error("Vui lòng chọn một chi nhánh từ danh sách để gắn khu vực này!", { duration: 4000 });
+        return; 
+    }
 
-        const payload = {
-            // Nếu là khu vực mới (có cờ isNew hoặc id là 'new'), hoặc id tạm timestamp — KHÔNG gửi id xuống Backend
-            id: (selectedLoc.isNew || selectedLoc.id === 'new' || idLooksLikeClientTimestamp)
-                ? undefined
-                : selectedLoc.id,
-
-            work_location_id: selectedLoc.work_location_id || undefined,
-            branch_name: selectedLoc.branch_name,
-            location_name: selectedLoc.location_name,
-            location_type: selectedLoc.type || 'branch',
-            latitude: selectedLoc.latitude,
-            longitude: selectedLoc.longitude,
-            radius_meters: selectedLoc.radius_meters,
-            is_active: selectedLoc.is_active,
-            allowed_ips: JSON.stringify(selectedLoc.allowed_ips || []),
-        };
-
-        try {
-            if (selectedLoc.isNew) {
-                const res = await axios.post('http://localhost:5000/api/admin/locations', payload);
-                alert("✅ Đã THÊM MỚI khu vực thành công!");
-                updateField('isNew', false);
-                const newId = res.data?.data?.id || res.data?.id;
-                if (newId) updateField('branch_id', newId);
-            } else {
-                await axios.put(`http://localhost:5000/api/admin/locations/${selectedLoc.branch_id}/settings`, payload);
-                alert("✅ Đã CẬP NHẬT toàn bộ cấu hình thành công!");
-            }
-        } catch (error) {
-            console.error("Lỗi khi lưu:", error);
-            alert("❌ Lỗi khi lưu vào Database!");
-        }
+    const basePayload = {
+        location_name: selectedLoc.location_name,
+        location_type: selectedLoc.type || 'branch',
+        latitude: selectedLoc.latitude,
+        longitude: selectedLoc.longitude,
+        radius_meters: selectedLoc.radius_meters,
+        is_active: selectedLoc.is_active,
+        allowed_ips: JSON.stringify(selectedLoc.allowed_ips || []),
     };
+
+    try {
+        if (selectedLoc.isNew) {
+            const payload = {
+                ...basePayload,
+                branch_id: selectedLoc.branch_id
+            };
+            const res = await axios.post('http://localhost:5000/api/admin/locations', payload);
+            alert("✅ Đã THÊM MỚI khu vực thành công!");
+            
+            updateField('isNew', false);
+            
+            const newWorkLocId = res.data?.data?.work_location_id;
+            if (newWorkLocId) {
+                updateField('work_location_id', newWorkLocId);
+                updateField('id', newWorkLocId); 
+            }
+        } else {
+            const payload = {
+                ...basePayload,
+                work_location_id: selectedLoc.work_location_id,
+                branch_id: selectedLoc.branch_id
+            };
+            await axios.put(`http://localhost:5000/api/admin/locations/${selectedLoc.branch_id}/settings`, payload);
+            alert("✅ Đã CẬP NHẬT toàn bộ cấu hình thành công!");
+        }
+    } catch (error) {
+        console.error("Lỗi khi lưu:", error);
+        const errorMsg = error.response?.data?.message || "Lỗi khi lưu vào Database!";
+        alert(`❌ ${errorMsg}`);
+    }
+};
 
     const updateField = (field, value) => {
         const updatedLoc = { ...selectedLoc, [field]: value };
@@ -226,17 +235,40 @@ const handleRemoveIp = (ipToRemove) => {
 };
 
     const handleGetGPS = () => {
-        if (!navigator.geolocation) return alert("Không hỗ trợ GPS!");
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const updatedLoc = { ...selectedLoc, latitude: pos.coords.latitude, longitude: pos.coords.longitude, gps_status: true };
-                setSelectedLoc(updatedLoc);
-                setLocations(prevLocations => prevLocations.map(loc => loc.id === updatedLoc.id ? updatedLoc : loc));
-            },
-            () => alert("Lỗi lấy vị trí!"),
-            { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 }
-        );
-    };
+    if (!navigator.geolocation) {
+        return alert("Trình duyệt của bạn không hỗ trợ định vị GPS!");
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            // 1. Cập nhật State
+            const updatedLoc = { 
+                ...selectedLoc, 
+                latitude: pos.coords.latitude, 
+                longitude: pos.coords.longitude, 
+                gps_status: true 
+            };
+            setSelectedLoc(updatedLoc);
+            setLocations(prevLocations => prevLocations.map(loc => loc.id === updatedLoc.id ? updatedLoc : loc));
+            
+            // 2. Thông báo thành công!
+            alert(`Lấy tọa độ thành công!\nVĩ độ: ${pos.coords.latitude}\nKinh độ: ${pos.coords.longitude}`);
+        },
+        (error) => {
+            // Xử lý báo lỗi chi tiết thay vì chỉ báo "Lỗi lấy vị trí!"
+            if (error.code === 1) {
+                alert("Bạn đã từ chối quyền truy cập vị trí. Vui lòng cấp lại quyền trên trình duyệt!");
+            } else if (error.code === 2) {
+                alert("Không thể xác định được vị trí của bạn lúc này. Hãy kiểm tra lại kết nối mạng/GPS.");
+            } else if (error.code === 3) {
+                alert("Quá thời gian chờ định vị (Timeout). Hãy thử lại!");
+            } else {
+                alert("Lỗi lấy vị trí không xác định!");
+            }
+        },
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 } // Bật HighAccuracy để lấy tọa độ chuẩn xác nhất cho chấm công
+    );
+};
 
     const Badge = ({ label, active }) => (
         <span style={{ fontSize: '10px', fontWeight: '600', padding: '2px 8px', borderRadius: '6px', marginRight: '5px', backgroundColor: active ? '#E0F2FE' : '#FFE4E6', color: active ? '#0369A1' : '#E11D48', border: `1px solid ${active ? '#BAE6FD' : '#FECDD3'}` }}>

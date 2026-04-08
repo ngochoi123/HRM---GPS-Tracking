@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Circle, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, Fingerprint, PanelLeftClose, PanelLeftOpen, History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, PanelLeftClose, PanelLeftOpen, History, Loader2, MapPin } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useLocationOptimizer } from '../../hooks/useLocationOptimizer';
 import { useManagerBranchSocket } from '../../hooks/useManagerBranchSocket';
 import { socketOriginFromApiBase } from '../../services/managerSocket';
 import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
@@ -88,7 +90,10 @@ const MapInstanceRef = ({ mapRef, setIsMapReady }) => {
 };
 
 const ManagerCheckIn = () => {
+  const { gpsOptions, deviceTier } = useLocationOptimizer();
+  const [isLocating, setIsLocating] = useState(false);
   const [workLocation, setWorkLocation] = useState(null);
+  const [workLocations, setWorkLocations] = useState([]);
   const [attendanceToday, setAttendanceToday] = useState({ checkInTime: null, checkOutTime: null });
   const [zoneStats, setZoneStats] = useState({ totalInZone: 0, checkedInOnly: 0, checkedOut: 0 });
   const [attendees, setAttendees] = useState([]);
@@ -119,7 +124,6 @@ const ManagerCheckIn = () => {
   const employeeOutSyncRef = useRef({});
   const [mgrOutTick, setMgrOutTick] = useState(0);
 
-  const watchIdRef = useRef(null);
   const mapRef = useRef(null);
   const gpsPosRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -132,33 +136,78 @@ const ManagerCheckIn = () => {
   const mapCenter = useMemo(() => [TEMP_HQ.latitude, TEMP_HQ.longitude], []);
 
   useEffect(() => {
-    if (!gps.position || !workLocation) {
+    if (!gps.position || (!workLocation && workLocations.length === 0)) {
       setIsOutZone(true);
       return;
     }
-    const r = workLocation.radius_meters;
-    if (r == null || r === '' || Number(r) <= 0) {
-      setIsOutZone(false);
-      return;
+    const locationsToCheck = workLocations.length > 0 ? workLocations : (workLocation ? [workLocation] : []);
+    let anyInside = false;
+    for (const wl of locationsToCheck) {
+      const r = wl.radius_meters;
+      if (r == null || r === '' || Number(r) <= 0) {
+        anyInside = true; break;
+      }
+      const distance = haversineDistanceMeters(
+        gps.position.latitude,
+        gps.position.longitude,
+        wl.latitude,
+        wl.longitude
+      );
+      if (distance <= Number(r)) {
+        anyInside = true; break;
+      }
     }
-    const distance = haversineDistanceMeters(
-      gps.position.latitude,
-      gps.position.longitude,
-      workLocation.latitude,
-      workLocation.longitude
-    );
-    setIsOutZone(distance > Number(r));
-  }, [gps.position, workLocation]);
+    setIsOutZone(!anyInside);
+  }, [gps.position, workLocation, workLocations]);
 
   const isInsideRadius = !isOutZone;
 
-  const recenterToMe = useCallback(() => {
-    const map = mapRef.current; const pos = gpsPosRef.current;
-    if (!map) { setActionError('Bản đồ chưa sẵn sàng.'); return; }
-    if (!pos) { setActionError('Chưa có GPS. Vui lòng bật quyền vị trí.'); return; }
-    if (typeof map.flyTo === 'function') map.flyTo([pos.latitude, pos.longitude], 17, { duration: 1 });
-    else map.setView([pos.latitude, pos.longitude], 17, { animate: true });
-  }, []);
+  const fetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      const msg = 'Trình duyệt không hỗ trợ GPS.';
+      setGps({ status: 'error', position: null });
+      toast.error(msg);
+      return;
+    }
+
+    setIsLocating(true);
+    setGps(prev => ({ ...prev }));
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setGps({ status: 'ready', position: { latitude: lat, longitude: lng } });
+          if (mapRef.current) {
+            mapRef.current.setView([lat, lng], 17);
+          }
+          toast.success('Đã làm mới vị trí');
+        }
+        setIsLocating(false);
+      },
+      (err) => {
+        setIsLocating(false);
+        let errMsg = 'Không thể lấy vị trí GPS. Vui lòng bật quyền truy cập vị trí.';
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            errMsg = 'Bạn đã từ chối quyền truy cập vị trí GPS.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errMsg = 'Thông tin vị trí không khả dụng (Không có sóng GPS).';
+            break;
+          case err.TIMEOUT:
+            errMsg = 'Hết thời gian chờ lấy vị trí. Vui lòng thử lại.';
+            break;
+          default:
+            errMsg = err.message || errMsg;
+        }
+        setGps({ status: 'error', position: null });
+        toast.error(errMsg);
+      },
+      gpsOptions
+    );
+  }, [gpsOptions]);
 
   const focusOnEmployee = useCallback((item) => {
     if (!item?.latitude || !item?.longitude || !mapRef.current) return;
@@ -173,7 +222,10 @@ const ManagerCheckIn = () => {
     const res = await fetch(`${API_BASE}/employee/attendance/summary/${managerId}`);
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.success) throw new Error(json.message || `Lỗi ${res.status}`);
-    setWorkLocation(json.data.workLocation);
+    const wl = json.data.workLocation;
+    const wls = json.data.workLocations || (wl ? [wl] : []);
+    setWorkLocation(wl);
+    setWorkLocations(wls);
     setAttendanceToday(json.data.attendanceToday);
   }, [managerId]);
 
@@ -279,15 +331,20 @@ const ManagerCheckIn = () => {
 
   const getEffectiveInside = useCallback(
     (item) => {
-      if (!workLocation) return item.isInsideZone !== false;
-      const r = workLocation.radius_meters;
-      if (r == null || r === '' || Number(r) <= 0) return true;
+      const locationsToCheck = workLocations.length > 0 ? workLocations : (workLocation ? [workLocation] : []);
+      if (locationsToCheck.length === 0) return item.isInsideZone !== false;
       const c = getItemCoords(item);
       if (!c) return item.isInsideZone;
-      const d = haversineDistanceMeters(c.lat, c.lng, workLocation.latitude, workLocation.longitude);
-      return d <= Number(r);
+
+      for (const wl of locationsToCheck) {
+        const r = wl.radius_meters;
+        if (r == null || r === '' || Number(r) <= 0) return true;
+        const d = haversineDistanceMeters(c.lat, c.lng, wl.latitude, wl.longitude);
+        if (d <= Number(r)) return true;
+      }
+      return false;
     },
-    [workLocation, getItemCoords]
+    [workLocation, workLocations, getItemCoords]
   );
 
   const getOutCountdownLive = useCallback((empId) => {
@@ -351,13 +408,8 @@ const ManagerCheckIn = () => {
   }, [managerId, fetchSummary, fetchZoneAttendance]);
 
   useEffect(() => {
-    if (!navigator.geolocation) { setGps({ status: 'error', position: null }); return; }
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => setGps({ status: 'ready', position: { latitude: Number(pos.coords.latitude), longitude: Number(pos.coords.longitude) } }),
-      () => setGps({ status: 'error', position: null }),
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
-    );
-    return () => { if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current); };
+    fetchLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -432,9 +484,14 @@ return (
           {baseLayer === 'normal' && <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />}
           {baseLayer === 'satellite' && <TileLayer attribution='Tiles &copy; Esri' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />}
 
-          {workLocation && (
-            <Circle center={[workLocation.latitude, workLocation.longitude]} radius={workLocation.radius_meters || TEMP_HQ.radiusMeters} pathOptions={{ color: '#16a34a', weight: 3, fillColor: '#16a34a', fillOpacity: 0.18 }} />
-          )}
+          {workLocations.map((loc, idx) => {
+            const lat = loc.latitude;
+            const lng = loc.longitude;
+            if (!lat || !lng) return null;
+            return (
+              <Circle key={loc.work_location_id || idx} center={[lat, lng]} radius={loc.radius_meters || TEMP_HQ.radiusMeters} pathOptions={{ color: '#16a34a', weight: 3, fillColor: '#16a34a', fillOpacity: 0.18 }} />
+            );
+          })}
 
           {gps.position && (
             <CircleMarker center={[gps.position.latitude, gps.position.longitude]} radius={12} pathOptions={{ color: isInsideRadius ? '#16a34a' : '#dc2626', weight: 3, fillOpacity: 0.85 }} />
@@ -497,7 +554,6 @@ return (
         
         {/* 3. LỚP UI ĐIỀU KHIỂN TRÊN BẢN ĐỒ */}
         <div className="checkin-map-ui">
-          <button type="button" className="checkin-recenter-btn" onClick={recenterToMe}>Về tôi</button>
           
           <div className="checkin-radar-label">
             <div className="checkin-radar-title">Radar • {workLocation?.radius_meters ?? TEMP_HQ.radiusMeters}m</div>
@@ -537,6 +593,33 @@ return (
                 {isDone ? `Đã checkout lúc ${formatTime(attendanceToday.checkOutTime)}` : canCheckOut ? `Vào ca: ${formatTime(attendanceToday.checkInTime)}` : 'Bạn chưa bắt đầu làm việc'}
               </div>
               <div className="checkin-fab-subtext">{message}</div>
+
+              {/* Nút Lấy vị trí */}
+              <div className="w-full px-4 pb-3 flex flex-col justify-center">
+                <button
+                  type="button"
+                  onClick={fetchLocation}
+                  disabled={isLocating}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isLocating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin text-blue-600" />
+                      Đang quét vị trí (Có thể mất vài giây)...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin size={16} className="text-blue-600" />
+                      Lấy vị trí GPS
+                    </>
+                  )}
+                </button>
+                {isLocating && (deviceTier === 'Low' || deviceTier === 'Mid') && (
+                  <p className="text-xs text-orange-600 mt-1.5 text-center leading-[1.3] opacity-90">
+                    Mạng yếu. Đang cố gắng lấy tọa độ chính xác nhất, vui lòng không tắt trình duyệt.
+                  </p>
+                )}
+              </div>
           </div>
 
           <button type="button" className="manager-monitor-toggle" onClick={() => setMonitorOpen((prev) => !prev)}>
