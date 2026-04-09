@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Users, Wallet, AlertCircle, RefreshCw } from "lucide-react";
-import axios from "axios";
 // eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
+import { directorDashboardService } from "../../services/directorDashboardService";
 export default function Dashboard() {
   const [data, setData] = useState({
     summary: { total: 0, present: 0, salary: 0, requests: 0 },
@@ -16,11 +16,9 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("http://localhost:5000/api/director/dashboard/overview", {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.data.success) {
-        setData(response.data.data);
+      const response = await directorDashboardService.getOverview();
+      if (response?.success) {
+        setData(response.data);
       }
     } catch (error) {
       console.error("Lỗi khi tải dữ liệu dashboard:", error);

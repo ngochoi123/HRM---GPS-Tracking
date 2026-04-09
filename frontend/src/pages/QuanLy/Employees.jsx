@@ -3,7 +3,7 @@ import { Search, Plus, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, Users, Ale
 import EmployeeDetail from './EmployeeDetail';
 import EditEmployee from './EditEmployee';
 import AddEmployee from './AddEmployee';
-import axios from 'axios';
+import { managerEmployeeService } from '../../services/managerEmployeeService';
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState([]);
@@ -29,10 +29,8 @@ export default function EmployeeManagement() {
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/manager/employees', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setEmployees(res.data);
+      const data = await managerEmployeeService.getEmployees();
+      setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhân viên:", error);
       setEmployees([]);
@@ -61,9 +59,7 @@ export default function EmployeeManagement() {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:5000/api/manager/employees/${employeeToDelete.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await managerEmployeeService.deleteEmployee(employeeToDelete.id);
       alert('Đã xóa nhân viên thành công!');
       
       // Đóng popup, reset chữ và load lại danh sách

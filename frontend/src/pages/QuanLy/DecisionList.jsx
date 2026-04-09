@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Calendar, ChevronDown, Plus, Eye, Edit2, Gift, Medal, TrendingDown, AlertCircle, ArrowUpCircle, Loader2 } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:5000/api';
+import { managerDecisionService } from '../../services/managerDecisionService';
 
 export default function DecisionList({ onCreateNew, onViewDetail, onEdit }) {
   const getCurrentMonthStr = () => {
@@ -21,12 +19,14 @@ export default function DecisionList({ onCreateNew, onViewDetail, onEdit }) {
     setLoading(true);
     try {
       const [year, month] = filterMonth.split('-');
-      const response = await axios.get(`${API_BASE}/manager/decisions/dashboard`, {
-        params: { year: parseInt(year), month: parseInt(month), search: searchTerm }
+      const response = await managerDecisionService.getDashboard({
+        year: parseInt(year),
+        month: parseInt(month),
+        search: searchTerm,
       });
-      if (response.data.success) {
-        setStats(response.data.data.stats);
-        setDecisions(response.data.data.decisions);
+      if (response?.success) {
+        setStats(response.data?.stats || { total_reward: 0, reward_count: 0, total_discipline: 0, discipline_count: 0 });
+        setDecisions(response.data?.decisions || []);
       }
     } catch (error) {
       console.error("Lỗi tải dữ liệu:", error);

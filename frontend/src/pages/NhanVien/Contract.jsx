@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import "./Contract.css";
 import { FaUser, FaFileAlt, FaCalendarAlt, FaBriefcase } from "react-icons/fa"; // Cài đặt: npm install react-icons
+import { employeeService } from "../../services/employeeService";
 
 const Contract = () => {
   const [contract, setContract] = useState(null);
@@ -12,9 +12,9 @@ const Contract = () => {
     const userLocal = JSON.parse(localStorage.getItem("user"));
     if (!userLocal?.id) return;
 
-    axios
-      .get(`http://localhost:5000/api/employee/contract/${userLocal.id}`)
-      .then((res) => setContract(res.data))
+    employeeService
+      .getContract(userLocal.id)
+      .then((res) => setContract(res))
       .catch((err) => console.error(err));
   }, []);
 

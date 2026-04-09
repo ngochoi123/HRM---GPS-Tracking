@@ -1,8 +1,6 @@
 import React, { useEffect, useState, startTransition } from "react";
-import axios from "axios";
 import { X, Users, Calendar, Tag, FileText, Loader2, ChevronDown } from "lucide-react";
-
-const API_BASE = "http://localhost:5000/api/notifications";
+import { notificationService } from "../../services/notificationService";
 
 function statusBadgeClass(status) {
   if (status === "Đã gửi") return "bg-emerald-50 text-emerald-800 ring-emerald-200/80";
@@ -37,10 +35,10 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
       setLoading(true);
       setDetail(null);
     });
-    axios
-      .get(`${API_BASE}/${notification.id}/detail`)
+    notificationService
+      .getNotificationDetail(notification.id)
       .then((res) => {
-        if (!cancelled) setDetail(res.data);
+        if (!cancelled) setDetail(res);
       })
       .catch(() => {
         if (!cancelled) setDetail(null);

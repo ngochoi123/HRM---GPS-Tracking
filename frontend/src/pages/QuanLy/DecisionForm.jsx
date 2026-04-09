@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Users, FileText, CheckCircle2, Loader2, Medal, AlertCircle, UploadCloud, Bell, Save, SquarePen, Check } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:5000/api';
+import { managerEmployeeService } from '../../services/managerEmployeeService';
+import { managerDecisionService } from '../../services/managerDecisionService';
 
 export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
   const isEdit = Boolean(editDecisionId);
@@ -30,15 +29,11 @@ export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/manager/employees`);
-        
-        // Trích xuất dữ liệu thông minh dù Backend trả về dạng nào
-        const empData = res.data.data || res.data.employees || res.data;
-        
+        const empData = await managerEmployeeService.getEmployees();
         if (Array.isArray(empData)) {
           setEmployees(empData);
         } else {
-          console.error("Dữ liệu trả về không phải là mảng:", res.data);
+          console.error("Dữ liệu trả về không phải là mảng:", empData);
         }
       } catch (error) {
         console.error("Lỗi tải danh sách nhân viên:", error);
@@ -51,9 +46,9 @@ export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
     if (!editDecisionId) return;
     const load = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/manager/decisions/${editDecisionId}`);
-        if (res.data.success && res.data.data) {
-          const d = res.data.data;
+        const res = await managerDecisionService.getDecisionById(editDecisionId);
+        if (res?.success && res?.data) {
+          const d = res.data;
           setFormData({
             employee_id: d.employee_id,
             decision_type: d.decision_type,
@@ -94,10 +89,8 @@ export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
         submitData.append('reason', formData.reason);
         if (attachment) submitData.append('attachment', attachment);
 
-        const res = await axios.put(`${API_BASE}/manager/decisions/${editDecisionId}`, submitData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (res.data.success) {
+        const res = await managerDecisionService.updateDecision(editDecisionId, submitData);
+        if (res?.success) {
           alert('Đã cập nhật quyết định thành công!');
           onSuccess();
         }
@@ -119,11 +112,8 @@ export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
         submitData.append('attachment', attachment);
       }
 
-      const res = await axios.post(`${API_BASE}/manager/decisions`, submitData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      if (res.data.success || res.status === 201) {
+      const res = await managerDecisionService.createDecision(submitData);
+      if (res?.success || res) {
         alert(status === 'draft' ? 'Đã lưu bản nháp!' : 'Ban hành quyết định thành công!');
         onSuccess();
       }

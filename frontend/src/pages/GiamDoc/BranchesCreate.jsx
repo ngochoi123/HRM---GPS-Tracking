@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -13,6 +12,7 @@ import {
   FileText,
   Globe
 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
 
 export default function CreateBranch() {
   const navigate = useNavigate();
@@ -42,7 +42,7 @@ export default function CreateBranch() {
     try {
       setLoading(true);
       // ⚡ URL cập nhật theo BE mới
-      await axios.post("http://localhost:5000/api/director/branch", form);
+      await directorBranchService.createBranch(form);
       toast.success("Thêm chi nhánh thành công!");
       navigate("/GiamDoc/branches");
     } catch (error) {

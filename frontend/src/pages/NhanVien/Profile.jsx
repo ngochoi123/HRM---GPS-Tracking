@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { IoPersonSharp } from "react-icons/io5";
 import { FiBriefcase } from "react-icons/fi";
 import { ImProfile } from "react-icons/im";
@@ -11,6 +10,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { ArrowLeft } from "lucide-react";
 
 import "./Profile.css";
+import { employeeService } from "../../services/employeeService";
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -89,14 +89,11 @@ const handleChangePassword = async () => {
   try {
     const userLocal = JSON.parse(localStorage.getItem("user"));
 
-    const res = await axios.post(
-      "http://localhost:5000/api/employee/change-password",
-      {
-        userId: userLocal.id,
-        oldPassword,
-        newPassword,
-      }
-    );
+    await employeeService.changePassword({
+      userId: userLocal.id,
+      oldPassword,
+      newPassword,
+    });
       setModalMessage("Đổi mật khẩu thành công!");
 
       // reset input
@@ -122,9 +119,9 @@ const handleChangePassword = async () => {
     const userLocal = JSON.parse(localStorage.getItem("user"));
     if (!userLocal?.id) return;
 
-    axios
-      .get(`http://localhost:5000/api/employee/profile/${userLocal.id}`)
-      .then((res) => setUser(res.data))
+    employeeService
+      .getProfile(userLocal.id)
+      .then((res) => setUser(res))
       .catch((err) => console.error(err));
   }, []);
 

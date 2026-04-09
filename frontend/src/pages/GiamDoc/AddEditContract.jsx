@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ArrowLeft, Save, Loader2, User, Briefcase, Link as LinkIcon, Lock, Plus, Trash2, FileText } from 'lucide-react';
+import { directorContractService } from '../../services/directorContractService';
 
 export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
   const isEdit = !!contract;
@@ -26,11 +26,9 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/director/contract-form-options`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setEmployees(res.data.employees);
-        setPositions(res.data.positions);
+        const res = await directorContractService.getContractFormOptions();
+        setEmployees(res?.employees || []);
+        setPositions(res?.positions || []);
       } catch (error) {
         console.error("Lỗi kéo dữ liệu:", error);
       }
@@ -134,14 +132,12 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
         basic_salary: formData.base_salary_min, 
         allowances 
       };
-      
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      
+
       if (isEdit) {
-        await axios.put(`http://localhost:5000/api/director/contracts/${contract.id}`, payload, { headers });
+        await directorContractService.updateContract(contract.id, payload);
         alert('Cập nhật hợp đồng thành công!');
       } else {
-        await axios.post(`http://localhost:5000/api/director/contracts`, payload, { headers });
+        await directorContractService.createContract(payload);
         alert('Tạo hợp đồng mới thành công!');
       }
       onSaveSuccess();

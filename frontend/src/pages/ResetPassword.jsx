@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Login.css';
+import { authService } from '../services/authService';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -55,13 +56,7 @@ const ResetPassword = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, newPassword: newPassword }),
-      });
-
-      const data = await response.json();
+      const data = await authService.resetPassword({ email, newPassword });
 
       if (data.success) {
         setIsLoading(false);

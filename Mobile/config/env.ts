@@ -27,7 +27,7 @@ if (typeof __DEV__ !== "undefined" && __DEV__ && fromEnv.length === 0) {
 
 export const API_PORT = 5000;
 
-export const API_URL = `http://${YOUR_IPV4_ADDRESS}:${API_PORT}/api`;
+export const API_URL = `https://kltn-gps-api.onrender.com/api`;
 
 /** Socket.io gắn cùng server HTTP — không có path đặc biệt. */
-export const SOCKET_URL = `http://${YOUR_IPV4_ADDRESS}:${API_PORT}`;
+export const SOCKET_URL = `https://kltn-gps-api.onrender.com`;

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -10,6 +9,7 @@ import {
   Pencil,
   Loader2
 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
 
 export default function BranchesDetail() {
   const { id } = useParams();
@@ -27,8 +27,7 @@ export default function BranchesDetail() {
     if (!id) return;
     try {
       setLoading(true);
-      const branchRes = await axios.get(`http://localhost:5000/api/director/branches/${id}`);
-      const data = branchRes.data;
+      const data = await directorBranchService.getBranchById(id);
       setBranch(data);
       setDepartments(Array.isArray(data.departments) ? data.departments : []);
     } catch (err) {
