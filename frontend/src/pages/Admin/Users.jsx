@@ -69,7 +69,7 @@ const Users = () => {
 
     if (!window.confirm("Bạn có chắc muốn thay đổi trạng thái tài khoản này?")) return;
 
-    const newStatus = userToUpdate.status ? 'inactive' : 'active';
+    const newStatus = userToUpdate.status ? 'locked' : 'active';
 
     try {
       await axios.put(`http://localhost:5000/api/admin/users/${id}`, {
