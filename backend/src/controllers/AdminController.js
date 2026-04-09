@@ -120,11 +120,26 @@ const updateUser = async (req, res) => {
   const { id } = req.params; 
   let { role, status } = req.body;
   try {
-    if (status) status = status.toLowerCase();
-    const query = `UPDATE user_account SET role_code = :role, status = :status WHERE id = :id RETURNING id;`;
-    await db.query(query, { replacements: { role, status, id } });
+    let updateFields = [];
+    let replacements = { id };
+
+    if (role) {
+      updateFields.push('role_code = :role');
+      replacements.role = role;
+    }
+    if (status) {
+      updateFields.push('status = :status');
+      replacements.status = status.toLowerCase();
+    }
+
+    if (updateFields.length > 0) {
+      const query = `UPDATE user_account SET ${updateFields.join(', ')} WHERE id = :id RETURNING id;`;
+      await db.query(query, { replacements });
+    }
+
     res.status(200).json({ success: true, message: "Cập nhật thành công" });
   } catch (error) {
+    console.error("Lỗi cập nhật tài khoản:", error);
     res.status(500).json({ success: false, message: "Lỗi cập nhật tài khoản" });
   }
 };

@@ -64,16 +64,27 @@ const Users = () => {
        return;
     }
 
+    const userToUpdate = users.find(u => u.id === id);
+    if (!userToUpdate) return;
+
     if (!window.confirm("Bạn có chắc muốn thay đổi trạng thái tài khoản này?")) return;
 
+    const newStatus = userToUpdate.status ? 'inactive' : 'active';
+
     try {
+      await axios.put(`http://localhost:5000/api/admin/users/${id}`, {
+        status: newStatus
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
       setUsers(users.map(user => 
         user.id === id 
           ? { ...user, status: !user.status, securityStatus: !user.status ? 'Hoạt động' : 'Bị khóa' } 
           : user
       ));
     } catch (err) {
-      console.error(err);
+      console.error('Lỗi khi thay đổi trạng thái:', err);
       alert("Lỗi không thể cập nhật trạng thái!");
     }
   };
