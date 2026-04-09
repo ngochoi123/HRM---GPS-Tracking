@@ -8,7 +8,12 @@ require('dotenv').config();
 const app = express();
 
 // ================= 1. MIDDLEWARE =================
-app.use(cors());
+// Thay dòng app.use(cors()) cũ bằng đoạn sau:
+app.use(cors({
+  origin: "*", 
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true
+}));
 app.use(express.json({ limit: '100mb' })); 
 app.use(express.urlencoded({ limit: '100mb', extended: true, parameterLimit: 100000 }));
 app.use('/uploads', express.static('uploads'));
@@ -80,14 +85,15 @@ app.use((err, req, res, next) => {
 }); 
 
 // ================= 6. CONNECT DB & START SERVER =================
+// Đảm bảo có dòng process.env.PORT này để Render tự động cấp port
 const PORT = process.env.PORT || 5000;
 
 db.authenticate()
   .then(() => {
     console.log('✅ Kết nối Database thành công!');
-    // Chạy server.listen thay vì app.listen
+    // Dùng server.listen (của HTTP) chứ KHÔNG dùng app.listen để Socket hoạt động
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Real-time Server running trên mọi thiết bị mạng nội bộ: Port ${PORT}`);
+      console.log(`🚀 Real-time Server running trên port ${PORT}`);
     });
   })
   .catch(err => {
