@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
+import { managerDecisionService } from '../../services/managerDecisionService';
 import {
   CheckCircle2,
   ArrowLeft,
@@ -12,8 +12,8 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
-const FILE_ORIGIN = 'http://localhost:5000';
+// File attachment có thể trả về relative path, base sẽ lấy từ VITE_API_URL (bỏ /api)
+const FILE_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 
 function getInitials(name) {
   if (!name) return 'NV';
@@ -110,8 +110,8 @@ export default function DecisionDetail({ decisionId, onBack }) {
     if (!decisionId) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/manager/decisions/${decisionId}`);
-      if (res.data.success) setDetail(res.data.data);
+      const res = await managerDecisionService.getDecisionById(decisionId);
+      if (res?.success) setDetail(res.data);
     } catch (e) {
       console.error(e);
       setDetail(null);

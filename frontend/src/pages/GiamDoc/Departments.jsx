@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -10,6 +9,7 @@ import {
   Eye,
   Loader2
 } from "lucide-react";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 export default function Departments() {
   const [search, setSearch] = useState("");
@@ -21,16 +21,8 @@ export default function Departments() {
     try {
       setLoading(true);
 
-      const res = await axios.get(
-        "http://localhost:5000/api/director/departments",
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          }
-        }
-      );
-
-      setDepartments(res.data || []);
+      const res = await directorDepartmentService.getDepartments();
+      setDepartments(res || []);
 
     } catch (err) {
       console.log("🔥 Lỗi load departments:", err.response?.data);

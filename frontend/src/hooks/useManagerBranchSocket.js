@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { getManagerSocket } from '../services/managerSocket';
+import { getSocketClient } from '../socket/socketClient';
 
 /**
  * Khớp backend: join_branch_room(branch_id), geofence_manager_alert, attendance_changed, admin_locations_updated
  * @param {object} opts
  * @param {string|null} opts.branchId — gửi lên server dạng string/number đều được (room branch_${id})
- * @param {string} opts.socketUrl — origin Socket.io (vd http://localhost:5000)
+ * @param {string} [opts.socketUrl] — optional override origin Socket.io
  * @param {() => void} opts.onAttendanceChanged
  * @param {(payload: object) => void} opts.onManagerAlert — geofence_manager_alert
  * @param {() => void} [opts.onAdminLocationsUpdated] — io.emit('admin_locations_updated') từ API cấu hình địa điểm
@@ -22,8 +22,8 @@ export function useManagerBranchSocket({
   onEmployeeOutOfZoneTick,
 }) {
   useEffect(() => {
-    if (!socketUrl || !onAdminLocationsUpdated) return;
-    const socket = getManagerSocket(socketUrl);
+    if (!onAdminLocationsUpdated) return;
+    const socket = getSocketClient(socketUrl);
     const onLoc = () => onAdminLocationsUpdated();
     socket.on('admin_locations_updated', onLoc);
     return () => {
@@ -32,8 +32,8 @@ export function useManagerBranchSocket({
   }, [socketUrl, onAdminLocationsUpdated]);
 
   useEffect(() => {
-    if (!socketUrl || !onEmployeeLocationUpdate) return;
-    const socket = getManagerSocket(socketUrl);
+    if (!onEmployeeLocationUpdate) return;
+    const socket = getSocketClient(socketUrl);
     const onTrack = (data) => onEmployeeLocationUpdate(data);
     socket.on('employee_location_update', onTrack);
     return () => {
@@ -44,7 +44,7 @@ export function useManagerBranchSocket({
   useEffect(() => {
     if (branchId == null || branchId === '') return;
 
-    const socket = getManagerSocket(socketUrl);
+    const socket = getSocketClient(socketUrl);
 
     const joinRoom = () => {
       socket.emit('join_branch_room', branchId);

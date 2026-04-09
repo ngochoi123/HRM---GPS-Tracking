@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 // 🔥 BƯỚC 1: Đổi tên Map thành MapIcon ở đây
 import { MapPin, Wifi, Save, Navigation, Trash2, Plus, Edit2, CheckCircle, Map as MapIcon } from 'lucide-react';
 import LocationMap from './LocationMap';
-import axios from 'axios';
+// Service tập trung cho quản lý khu vực chấm công của Admin
+import { adminLocationService } from '../../services/adminLocationService';
 import toast from 'react-hot-toast';
 const LocationSettings = () => {
     const [locations, setLocations] = useState([]);
@@ -36,8 +37,9 @@ const LocationSettings = () => {
     useEffect(() => {
         const fetchLocations = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/admin/locations');
-                const apiData = res.data.data || res.data;
+                // Lấy dữ liệu khu vực từ service, axiosClient sẽ tự dùng baseURL và token
+                const res = await adminLocationService.getLocations();
+                const apiData = res.data || res;
 
                 if (apiData && apiData.length > 0) {
                     const uniqueBranches = [];
@@ -109,7 +111,7 @@ const handleSaveConfig = async () => {
                 ...basePayload,
                 branch_id: selectedLoc.branch_id
             };
-            const res = await axios.post('http://localhost:5000/api/admin/locations', payload);
+            const res = await adminLocationService.createLocation(payload);
             alert("✅ Đã THÊM MỚI khu vực thành công!");
             
             updateField('isNew', false);
@@ -125,7 +127,7 @@ const handleSaveConfig = async () => {
                 work_location_id: selectedLoc.work_location_id,
                 branch_id: selectedLoc.branch_id
             };
-            await axios.put(`http://localhost:5000/api/admin/locations/${selectedLoc.branch_id}/settings`, payload);
+            await adminLocationService.updateLocationSettings(selectedLoc.branch_id, payload);
             alert("✅ Đã CẬP NHẬT toàn bộ cấu hình thành công!");
         }
     } catch (error) {
@@ -171,7 +173,7 @@ const handleDeleteLocation = async () => {
 
         // 4. NẾU NHẬP ĐÚNG -> GỌI API XÓA
         try {
-            const res = await axios.delete(`http://localhost:5000/api/admin/locations/${selectedLoc.work_location_id}/work-location`);
+            const res = await adminLocationService.deleteWorkLocation(selectedLoc.work_location_id);
             
             if (res.data.success) {
                 alert("✅ Đã xóa khu vực chấm công thành công!");

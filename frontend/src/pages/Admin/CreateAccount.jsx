@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'; // Đã thêm useEffect ở đây
 import { ArrowLeft, UserSquare2, KeyRound, ShieldCheck, RefreshCw, UserPlus, Users } from 'lucide-react';
-import axios from 'axios';
+// Sử dụng service tập trung cho các API Admin liên quan tới tài khoản
+import { adminUserService } from '../../services/adminUserService';
 
 const CreateAccount = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('existing');
@@ -24,11 +25,10 @@ const CreateAccount = ({ onBack }) => {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/admin/employees-no-account', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (res.data.success) {
-          setEmployeesList(res.data.data);
+        // Gọi qua adminUserService để tránh lặp lại baseURL và header Authorization
+        const res = await adminUserService.getEmployeesWithoutAccount();
+        if (res.success) {
+          setEmployeesList(res.data);
         }
       } catch (error) {
         console.error("Lỗi tải danh sách nhân viên:", error);
@@ -72,11 +72,10 @@ const CreateAccount = ({ onBack }) => {
     };
 
     try {
-      const response = await axios.post('http://localhost:5000/api/admin/users', payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      // Tạo tài khoản thông qua service, axiosClient sẽ tự gắn token
+      const response = await adminUserService.createUser(payload);
       
-      if (response.status === 201) {
+      if (response?.status === 201 || response?.success) {
         alert("Khởi tạo tài khoản thành công!");
         onBack();
       }

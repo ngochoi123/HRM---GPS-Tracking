@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ArrowLeft, Save, Loader2, Award } from 'lucide-react';
+import { directorPositionService } from '../../services/directorPositionService';
 
 
 export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
@@ -20,10 +20,8 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
     // Kéo danh sách phòng ban từ API có sẵn
     const fetchDepartments = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/director/form-options`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setDepartments(res.data.departments);
+        const res = await directorPositionService.getFormOptions();
+        setDepartments(res?.departments || []);
       } catch (error) {
         console.error("Lỗi kéo phòng ban:", error);
       }
@@ -120,13 +118,11 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
     const payload = { ...formData };
     if (!payload.department_id) payload.department_id = null;
 
-    const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-
     if (isEdit) {
-      await axios.put(`http://localhost:5000/api/director/positions/${position.id}`, payload, { headers });
+      await directorPositionService.updatePosition(position.id, payload);
       alert('Cập nhật chức vụ thành công!');
     } else {
-      await axios.post(`http://localhost:5000/api/director/positions`, payload, { headers });
+      await directorPositionService.createPosition(payload);
       alert('Thêm chức vụ mới thành công!');
     }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Search, Plus, Eye, Edit2, Trash2, Award, Loader2, Coins, AlertTriangle } from 'lucide-react';
 import AddEditPosition from './AddEditPosition';
+import { directorPositionService } from '../../services/directorPositionService';
 
 export default function PositionManagement() {
   const [positions, setPositions] = useState([]);
@@ -22,10 +22,8 @@ export default function PositionManagement() {
   const fetchPositions = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/director/positions', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setPositions(res.data);
+      const res = await directorPositionService.getPositions();
+      setPositions(res || []);
     } catch (error) {
       console.error("Lỗi khi tải danh sách chức vụ:", error);
     } finally {
@@ -67,9 +65,7 @@ export default function PositionManagement() {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:5000/api/director/positions/${positionToDelete.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await directorPositionService.deletePosition(positionToDelete.id);
       alert('Đã xóa chức vụ thành công!');
       setPositionToDelete(null);
       setDeleteConfirmText('');

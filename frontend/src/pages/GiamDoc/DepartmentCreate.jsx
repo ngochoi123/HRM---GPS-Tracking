@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { directorBranchService } from "../../services/directorBranchService";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 export default function DepartmentCreate() {
   const navigate = useNavigate();
@@ -26,8 +27,8 @@ export default function DepartmentCreate() {
 
   const fetchBranches = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/director/branches");
-      setBranches(res.data || []);
+      const res = await directorBranchService.getBranches();
+      setBranches(res || []);
     } catch (err) {
       console.error("Lỗi load chi nhánh:", err);
       toast.error("Không tải được chi nhánh");
@@ -59,16 +60,13 @@ export default function DepartmentCreate() {
       const department_code =
         form.department_code?.trim() || `PB_${Date.now()}`;
   
-      await axios.post(
-        "http://localhost:5000/api/director/departments",
-        {
-          department_name: form.department_name.trim(),
-          department_code: department_code,
-          description: form.description || "",
-          branch_id: form.branch_id ? Number(form.branch_id) : null,
-          is_active: form.is_active
-        }
-      );
+      await directorDepartmentService.createDepartment({
+        department_name: form.department_name.trim(),
+        department_code,
+        description: form.description || "",
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+        is_active: form.is_active,
+      });
   
       toast.success("Tạo phòng ban thành công");
   

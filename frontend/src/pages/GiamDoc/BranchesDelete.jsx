@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -10,6 +9,7 @@ import {
   Trash2,
   Users
 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
 
 export default function BranchesDelete() {
   const { id } = useParams();
@@ -29,12 +29,12 @@ export default function BranchesDelete() {
     try {
       setLoading(true);
       const [bRes, listRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/director/branches/${id}`),
-        axios.get("http://localhost:5000/api/director/branches")
+        directorBranchService.getBranchById(id),
+        directorBranchService.getBranches()
       ]);
 
-      setBranch(bRes.data);
-      const list = Array.isArray(listRes.data) ? listRes.data : [];
+      setBranch(bRes);
+      const list = Array.isArray(listRes) ? listRes : [];
       setOtherBranches(list.filter((b) => String(b.id) !== String(id)));
     } catch (err) {
       console.error(err);
@@ -69,11 +69,9 @@ const totalEmployees = Number(branch?.total_employees) || 0;
     if (!canDelete) return;
     try {
       setDeleting(true);
-      await axios.delete(`http://localhost:5000/api/director/branches/${id}`, {
-        data: {
-          confirm_code: confirmCode.trim(),
-          move_to_branch_id: totalEmployees > 0 ? moveToBranchId : null
-        }
+      await directorBranchService.deleteBranch(id, {
+        confirm_code: confirmCode.trim(),
+        move_to_branch_id: totalEmployees > 0 ? moveToBranchId : null,
       });
       toast.success("Xóa chi nhánh thành công");
       navigate("/GiamDoc/branches");

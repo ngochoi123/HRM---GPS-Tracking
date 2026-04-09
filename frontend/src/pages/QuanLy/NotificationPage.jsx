@@ -4,7 +4,8 @@ import {
   Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, 
   Image as ImageIcon, Send, Save, AlignLeft, AlignCenter, AlignRight, Paperclip
 } from "lucide-react"; 
-import axios from "axios";
+import { notificationService } from "../../services/notificationService";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 // HỆ THỐNG ICON THÔNG MINH
 import { 
@@ -244,8 +245,8 @@ export default function NotificationPage() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/notifications");
-      const formattedData = response.data.map(item => {
+      const response = await notificationService.getNotifications();
+      const formattedData = (response || []).map(item => {
         const d = new Date(item.created_at); 
         const { icon, bg, textColor } = getSmartIcon(item.title, item.notification_type);
         return {
@@ -267,8 +268,8 @@ export default function NotificationPage() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/director/departments");
-        setDepartments(res.data || []);
+        const res = await directorDepartmentService.getDepartments();
+        setDepartments(res || []);
       } catch (error) {
         console.error("Lỗi tải phòng ban:", error);
       }
@@ -284,8 +285,8 @@ export default function NotificationPage() {
     }
     const fetchEmployees = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/director/departments/${form.department_id}/employees`);
-        setEmployees(res.data || []);
+        const res = await directorDepartmentService.getEmployeesByDepartment(form.department_id);
+        setEmployees(res || []);
       } catch (error) {
         console.error("Lỗi tải nhân viên theo phòng ban:", error);
       }
@@ -301,10 +302,8 @@ export default function NotificationPage() {
     }
     const load = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:5000/api/director/departments/${filterDeptId}/employees`
-        );
-        setFilterEmployees(res.data || []);
+        const res = await directorDepartmentService.getEmployeesByDepartment(filterDeptId);
+        setFilterEmployees(res || []);
       } catch (error) {
         console.error("Lỗi tải nhân viên (lọc):", error);
         setFilterEmployees([]);
@@ -402,8 +401,11 @@ export default function NotificationPage() {
         sender_id: senderId
       };
 
-      if (editItem) { await axios.put(`http://localhost:5000/api/notifications/${editItem.id}`, payload); }
-      else { await axios.post("http://localhost:5000/api/notifications", payload); }
+      if (editItem) {
+        await notificationService.updateNotification(editItem.id, payload);
+      } else {
+        await notificationService.createNotification(payload);
+      }
 
       setOpen(false);
       setFormErrors({});

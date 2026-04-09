@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ArrowLeft, Save, Loader2, User, CreditCard, Briefcase } from 'lucide-react';
+import { managerEmployeeService } from '../../services/managerEmployeeService';
 
 export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
   const [formData, setFormData] = useState({});
@@ -22,15 +22,13 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-        
         // 1. Kéo dữ liệu các Combobox từ DB
-        const optRes = await axios.get(`http://localhost:5000/api/manager/form-options`, { headers });
-        setOptions(optRes.data);
+        const optRes = await managerEmployeeService.getFormOptions();
+        setOptions(optRes || { departments: [], positions: [], managers: [] });
 
         // 2. Kéo dữ liệu chi tiết của nhân viên
-        const detailRes = await axios.get(`http://localhost:5000/api/manager/employees/${employee.id}`, { headers });
-        let data = detailRes.data;
+        const detailRes = await managerEmployeeService.getEmployeeById(employee.id);
+        let data = detailRes;
         
         // Fix lỗi Warning: Ép các giá trị null thành chuỗi rỗng ''
         if (data.date_of_birth) data.date_of_birth = new Date(data.date_of_birth).toISOString().split('T')[0];
@@ -72,9 +70,7 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
       if (!payload.position_id) payload.position_id = null;
       if (!payload.direct_manager_id) payload.direct_manager_id = null;
 
-      await axios.put(`http://localhost:5000/api/manager/employees/${employee.id}`, payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await managerEmployeeService.updateEmployee(employee.id, payload);
       alert('Cập nhật hồ sơ thành công!');
       onSaveSuccess();
     } catch (error) {

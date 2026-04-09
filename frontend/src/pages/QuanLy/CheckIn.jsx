@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Fingerprint, PanelLeftClose, PanelLeftOpen, 
 import toast from 'react-hot-toast';
 import { useLocationOptimizer } from '../../hooks/useLocationOptimizer';
 import { useManagerBranchSocket } from '../../hooks/useManagerBranchSocket';
-import { socketOriginFromApiBase } from '../../services/managerSocket';
+import { attendanceService } from '../../services/attendanceService';
 import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
 
 import './CheckIn.css';
@@ -17,9 +17,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
   shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href
 });
-
-const API_BASE = 'http://localhost:5000/api';
-const SOCKET_ORIGIN = socketOriginFromApiBase(API_BASE);
 
 const TEMP_HQ = { latitude: 16.05963797280072, longitude: 108.17468278677039, radiusMeters: 500 };
 const toRadians = (deg) => (deg * Math.PI) / 180;
@@ -219,23 +216,21 @@ const ManagerCheckIn = () => {
 
   const fetchSummary = useCallback(async () => {
     if (!managerId) return;
-    const res = await fetch(`${API_BASE}/employee/attendance/summary/${managerId}`);
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || !json.success) throw new Error(json.message || `Lỗi ${res.status}`);
-    const wl = json.data.workLocation;
-    const wls = json.data.workLocations || (wl ? [wl] : []);
+    const json = await attendanceService.getSummary(managerId);
+    if (!json?.success) throw new Error(json?.message || 'Không tải được summary');
+    const wl = json.data?.workLocation;
+    const wls = json.data?.workLocations || (wl ? [wl] : []);
     setWorkLocation(wl);
     setWorkLocations(wls);
-    setAttendanceToday(json.data.attendanceToday);
+    setAttendanceToday(json.data?.attendanceToday);
   }, [managerId]);
 
   const fetchZoneAttendance = useCallback(async () => {
     if (!managerId) return;
-    const res = await fetch(`${API_BASE}/employee/attendance/manager-zone/${managerId}`);
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || !json.success) throw new Error(json.message || `Lỗi ${res.status}`);
-    setZoneStats(json.data.zoneStats || { totalInZone: 0, checkedInOnly: 0, checkedOut: 0 });
-    setAttendees(Array.isArray(json.data.attendees) ? json.data.attendees : []);
+    const json = await attendanceService.getManagerZone(managerId);
+    if (!json?.success) throw new Error(json?.message || 'Không tải được zone');
+    setZoneStats(json.data?.zoneStats || { totalInZone: 0, checkedInOnly: 0, checkedOut: 0 });
+    setAttendees(Array.isArray(json.data?.attendees) ? json.data.attendees : []);
   }, [managerId]);
 
   const fetchHistory = useCallback(async () => {
@@ -246,12 +241,11 @@ const ManagerCheckIn = () => {
     setHistoryLoading(true);
     setHistoryError('');
     try {
-      const qs = Number.isFinite(month) && Number.isFinite(year) ? `?month=${month}&year=${year}` : '';
-      const res = await fetch(`${API_BASE}/employee/attendance/history/${managerId}${qs}`);
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || `Lỗi ${res.status}`);
-      }
+      const json = await attendanceService.getHistory(managerId, {
+        month: Number.isFinite(month) ? month : undefined,
+        year: Number.isFinite(year) ? year : undefined,
+      });
+      if (!json?.success) throw new Error(json?.message || 'Không tải được lịch sử');
       setHistoryData(json.data || null);
     } catch (err) {
       setHistoryError(err.message || String(err));
@@ -391,7 +385,7 @@ const ManagerCheckIn = () => {
 
   useManagerBranchSocket({
     branchId: branchIdForSocket || null,
-    socketUrl: SOCKET_ORIGIN,
+    // socketUrl có thể omit để socketClient tự lấy từ env
     onAttendanceChanged: handleAttendanceSocket,
     onManagerAlert: handleManagerAlert,
     onAdminLocationsUpdated: handleAdminLocationsUpdated,
@@ -433,10 +427,12 @@ const ManagerCheckIn = () => {
     if (!gps.position) { setActionError('Chưa có GPS. Vui lòng bật quyền vị trí và thử lại.'); return; }
     setActionLoading(true); setActionError('');
     try {
-      const endpoint = mode === 'checkin' ? `${API_BASE}/employee/attendance/checkin/${managerId}` : `${API_BASE}/employee/attendance/checkout/${managerId}`;
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: gps.position.latitude, longitude: gps.position.longitude }) });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.message || `Lỗi ${res.status}`);
+      const payload = { latitude: gps.position.latitude, longitude: gps.position.longitude };
+      const json =
+        mode === 'checkin'
+          ? await attendanceService.checkIn(managerId, payload)
+          : await attendanceService.checkOut(managerId, payload);
+      if (!json?.success) throw new Error(json?.message || 'Thao tác chấm công thất bại');
       setShowCheckoutConfirm(false); setCheckoutPreviewTime('');
       await Promise.all([fetchSummary(), fetchZoneAttendance()]);
     } catch (err) { setActionError(err.message || String(err)); } 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
+import { authService } from '../services/authService';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -34,15 +35,7 @@ const ForgotPassword = () => {
     setError(''); 
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: trimmedEmail }), 
-      });
-
-      const data = await response.json();
+      const data = await authService.forgotPassword(trimmedEmail);
 
       if (data.success) {
         setIsLoading(false);

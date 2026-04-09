@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -12,6 +11,7 @@ import {
   Loader2,
   ChevronDown
 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
 
 /** Đọc ghi chú từ description (text thuần hoặc JSON cũ { notes, detail }) */
 function parseDescriptionNotes(raw) {
@@ -52,15 +52,13 @@ export default function BranchesEdit() {
     try {
       setLoading(true);
       const [branchRes, candRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/director/branches/${id}`),
-        axios
-          .get(`http://localhost:5000/api/director/branches/${id}/manager-candidates`)
-          .catch(() => ({ data: [] }))
+        directorBranchService.getBranchById(id),
+        directorBranchService.getManagerCandidates(id).catch(() => [])
       ]);
 
-      const b = branchRes.data;
+      const b = branchRes;
 
-      let mgrList = Array.isArray(candRes.data) ? [...candRes.data] : [];
+      let mgrList = Array.isArray(candRes) ? [...candRes] : [];
       if (b.manager_id && !mgrList.some((c) => c.id === b.manager_id)) {
         mgrList.unshift({
           id: b.manager_id,
@@ -111,7 +109,7 @@ export default function BranchesEdit() {
       setSaving(true);
       const description = form.notes.trim() || null;
 
-      await axios.put(`http://localhost:5000/api/director/branches/${id}`, {
+      await directorBranchService.updateBranch(id, {
         branch_name: form.branch_name.trim(),
         branch_code: form.branch_code,
         province: null,
