@@ -54,7 +54,7 @@ registerGeofencingSocket(io);
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/AdminRoutes');
 const directorRoutes = require('./routes/directorRoutes');
-const employeeRoutes = require('./routes/employeeRoutes');
+const employeeRoutes = require('./routes/EmployeeRoutes');
 const managementRoutes = require('./routes/managementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
