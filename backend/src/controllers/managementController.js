@@ -462,7 +462,70 @@ const query = `
     res.status(500).json({ success: false, message: 'Lỗi Server khi tải dữ liệu vắng mặt' });
   }
 };
+const getChangesSummary = async (req, res) => {
+  try {
+    const query = `
+      SELECT
+        (SELECT COUNT(*) FROM employee WHERE status = 'active') AS total,
 
+        (SELECT COUNT(*) 
+         FROM employee 
+         WHERE DATE_TRUNC('month', join_date) = DATE_TRUNC('month', CURRENT_DATE)
+        ) AS new_employees,
+
+        (SELECT COUNT(*) 
+         FROM employee 
+         WHERE status = 'inactive'
+         AND DATE_TRUNC('month', updated_at) = DATE_TRUNC('month', CURRENT_DATE)
+        ) AS leave_employees
+    `;
+
+    const result = await db.query(query, {
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(result[0]);
+
+  } catch (error) {
+    console.error('Lỗi getChangesSummary:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+const getChangesList = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        e.full_name,
+        d.department_name,
+        CASE 
+          WHEN DATE_TRUNC('month', e.join_date) = DATE_TRUNC('month', CURRENT_DATE)
+          THEN 'Gia nhập'
+          ELSE 'Nghỉ việc'
+        END AS type,
+        COALESCE(e.updated_at, e.join_date) AS date
+      FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE 
+        DATE_TRUNC('month', e.join_date) = DATE_TRUNC('month', CURRENT_DATE)
+        OR (
+          e.status = 'inactive' 
+          AND DATE_TRUNC('month', e.updated_at) = DATE_TRUNC('month', CURRENT_DATE)
+        )
+      ORDER BY date DESC
+    `;
+
+    const result = await db.query(query, {
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Lỗi getChangesList:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
 module.exports = {
   getEmployees,
   getEmployeeById,
@@ -471,7 +534,9 @@ module.exports = {
   createEmployee,
   deleteEmployee,
   getPresentEmployees,
-  getAbsentEmployees
+  getAbsentEmployees,
+  getChangesSummary,
+  getChangesList
 };
 
 

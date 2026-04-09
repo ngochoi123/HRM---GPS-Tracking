@@ -34,7 +34,8 @@ router.post('/employees', managementController.createEmployee);
 router.delete('/employees/:id', managementController.deleteEmployee);
 router.get('/dashboard/present', managementController.getPresentEmployees);
 router.get('/dashboard/absent', managementController.getAbsentEmployees);
-
+router.get('/stats/changes-summary', managementController.getChangesSummary);
+router.get('/stats/changes-list', managementController.getChangesList);
 // --- ROUTE QUYẾT ĐỊNH (CÓ UPLOAD FILE) ---
 // GET /decisions/dashboard phải khai báo trước GET /decisions/:id
 router.get('/decisions/dashboard', decisionController.getDecisionDashboard);

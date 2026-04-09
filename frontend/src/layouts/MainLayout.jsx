@@ -35,16 +35,16 @@ const MainLayout = () => {
   const handleProfileClick = () => {
     switch (role) {
       case 'ADMIN': 
-        navigate('/Admin/profile'); 
+        navigate('/Admin/Profile'); 
         break;
       case 'DIRECTOR': 
-        navigate('/NhanVien/profile');  
+        navigate('/NhanVien/Profile');  
         break;
       case 'MANAGER': 
-        navigate('/NhanVien/profile'); 
+        navigate('/NhanVien/Profile'); 
         break;
       default: 
-        navigate('/NhanVien/profile'); 
+        navigate('/NhanVien/Profile'); 
         break;
     }
   };

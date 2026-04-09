@@ -40,6 +40,11 @@ import ApprovalsQuanLy from './pages/QuanLy/Approvals'; // Đổi tên để kh�
 import PayrollQuanLy from './pages/QuanLy/Payroll';     // Đổi tên để không trùng với Nhân Viên
 import RewardsDiscipline from './pages/QuanLy/RewardsDiscipline';
 import NotificationPage from './pages/QuanLy/NotificationPage';
+import SalaryStats from './pages/QuanLy/statistics/SalaryStats';
+import AttendanceStats from './pages/QuanLy/statistics/AttendanceStats';
+import RequestsStats from './pages/QuanLy/statistics/RequestsStats';
+import ContractsStats from './pages/QuanLy/statistics/ContractsStats';
+import ChangesStats from './pages/QuanLy/statistics/ChangesStats';
 
 // ===== NHÂN VIÊN =====
 import EmployeeDashboard from './pages/NhanVien/Dashboard';
@@ -51,7 +56,6 @@ import Contract from "./pages/NhanVien/Contract";
 
 // ===== LAYOUT =====
 import MainLayout from './layouts/MainLayout';
-
 function App() {
   return (
     <BrowserRouter>
@@ -116,6 +120,13 @@ function App() {
           <Route path="/QuanLy/payroll" element={<PayrollQuanLy />} />
           <Route path="/QuanLy/rewards-discipline" element={<RewardsDiscipline />} />
           <Route path="/QuanLy/notifications" element={<NotificationPage />} />
+          <Route path="/QuanLy/statistics">
+              <Route path="salary" element={<SalaryStats />} />
+              <Route path="attendance" element={<AttendanceStats />} />
+              <Route path="requests" element={<RequestsStats />} />
+              <Route path="contracts" element={<ContractsStats />} />
+          <Route path="changes" element={<ChangesStats />} />
+          </Route>
 
           {/* ===== NHÂN VIÊN ===== */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
