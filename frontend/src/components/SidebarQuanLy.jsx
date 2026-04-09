@@ -4,7 +4,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, Clock, FileText, Wallet, // Nhóm cá nhân
   Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
-  Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon // Thêm QuestionIcon cho khớp với Modal
+  Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon,
+  FileSpreadsheet // <-- ĐÃ THÊM ICON NÀY CHO BẢNG LƯƠNG
 } from 'lucide-react';
 
 const SidebarQuanLy = () => {
@@ -26,7 +27,8 @@ const SidebarQuanLy = () => {
   const managementItems = [
     { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
-    { path: '/QuanLy/payroll', icon: <Calculator size={20} />, label: 'Tính lương hệ thống' },
+    // 👇 ĐÃ CẬP NHẬT DÒNG NÀY (Đổi tên thành Bảng Lương và dùng icon FileSpreadsheet) 👇
+    { path: '/QuanLy/payroll', icon: <FileSpreadsheet size={20} />, label: 'Bảng Lương' }, 
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];

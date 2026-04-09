@@ -2,19 +2,25 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from "react-hot-toast";
 
-// ===== AUTH =====
+// ==========================================
+// 1. AUTHENTICATION PAGES
+// ==========================================
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyOTP from './pages/VerifyOTP';
 import ResetPassword from './pages/ResetPassword';
 
-// ===== ADMIN =====
+// ==========================================
+// 2. ADMIN PAGES
+// ==========================================
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminUsers from './pages/Admin/Users';
 import AdminSettings from './pages/Admin/Settings';
 import LocationSettings from './pages/Admin/LocationSettings';
 
-// ===== GIÁM ĐỐC =====
+// ==========================================
+// 3. GIÁM ĐỐC (DIRECTOR) PAGES
+// ==========================================
 import GiamDocDashboard from './pages/GiamDoc/Dashboard';
 import Departments from './pages/GiamDoc/Departments';
 import Contracts from './pages/GiamDoc/Contracts';
@@ -30,33 +36,40 @@ import BranchesDetail from "./pages/GiamDoc/BranchesDetail";
 import BranchesEdit from "./pages/GiamDoc/BranchesEdit";
 import BranchesDelete from "./pages/GiamDoc/BranchesDelete";
 
-// ===== QUẢN LÝ =====
+// ==========================================
+// 4. QUẢN LÝ (MANAGER) PAGES
+// ==========================================
 import ManagerDashboard from './pages/QuanLy/Dashboard';
 import ManagerCheckIn from './pages/QuanLy/CheckIn';
 import MyRequests from './pages/QuanLy/MyRequests';
 import MySalary from './pages/QuanLy/MySalary';
 import EmployeeManagement from './pages/QuanLy/Employees';
-import ApprovalsQuanLy from './pages/QuanLy/Approvals'; // Đổi tên để không trùng với Giám Đốc
-import PayrollQuanLy from './pages/QuanLy/Payroll';     // Đổi tên để không trùng với Nhân Viên
+import ApprovalsQuanLy from './pages/QuanLy/Approvals';
 import RewardsDiscipline from './pages/QuanLy/RewardsDiscipline';
 import NotificationPage from './pages/QuanLy/NotificationPage';
-
-// ===== NHÂN VIÊN =====
+/** * THỐNG NHẤT: Import component Payroll từ file Payroll.jsx
+ * Bạn phải đảm bảo file src/pages/QuanLy/Payroll.jsx tồn tại.
+ */
+import Payroll from './pages/QuanLy/Payroll/Payroll';
+// ==========================================
+// 5. NHÂN VIÊN (EMPLOYEE) PAGES
+// ==========================================
 import EmployeeDashboard from './pages/NhanVien/Dashboard';
 import CheckIn from './pages/NhanVien/CheckIn';
-import Payroll from './pages/NhanVien/Payroll';
+import PayrollEmployee from './pages/NhanVien/Payroll'; // Đổi tên local để tránh trùng với Manager
 import Requests from './pages/NhanVien/Requests';
 import Profile from './pages/NhanVien/Profile';
 import Contract from "./pages/NhanVien/Contract";
 
-// ===== LAYOUT =====
+// ==========================================
+// 6. LAYOUT
+// ==========================================
 import MainLayout from './layouts/MainLayout';
 
 function App() {
   return (
     <BrowserRouter>
-
-      {/* 🔥 TOAST GLOBAL */}
+      {/* 🔥 THÔNG BÁO TOAST TOÀN CỤC */}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -70,65 +83,65 @@ function App() {
       />
 
       <Routes>
+        {/* Điều hướng mặc định về Login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         
-        {/* ===== AUTH ===== */}
+        {/* Các trang không có Sidebar (Auth) */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ===== CÓ SIDEBAR ===== */}
+        {/* ==========================================
+            NHÓM CÁC TRANG CÓ SIDEBAR (MainLayout)
+        ========================================== */}
         <Route element={<MainLayout />}>
 
-          {/* ===== ADMIN ===== */}
+          {/* --- ROUTES ADMIN --- */}
           <Route path="/Admin/dashboard" element={<AdminDashboard />} />
           <Route path="/Admin/users" element={<AdminUsers />} />
           <Route path="/Admin/settings" element={<AdminSettings />} />
           <Route path="/Admin/LocationSettings" element={<LocationSettings />} />
 
-          {/* ===== GIÁM ĐỐC ===== */}
+          {/* --- ROUTES GIÁM ĐỐC --- */}
           <Route path="/GiamDoc/dashboard" element={<GiamDocDashboard />} />
           <Route path="/GiamDoc/departments" element={<Departments />} />
           <Route path="/GiamDoc/departments/create" element={<DepartmentCreate />} />
           <Route path="/GiamDoc/departments/edit/:id" element={<EditDepartment />} />
           <Route path="/GiamDoc/departments/delete/:id" element={<DeleteDepartment />} />
           <Route path="/GiamDoc/departments/:id" element={<DepartmentDetail />} />
-
           <Route path="/GiamDoc/branches" element={<Branches />} />
           <Route path="/GiamDoc/branches/create" element={<BranchesCreate />} />
           <Route path="/GiamDoc/branches/edit/:id" element={<BranchesEdit />} />
           <Route path="/GiamDoc/branches/delete/:id" element={<BranchesDelete />} />
           <Route path="/GiamDoc/branches/:id" element={<BranchesDetail />} />
-
           <Route path="/GiamDoc/contracts" element={<Contracts />} />
           <Route path="/GiamDoc/positions" element={<Positions />} />
           <Route path="/GiamDoc/approvals" element={<Approvals />} />
 
-          {/* ===== QUẢN LÝ ===== */}
+          {/* --- ROUTES QUẢN LÝ (MANAGER) --- */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
           <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} /> 
           <Route path="/QuanLy/my-requests" element={<MyRequests />} />
           <Route path="/QuanLy/my-salary" element={<MySalary />} />
-
           <Route path="/QuanLy/employees" element={<EmployeeManagement />} />
           <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} />
-          <Route path="/QuanLy/payroll" element={<PayrollQuanLy />} />
           <Route path="/QuanLy/rewards-discipline" element={<RewardsDiscipline />} />
           <Route path="/QuanLy/notifications" element={<NotificationPage />} />
+          {/* Menu tính lương cho Quản lý */}
+          <Route path="/QuanLy/payroll" element={<Payroll />} />
 
-          {/* ===== NHÂN VIÊN ===== */}
+          {/* --- ROUTES NHÂN VIÊN (EMPLOYEE) --- */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
           <Route path="/NhanVien/checkin" element={<CheckIn />} />
-          <Route path="/NhanVien/CheckIn" element={<CheckIn />} /> {/* giữ để tránh sai URL */}
-          <Route path="/NhanVien/payroll" element={<Payroll />} />
+          <Route path="/NhanVien/payroll" element={<PayrollEmployee />} />
           <Route path="/NhanVien/requests" element={<Requests />} />
           <Route path="/NhanVien/profile" element={<Profile />} />
           <Route path="/NhanVien/contracts" element={<Contract />} />
 
         </Route>
 
-        {/* ===== 404 ===== */}
+        {/* Bất kỳ link nào không tồn tại đều đẩy về Login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
 
       </Routes>
