@@ -11,11 +11,18 @@ jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    steps:
+steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build
+      
+      - name: Install and Build Frontend
+        # Bổ sung lệnh chui vào folder frontend và bỏ qua lỗi xung đột version
+        run: |
+          cd frontend
+          npm ci --legacy-peer-deps
+          npm run build
+          
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HRMGPSATTENDANCE }}
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_HRMGPSATTENDANCE }}'
           projectId: hrmgpsattendance
