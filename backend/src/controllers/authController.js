@@ -157,11 +157,17 @@ const verifyOTP = async (req, res) => {
 
     if (Date.now() > record.expiresAt) {
       delete global.otpStorage[email];
-      return res.status(400).json({ success: false, message: 'Mã OTP đã hết hạn! Vui lòng gửi lại mã mới.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới!',
+      });
     }
 
     if (record.otp !== otp) {
-      return res.status(400).json({ success: false, message: 'Mã OTP không chính xác!' });
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP không chính xác, vui lòng thử lại!',
+      });
     }
 
     delete global.otpStorage[email]; // Dùng xong thì xóa
@@ -184,6 +190,43 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đủ thông tin!' });
     }
 
+    const userRows = await db.query(
+      `
+      SELECT ua.password_hash
+      FROM user_account ua
+      INNER JOIN employee e ON ua.employee_id = e.id
+      WHERE e.work_email = :email OR e.personal_email = :email
+      LIMIT 1
+    `,
+      { replacements: { email }, type: db.QueryTypes.SELECT }
+    );
+
+    const userRow = userRows && userRows[0];
+    if (!userRow) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản liên kết với email này!',
+      });
+    }
+
+    if (userRow.password_hash) {
+      const [sameCheck] = await db.query(
+        'SELECT crypt(:newPassword, :hash) = :hash AS same',
+        {
+          replacements: { newPassword, hash: userRow.password_hash },
+          type: db.QueryTypes.SELECT,
+        }
+      );
+
+      if (sameCheck?.same) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Mật kh��u mới không được trùng với mật kh��u c��!',
+        });
+      }
+    }
+
     const query = `
       UPDATE user_account 
       SET password_hash = crypt(:newPassword, gen_salt('bf')) 
@@ -194,11 +237,11 @@ const resetPassword = async (req, res) => {
       )
     `;
 
-    const [result, metadata] = await db.query(query, {
+    const [, metadata] = await db.query(query, {
       replacements: { newPassword: newPassword, email: email }
     });
 
-    if (metadata.rowCount === 0) {
+    if (!metadata || metadata.rowCount === 0) {
       return res.status(400).json({ success: false, message: 'Không tìm thấy tài khoản liên kết với email này!' });
     }
 
