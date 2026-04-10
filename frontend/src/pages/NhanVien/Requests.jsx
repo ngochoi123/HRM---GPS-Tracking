@@ -40,7 +40,7 @@ const Requests = () => {
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user")|| "{}");
 
   const [selectedRequest, setSelectedRequest] = useState(null);
 const [showModal, setShowModal] = useState(false);
@@ -198,8 +198,9 @@ const calculateTotalDays = (start, end) => {
   employeeService
     .getLeaveRequests(user.id)
     .then((res) => {
-      setRequests(res.data);
-      setRecentRequests(res.data.slice(0, 3)); // lấy 3 đơn gần nhất
+      const data = res?.data || res || [];
+      setRequests(data);
+      setRecentRequests(data.slice(0, 3)); // lấy 3 đơn gần nhất
     })
     .catch((err) => console.error(err));
 }, [user?.id]);
@@ -208,15 +209,14 @@ const calculateTotalDays = (start, end) => {
   if (view !== "history") return;
   if (!user?.id) return;
 
-  axios
   employeeService
     .getLeaveRequests(user.id)
     .then((res) => {
-      console.log("DATA:", res); // debug
-      setRequests(res || []);
+      console.log("DATA:", res);
+      setRequests(res?.data || res || []);
     })
     .catch((err) => console.error(err));
-  }, [view, user?.id]);
+}, [view, user?.id]);
 
   // ----------------- Load approvers (trưởng trực tiếp + Director) -----------------
   useEffect(() => {
@@ -224,13 +224,12 @@ const calculateTotalDays = (start, end) => {
      if (view !== "create") return;
     if (!user?.id) return;
 
-    axios
+    employeeService
       .getApprovers(user.id)
       .then((res) => {
-        // res.data: [{id, full_name, role_code}, ...]
-        setApprovers(res || []);
+        setApprovers(res?.data || res || []);
       })
-      .catch((err) => console.error(err));
+    .catch((err) => console.error(err));
   }, [view,user?.id]);
 
   // ----------------- Submit -----------------
@@ -304,11 +303,18 @@ const handleCancelConfirm = () => {
   try {
         await employeeService.createLeaveRequest(payload);
 
-        setNotification("Gửi đơn thành công!");
-        setTimeout(() => setNotification(""), 3000);
-
+        // reload lại danh sách
         const res = await employeeService.getLeaveRequests(user.id);
-        setRequests(res || []);
+        const data = res?.data || res || [];
+
+        setRequests(data);
+        setRecentRequests(data.slice(0, 3));
+
+        // reset form
+        handleCancel();
+
+        setNotification("Gửi đơn thành công!");
+        setShowConfirmSubmit(false);
 
       } catch (err) {
         console.error(err);

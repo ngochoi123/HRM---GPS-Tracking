@@ -5,6 +5,7 @@ import { MdChatBubbleOutline } from "react-icons/md";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
 import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { employeeService } from "../../services/employeeService";
 import './OvertimeRequest.css'
 const OvertimeRequest = () => {
   const [form, setForm] = useState({
@@ -32,7 +33,7 @@ const handleSubmit = async () => {
       approver_id: approverId
     };
 
-    await axiosClient.post("/employee/overtime-request", payload);
+    await employeeService.createOvertimeRequest(payload);
 
     alert("Gửi đơn tăng ca thành công!");
 
@@ -77,12 +78,21 @@ const handleSubmit = async () => {
     useEffect(() => {
     if (!user?.id) return;
 
-    axiosClient
-        .get(`/employee/approvers/${user.id}`)
+    employeeService
+        .getApprovers(user.id)
         .then((res) => {
-        setApprovers(res);
+            const data = Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res.data?.data)
+            ? res.data.data
+            : [];
+
+            setApprovers(data);
         })
-        .catch((err) => console.error(err));
+        .catch((err) => {
+            console.error(err);
+            setApprovers([]);
+        });
     }, [user?.id]);
   return (
     <div className="request-container">

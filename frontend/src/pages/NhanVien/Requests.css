@@ -388,9 +388,9 @@
 }
 .card-header-bot{
   display: flex;
-  gap: 160px;
+  
   align-items: center;
-
+  justify-content: space-between;
 }
 .btn-all{
   font-size: 11px;

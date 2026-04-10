@@ -18,6 +18,10 @@ export const employeeService = {
     });
   },
 
+  createOvertimeRequest: (data) => {
+  return axiosClient.post('/employee/overtime-request', data);
+  },
+
   getContract: (employeeId) => {
     return axiosClient.get(`/employee/contract/${employeeId}`);
   },
