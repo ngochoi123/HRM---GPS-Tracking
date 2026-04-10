@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { Eye, EyeOff, ShieldCheck, KeyRound, Lock } from 'lucide-react';
+import { authService } from '../services/authService';
 
 const FirstLoginChangePass = ({ username, onSuccess }) => {
   const [formData, setFormData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
@@ -24,13 +24,13 @@ const FirstLoginChangePass = ({ username, onSuccess }) => {
 
     setIsLoading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/change-password-first', {
+      const res = await authService.changePasswordFirst({
         username,
         oldPassword: formData.oldPassword,
-        newPassword: formData.newPassword
+        newPassword: formData.newPassword,
       });
       
-      alert(res.data.message || "Đổi mật khẩu thành công! Vui lòng đăng nhập lại.");
+      alert(res?.message || "Đổi mật khẩu thành công! Vui lòng đăng nhập lại.");
       onSuccess(); // Chuyển thẳng về màn hình Login
     } catch (err) {
       setError(err.response?.data?.message || "Có lỗi xảy ra, vui lòng thử lại!");

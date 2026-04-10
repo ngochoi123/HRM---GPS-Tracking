@@ -3,6 +3,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 import FirstLoginChangePass from './FirstLoginChangePass'; 
+import { authService } from '../services/authService';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -47,16 +48,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: email, 
-          password: password 
-        }),
-      });
-
-      const data = await response.json();
+      const data = await authService.login({ username: email, password });
 
       if (data.success) {
         if (data.require_pass_change) {

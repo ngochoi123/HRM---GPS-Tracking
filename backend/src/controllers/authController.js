@@ -26,7 +26,6 @@ const login = async (req, res) => {
       FROM user_account ua
       JOIN employee e ON ua.employee_id = e.id
       WHERE (ua.username = :username OR e.work_email = :username OR e.personal_email = :username)
-      AND ua.status = 'active'
     `;
 
     const users = await db.query(query, { replacements: { username }, type: db.QueryTypes.SELECT });
@@ -36,6 +35,10 @@ const login = async (req, res) => {
     }
 
     const user = users[0];
+
+    if (user.status !== 'active') {
+      return res.status(401).json({ success: false, message: 'Tài khoản của bạn đã bị vô hiệu hóa!' });
+    }
 
     // 2. Kiểm tra mật khẩu bằng SQL crypt
     const passQuery = `SELECT crypt(:password, :hash) = :hash as valid`;

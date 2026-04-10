@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Mail,
@@ -10,6 +9,7 @@ import {
   ArrowLeft,
   Pencil
 } from "lucide-react";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 export default function DepartmentDetail() {
   const { id } = useParams();
@@ -28,16 +28,12 @@ export default function DepartmentDetail() {
 
   const fetchData = async () => {
     try {
-      const depRes = await axios.get(
-        `http://localhost:5000/api/director/departments/${id}`
-      );
-  
-      const empRes = await axios.get(
-        `http://localhost:5000/api/director/departments/${id}/employees`
-      );
-  
-      setDepartment(depRes.data);
-      setEmployees(empRes.data || []);
+      const [dep, emp] = await Promise.all([
+        directorDepartmentService.getDepartmentById(id),
+        directorDepartmentService.getEmployeesByDepartment(id),
+      ]);
+      setDepartment(dep);
+      setEmployees(emp || []);
     } catch (err) {
       console.error("Lỗi fetch:", err);
     }

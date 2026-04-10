@@ -6,12 +6,12 @@ import { HiMiniXCircle } from "react-icons/hi2";
 import { BsSend } from "react-icons/bs";
 import { FiClock } from "react-icons/fi";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import axios from "axios";
 import { MdCalendarMonth } from "react-icons/md";
 import { CiSearch } from "react-icons/ci";
 import { GoCheckCircle } from "react-icons/go";
 import { LuClock2 } from "react-icons/lu";
 import { IoArrowBack } from "react-icons/io5";
+import { employeeService } from "../../services/employeeService";
 
 import "./Requests.css";
 
@@ -124,10 +124,10 @@ const calculateTotalDays = (start, end) => {
   useEffect(() => {
   if (!user?.id) return;
 
-  axios
-    .get(`http://localhost:5000/api/employee/leave-request/${user.id}`)
+  employeeService
+    .getLeaveRequests(user.id)
     .then((res) => {
-      setRecentRequests(res.data.slice(0, 3)); // lấy 3 đơn gần nhất
+      setRecentRequests((res || []).slice(0, 3)); // lấy 3 đơn gần nhất
     })
     .catch((err) => console.error(err));
 }, [user?.id]);
@@ -137,10 +137,11 @@ const calculateTotalDays = (start, end) => {
   if (!user?.id) return;
 
   axios
-    .get(`http://localhost:5000/api/employee/leave-request/${user.id}`)
+  employeeService
+    .getLeaveRequests(user.id)
     .then((res) => {
-      console.log("DATA:", res.data); // debug
-      setRequests(res.data);
+      console.log("DATA:", res); // debug
+      setRequests(res || []);
     })
     .catch((err) => console.error(err));
   }, [view, user?.id]);
@@ -152,10 +153,10 @@ const calculateTotalDays = (start, end) => {
     if (!user?.id) return;
 
     axios
-      .get(`http://localhost:5000/api/employee/approvers/${user.id}`)
+      .getApprovers(user.id)
       .then((res) => {
         // res.data: [{id, full_name, role_code}, ...]
-        setApprovers(res.data);
+        setApprovers(res || []);
       })
       .catch((err) => console.error(err));
   }, [view,user?.id]);
@@ -183,16 +184,13 @@ const calculateTotalDays = (start, end) => {
   }
 
   try {
-        await axios.post(
-          "http://localhost:5000/api/employee/leave-request",
-          payload
-        );
+        await employeeService.createLeaveRequest(payload);
 
         setNotification("Gửi đơn thành công!");
         setTimeout(() => setNotification(""), 3000);
 
-        const res = await axios.get(`http://localhost:5000/api/employee/leave-request/${user.id}`);
-        setRequests(res.data);
+        const res = await employeeService.getLeaveRequests(user.id);
+        setRequests(res || []);
 
       } catch (err) {
         console.error(err);

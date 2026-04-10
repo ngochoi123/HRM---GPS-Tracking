@@ -4,6 +4,9 @@ import {
   ArrowLeft, User, Key, Mail, RefreshCw 
 } from 'lucide-react';
 import './UserManagement.css'; // <-- Đã tách CSS sang file riêng
+// Dùng service thay vì fetch + URL hardcoded
+import { adminUserService } from '../../services/adminUserService';
+import { authService } from '../../services/authService';
 
 const UserManagement = () => {
   // --- STATES ---
@@ -23,11 +26,9 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/admin/users');
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.users);
-      }
+      // API trả về danh sách users; axiosClient đã tự xử lý baseURL và token
+      const data = await adminUserService.getUsers();
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Lỗi khi tải danh sách người dùng:', error);
     } finally {
@@ -58,19 +59,13 @@ const UserManagement = () => {
 
     setIsSendingReset(true);
     try {
-      // Tận dụng lại API forgot-password đã viết ở phần trước
-      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: selectedUser.email }), 
-      });
+      // Gọi qua service tập trung (không URL cứng)
+      const data = await authService.forgotPassword(selectedUser.email);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (data?.success) {
         alert(`🎉 Đã gửi email hướng dẫn đổi mật khẩu tới ${selectedUser.email} thành công!`);
       } else {
-        alert(data.message || 'Lỗi khi gửi email!');
+        alert(data?.message || 'Lỗi khi gửi email!');
       }
     } catch (error) {
       console.error('Lỗi API gửi reset password:', error);

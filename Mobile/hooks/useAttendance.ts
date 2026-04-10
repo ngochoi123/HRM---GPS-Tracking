@@ -178,6 +178,14 @@ export const useAttendance = () => {
     if (employeeId) await fetchSummary(employeeId);
   }, [employeeId, fetchSummary]);
 
+  const handleLogout = useCallback(async () => {
+    await AsyncStorage.clear();
+    setUserToken(null);
+    setEmployeeId(null);
+    setAttendanceToday(null);
+    setLocation(null);
+  }, []);
+
   const {
     geofenceSocketStatus,
     geofenceLeaveWarning,
@@ -190,6 +198,10 @@ export const useAttendance = () => {
     token: userToken,
     employeeId,
     onAttendanceSync: syncAttendanceFromServer,
+    onAuthError: () => {
+      Alert.alert("Phiên đăng nhập hết hạn", "Vui lòng đăng nhập lại.");
+      void handleLogout();
+    },
   });
 
   useEffect(() => {
@@ -363,6 +375,49 @@ export const useAttendance = () => {
     }
   }, [isPunchedIn, zoneBlocksPunch, hasNotified, liveCoords, workLocation]);
 
+  const dismissLeaveZoneUi = useCallback(() => {
+    setLeaveOverlayDismissed(true);
+    clearGeofenceLeaveWarning();
+    stopLocalLeaveCountdown();
+  }, [clearGeofenceLeaveWarning, stopLocalLeaveCountdown]);
+
+  const forceAutoCheckout = useCallback(async () => {
+    if (!location) return;
+    if (!employeeId) return;
+    setLoading(true);
+    try {
+      const res = await axios.post(
+        `${API_URL}/employee/attendance/checkout/${employeeId}`,
+        { latitude: location.latitude, longitude: location.longitude },
+        { headers: { Authorization: `Bearer ${userToken}` } },
+      );
+
+      const successRaw = res.data?.success;
+      const success =
+        successRaw === true ||
+        successRaw === 1 ||
+        (typeof successRaw === "string" &&
+          successRaw.toLowerCase() === "true") ||
+        res.data?.status === "success";
+
+      if (success) {
+        Alert.alert(
+          "Auto Check-out",
+          "Hệ thống đã tự động Check-out do bạn rời vị trí quá 5 phút.",
+        );
+        dismissLeaveZoneUi();
+        await fetchSummary(employeeId);
+      }
+    } catch (error: any) {
+      console.log(
+        "❌ [FRONTEND] Auto checkout thất bại:",
+        error?.response?.data || error?.message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [location, employeeId, userToken, dismissLeaveZoneUi, fetchSummary]);
+
   useEffect(() => {
     if (
       !isPunchedIn ||
@@ -395,6 +450,7 @@ export const useAttendance = () => {
     zoneBlocksPunch,
     geofenceLeaveWarning,
     leaveOverlayDismissed,
+    forceAutoCheckout,
   ]);
 
   useEffect(() => {
@@ -402,12 +458,6 @@ export const useAttendance = () => {
       stopLocalLeaveCountdown();
     }
   }, [geofenceLeaveWarning, stopLocalLeaveCountdown]);
-
-  const dismissLeaveZoneUi = useCallback(() => {
-    setLeaveOverlayDismissed(true);
-    clearGeofenceLeaveWarning();
-    stopLocalLeaveCountdown();
-  }, [clearGeofenceLeaveWarning, stopLocalLeaveCountdown]);
 
   const showLeaveZoneOverlay =
     isPunchedIn &&
@@ -559,51 +609,6 @@ export const useAttendance = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const forceAutoCheckout = async () => {
-    if (!location) return;
-    if (!employeeId) return;
-    setLoading(true);
-    try {
-      const res = await axios.post(
-        `${API_URL}/employee/attendance/checkout/${employeeId}`,
-        { latitude: location.latitude, longitude: location.longitude },
-        { headers: { Authorization: `Bearer ${userToken}` } },
-      );
-
-      const successRaw = res.data?.success;
-      const success =
-        successRaw === true ||
-        successRaw === 1 ||
-        (typeof successRaw === "string" &&
-          successRaw.toLowerCase() === "true") ||
-        res.data?.status === "success";
-
-      if (success) {
-        Alert.alert(
-          "Auto Check-out",
-          "Hệ thống đã tự động Check-out do bạn rời vị trí quá 5 phút.",
-        );
-        dismissLeaveZoneUi();
-        await fetchSummary(employeeId);
-      }
-    } catch (error: any) {
-      console.log(
-        "❌ [FRONTEND] Auto checkout thất bại:",
-        error?.response?.data || error?.message,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await AsyncStorage.clear();
-    setUserToken(null);
-    setEmployeeId(null);
-    setAttendanceToday(null);
-    setLocation(null);
   };
 
   return {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
+import { employeeService } from '../../services/employeeService';
 
 //  STATUS
 const getWorkStatus = (checkInTime, checkOutTime) => {
@@ -157,8 +158,8 @@ const Dashboard = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || !user.id) return;
 
-    fetch(`http://localhost:5000/api/employee/dashboard/${user.id}`)
-      .then(res => res.json())
+    employeeService
+      .getDashboard(user.id)
       .then(result => {
         if (!result.employee) return;
 

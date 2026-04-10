@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 export default function DeleteDepartment() {
   const { id } = useParams();
@@ -24,10 +24,7 @@ export default function DeleteDepartment() {
     const fetchDepartment = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(
-          `http://localhost:5000/api/director/departments/${id}`
-        );
-        const data = res.data?.data || res.data;
+        const data = await directorDepartmentService.getDepartmentById(id);
         setDepartment(data);
       } catch (err) {
         console.log(err);
@@ -40,10 +37,8 @@ export default function DeleteDepartment() {
     // 🔹 Dropdown phòng ban
     const fetchDepartments = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:5000/api/director/departments`
-        );
-        setDepartments(res.data?.data || res.data || []);
+        const res = await directorDepartmentService.getDepartments();
+        setDepartments(res || []);
       } catch (err) {
         console.log(err);
         toast.error("Không tải được danh sách phòng ban");
@@ -60,14 +55,9 @@ export default function DeleteDepartment() {
     try {
       setDeleting(true);
 
-      await axios.delete(
-        `http://localhost:5000/api/director/departments/${id}`,
-        {
-          data: {
-            move_to_department_id: targetDepartment || null
-          }
-        }
-      );
+      await directorDepartmentService.deleteDepartment(id, {
+        move_to_department_id: targetDepartment || null,
+      });
 
       toast.success("Xoá phòng ban thành công");
       navigate("/GiamDoc/departments");

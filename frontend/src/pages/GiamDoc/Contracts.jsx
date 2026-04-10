@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Search, Plus, FileText, Eye, Edit2, Clock, Loader2, Coins } from 'lucide-react';
 import AddEditContract from './AddEditContract';
 import ViewContract from './ViewContract'; // 👉 Đã Import màn hình xem
+import { directorContractService } from '../../services/directorContractService';
 
 export default function ContractManagement() {
   const [contracts, setContracts] = useState([]);
@@ -21,10 +21,8 @@ export default function ContractManagement() {
   const fetchContracts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/director/contracts', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setContracts(res.data);
+      const res = await directorContractService.getContracts();
+      setContracts(res || []);
     } catch (error) {
       console.error("Lỗi khi tải hợp đồng:", error);
     } finally {

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Plus, Search, Pencil, Trash2, Eye, Loader2 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
 
 export default function Branches() {
   const [search, setSearch] = useState("");
@@ -13,8 +13,8 @@ export default function Branches() {
   const fetchBranches = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://localhost:5000/api/director/branches");
-      setBranches(res.data || []);
+      const res = await directorBranchService.getBranches();
+      setBranches(res || []);
     } catch (err) {
       console.log("🔥 Lỗi load branches:", err.response?.data);
       toast.error("Không tải được danh sách chi nhánh");

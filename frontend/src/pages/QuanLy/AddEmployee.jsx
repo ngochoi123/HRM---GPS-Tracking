@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ArrowLeft, Save, Loader2, User, CreditCard, Briefcase, ShieldCheck } from 'lucide-react';
+import { managerEmployeeService } from '../../services/managerEmployeeService';
 
 export default function AddEmployee({ onBack, onSaveSuccess }) {
   const [formData, setFormData] = useState({
@@ -22,9 +22,8 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-        const optRes = await axios.get(`http://localhost:5000/api/manager/form-options`, { headers });
-        setOptions(optRes.data);
+        const optRes = await managerEmployeeService.getFormOptions();
+        setOptions(optRes || { departments: [], positions: [], managers: [] });
       } catch (error) {
         console.error("Lỗi kéo dữ liệu Combobox:", error);
       } finally {
@@ -59,9 +58,7 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
       if (!payload.position_id) payload.position_id = null;
       if (!payload.direct_manager_id) payload.direct_manager_id = null;
 
-      await axios.post(`http://localhost:5000/api/manager/employees`, payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await managerEmployeeService.createEmployee(payload);
       alert('Thêm nhân viên thành công!');
       onSaveSuccess();
     } catch (error) {

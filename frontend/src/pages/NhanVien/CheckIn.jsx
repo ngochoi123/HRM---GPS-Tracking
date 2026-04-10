@@ -4,9 +4,10 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, Fingerprint, Wifi, AlertTriangle, History, Loader2, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getManagerSocket, socketOriginFromApiBase } from '../../services/managerSocket';
 import AttendanceHistoryModal from '../../components/AttendanceHistoryModal';
 import { useLocationOptimizer } from '../../hooks/useLocationOptimizer';
+import { attendanceService } from '../../services/attendanceService';
+import { getSocketClient } from '../../socket/socketClient';
 
 import './CheckIn.css';
 
@@ -16,9 +17,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
   shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href
 });
-
-const API_BASE = 'http://localhost:5000/api';
-const SOCKET_ORIGIN = socketOriginFromApiBase(API_BASE);
 
 /** Trùng backend TEMP_HEADQUARTERS */
 const TEMP_HQ = {
@@ -252,13 +250,10 @@ const CheckIn = () => {
     if (!employeeId) return;
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE}/employee/attendance/summary/${employeeId}`);
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || `Lỗi ${res.status}`);
-      }
-      const wl = json.data.workLocation;
-      const wls = json.data.workLocations || (wl ? [wl] : []);
+      const json = await attendanceService.getSummary(employeeId);
+      if (!json?.success) throw new Error(json?.message || 'Không tải được summary');
+      const wl = json.data?.workLocation;
+      const wls = json.data?.workLocations || (wl ? [wl] : []);
       setWorkLocation(wl);
       setWorkLocations(wls);
       if (!wl || !wl.wifi_ip_required) {
@@ -266,7 +261,7 @@ const CheckIn = () => {
       } else {
         setIsWifiValid(wl.client_ip_allowed === true);
       }
-      setAttendanceToday(json.data.attendanceToday);
+      setAttendanceToday(json.data?.attendanceToday);
     } catch (err) {
       setMessage('Không thể tải dữ liệu chấm công từ server.');
       setActionError(err.message || String(err));
@@ -285,12 +280,11 @@ const CheckIn = () => {
     setHistoryLoading(true);
     setHistoryError('');
     try {
-      const qs = Number.isFinite(month) && Number.isFinite(year) ? `?month=${month}&year=${year}` : '';
-      const res = await fetch(`${API_BASE}/employee/attendance/history/${employeeId}${qs}`);
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || `Lỗi ${res.status}`);
-      }
+      const json = await attendanceService.getHistory(employeeId, {
+        month: Number.isFinite(month) ? month : undefined,
+        year: Number.isFinite(year) ? year : undefined,
+      });
+      if (!json?.success) throw new Error(json?.message || 'Không tải được lịch sử');
       setHistoryData(json.data || null);
     } catch (err) {
       setHistoryError(err.message || String(err));
@@ -301,7 +295,7 @@ const CheckIn = () => {
 
   useEffect(() => {
     if (!employeeId) return;
-    const socket = getManagerSocket(SOCKET_ORIGIN);
+    const socket = getSocketClient();
     const onLocationsUpdated = () => {
       console.log('🔄 Admin vừa cập nhật vùng chấm công. Đang tải lại...');
       void fetchSummary();
@@ -351,7 +345,7 @@ const CheckIn = () => {
   useEffect(() => {
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
     if (!employeeId || !token || !canCheckOut) return undefined;
-    const socket = getManagerSocket(SOCKET_ORIGIN);
+    const socket = getSocketClient();
     const sendTrack = () => {
       const p = gpsPosRef.current;
       if (!p || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return;
@@ -497,23 +491,17 @@ const CheckIn = () => {
     setActionError('');
 
     try {
-      const endpoint =
+      const payload = {
+        latitude: gps.position.latitude,
+        longitude: gps.position.longitude,
+      };
+      const json =
         mode === 'checkin'
-          ? `${API_BASE}/employee/attendance/checkin/${employeeId}`
-          : `${API_BASE}/employee/attendance/checkout/${employeeId}`;
+          ? await attendanceService.checkIn(employeeId, payload)
+          : await attendanceService.checkOut(employeeId, payload);
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          latitude: gps.position.latitude,
-          longitude: gps.position.longitude
-        })
-      });
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        const msg = json.message || `Lỗi ${res.status}`;
+      if (!json?.success) {
+        const msg = json?.message || `Lỗi chấm công`;
         if (
           typeof msg === 'string' &&
           (msg.includes('WiFi văn phòng') || msg.includes('kết nối mạng'))

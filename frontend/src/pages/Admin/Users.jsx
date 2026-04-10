@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Shield, Lock, Loader2, RotateCcw, Edit, Key, ChevronLeft, ChevronRight } from 'lucide-react';
-import axios from 'axios';
+// Sử dụng service Admin để quản lý toàn bộ API tài khoản
+import { adminUserService } from '../../services/adminUserService';
 import './UserManagement.css';
 import CreateAccount from './CreateAccount';
 import EditAccount from './EditAccount';
@@ -22,11 +23,10 @@ const Users = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/admin/users', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      // Gọi API tập trung qua service, không dùng URL cứng
+      const response = await adminUserService.getUsers();
 
-      const formattedData = response.data.map((user) => ({
+      const formattedData = response.map((user) => ({
         id: user.id,
         employee_code: user.employee_code || `NV${user.id.toString().padStart(3, '0')}`, 
         name: user.full_name || 'Chưa cập nhật',
@@ -64,16 +64,24 @@ const Users = () => {
        return;
     }
 
+    const userToUpdate = users.find(u => u.id === id);
+    if (!userToUpdate) return;
+
     if (!window.confirm("Bạn có chắc muốn thay đổi trạng thái tài khoản này?")) return;
 
+    const newStatus = userToUpdate.status ? 'locked' : 'active';
+
     try {
+      // Cập nhật trạng thái tài khoản qua service
+      await adminUserService.updateUserStatus(id, newStatus);
+
       setUsers(users.map(user => 
         user.id === id 
           ? { ...user, status: !user.status, securityStatus: !user.status ? 'Hoạt động' : 'Bị khóa' } 
           : user
       ));
     } catch (err) {
-      console.error(err);
+      console.error('Lỗi khi thay đổi trạng thái:', err);
       alert("Lỗi không thể cập nhật trạng thái!");
     }
   };
@@ -90,17 +98,13 @@ const Users = () => {
     }
 
     try {
-      // 👉 Chú ý: Đổi URL thành API reset dành cho Admin (admin-force-reset)
-      // Nếu bạn chưa kịp viết API mới ở Backend, hãy báo mình để mình gửi code SQL cho nhé
-      const response = await axios.post('http://localhost:5000/api/admin/force-reset-password', 
-        { email: user.email }, 
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
+      // Gọi API reset mật khẩu tập trung qua service
+      const response = await adminUserService.resetUserPassword(user.email);
 
-      if (response.data.success) {
+      if (response.success) {
         alert(`🎉 Thành công! Mật khẩu mới đã được gửi đến: ${user.email}. \nUser này sẽ phải đổi mật khẩu ngay khi đăng nhập.`);
       } else {
-        alert(response.data.message || 'Lỗi khi thực hiện reset mật khẩu!');
+        alert(response.message || 'Lỗi khi thực hiện reset mật khẩu!');
       }
     } catch (error) {
       console.error('Lỗi API reset password:', error);

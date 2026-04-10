@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Login.css';
+import { authService } from '../services/authService';
 
 const VerifyOTP = () => {
   const navigate = useNavigate();
@@ -78,13 +79,7 @@ const VerifyOTP = () => {
     setError(''); 
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, otp: otpCode }), 
-      });
-
-      const data = await response.json();
+      const data = await authService.verifyOtp({ email, otp: otpCode });
 
       if (data.success) {
         setIsLoading(false);
@@ -105,15 +100,7 @@ const VerifyOTP = () => {
     setIsLoading(true); // 👉 Đã sửa lỗi syntax chỗ này
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email }), 
-      });
-
-      const data = await response.json();
+      const data = await authService.forgotPassword(email);
 
       if (data.success) {
         alert('Mã OTP mới đã được gửi! Vui lòng kiểm tra lại email của bạn.');

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, startTransition } from "react";
 import { Bell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
-import axios from "axios";
 import NotificationDetailModal from "./NotificationDetailModal";
+import { notificationService } from "../../services/notificationService";
 
 // BỔ SUNG: Import đầy đủ thư viện Icon đa dạng để đồng bộ với trang Quản lý
 import {
@@ -12,12 +12,9 @@ import {
 } from "react-icons/fa";
 import { MdEventNote, MdGroups } from "react-icons/md";
 
-const API_BELL_BASE = "http://localhost:5000/api/notifications/my-bell";
-
 /** Gọi API ngoài component — tránh effect gọi hàm component-level bị ESLint/React cảnh báo setState. */
 async function fetchBellList(userId) {
-  const { data } = await axios.get(`${API_BELL_BASE}/${userId}`);
-  return data;
+  return notificationService.getMyBell(userId);
 }
 
 export default function NotificationBell() {
@@ -111,7 +108,7 @@ export default function NotificationBell() {
   const markAllAsRead = async () => {
     try {
       setNotifications(notifications.map((n) => ({ ...n, is_read: true })));
-      await axios.put(`http://localhost:5000/api/notifications/read-all/${myUserId}`);
+      await notificationService.markAllAsRead(myUserId);
     } catch (error) {
       console.error("Lỗi khi đánh dấu đọc tất cả:", error);
     }
@@ -139,7 +136,7 @@ export default function NotificationBell() {
     if (!isReadValue(noti.is_read)) {
       try {
         setNotifications((prev) => prev.map((n) => (n.id === noti.id ? { ...n, is_read: true } : n)));
-        await axios.put(`http://localhost:5000/api/notifications/read/${noti.id}`, { userId: myUserId });
+        await notificationService.markAsRead(noti.id, myUserId);
       } catch (error) {
         console.error("Lỗi không cập nhật được trạng thái Đã Đọc:", error);
       }

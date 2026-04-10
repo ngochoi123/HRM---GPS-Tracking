@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ArrowLeft, User, Briefcase, ShieldCheck, Mail, Phone, Hash, Loader2, Key, Edit } from 'lucide-react';
+import { managerEmployeeService } from '../../services/managerEmployeeService';
+import { adminUserService } from '../../services/adminUserService';
 
 export default function EmployeeDetail({ employee, onBack, onEdit }) {
   const [detail, setDetail] = useState(null);
@@ -11,10 +12,8 @@ export default function EmployeeDetail({ employee, onBack, onEdit }) {
     // Gọi API kéo full data chi tiết của nhân viên này
     const fetchDetail = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/manager/employees/${employee.id}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setDetail(res.data);
+        const res = await managerEmployeeService.getEmployeeById(employee.id);
+        setDetail(res);
       } catch (error) {
         console.error("Lỗi khi kéo chi tiết nhân viên:", error);
       } finally {
@@ -70,16 +69,11 @@ export default function EmployeeDetail({ employee, onBack, onEdit }) {
 
     setIsResetting(true);
     try {
-      const response = await axios.post(
-        'http://localhost:5000/api/admin/force-reset-password',
-        { email: mailTo },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
-
-      if (response.data.success) {
+      const response = await adminUserService.resetUserPassword(mailTo);
+      if (response?.success) {
         alert(`Thành công! Mật khẩu mới đã được gửi đến: ${mailTo}.\nNhân viên sẽ phải đổi mật khẩu khi đăng nhập.`);
       } else {
-        alert(response.data.message || 'Lỗi khi thực hiện reset mật khẩu!');
+        alert(response?.message || 'Lỗi khi thực hiện reset mật khẩu!');
       }
     } catch (error) {
       console.error('Lỗi API reset password:', error);

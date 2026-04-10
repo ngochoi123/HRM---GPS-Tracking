@@ -19,13 +19,15 @@ type UseGeofenceTrackingOptions = {
   employeeId: string | null;
   /** Gọi sau auto check-in/out / attendance_changed để đồng bộ UI */
   onAttendanceSync: () => void | Promise<void>;
+  /** Gọi khi token hết hạn để logout */
+  onAuthError?: () => void;
 };
 
 /**
  * Socket geofencing khớp backend geofencingService.js:
  * authenticate_tracking, track_location, geofence_leave_warning, geofence_auto_checkin/out, tracking_error
  */
-export function useGeofenceTracking({ token, employeeId, onAttendanceSync }: UseGeofenceTrackingOptions) {
+export function useGeofenceTracking({ token, employeeId, onAttendanceSync, onAuthError }: UseGeofenceTrackingOptions) {
   const [socketStatus, setSocketStatus] = useState<'off' | 'connecting' | 'authenticated' | 'error'>('off');
   const [leaveWarning, setLeaveWarning] = useState<GeofenceLeaveWarningState | null>(null);
   const [leaveCountdownSec, setLeaveCountdownSec] = useState(0);
@@ -37,10 +39,12 @@ export function useGeofenceTracking({ token, employeeId, onAttendanceSync }: Use
   const lastCoordsRef = useRef<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const onAttendanceSyncRef = useRef(onAttendanceSync);
   const employeeIdRef = useRef(employeeId);
+  const onAuthErrorRef = useRef(onAuthError);
   /** Chỉ emit track_location sau khi authenticate_tracking thành công. */
   const trackingAuthRef = useRef(false);
   onAttendanceSyncRef.current = onAttendanceSync;
   employeeIdRef.current = employeeId;
+  onAuthErrorRef.current = onAuthError;
 
   const showToast = useCallback((message: string, kind: GeofenceToastState['kind']) => {
     setToast({ message, kind });
@@ -203,6 +207,7 @@ export function useGeofenceTracking({ token, employeeId, onAttendanceSync }: Use
       if (/token|jwt|hết hạn|expired|xác thực/i.test(msg)) {
         trackingAuthRef.current = false;
         setSocketStatus('error');
+        onAuthErrorRef.current?.();
       }
     };
 

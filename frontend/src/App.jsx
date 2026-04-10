@@ -47,13 +47,17 @@ import EmployeeManagement from './pages/QuanLy/Employees';
 import ApprovalsQuanLy from './pages/QuanLy/Approvals';
 import RewardsDiscipline from './pages/QuanLy/RewardsDiscipline';
 import NotificationPage from './pages/QuanLy/NotificationPage';
-/** * THỐNG NHẤT: Import component Payroll từ file Payroll.jsx
- * Bạn phải đảm bảo file src/pages/QuanLy/Payroll.jsx tồn tại.
- */
 import Payroll from './pages/QuanLy/Payroll/Payroll';
 // ==========================================
 // 5. NHÂN VIÊN (EMPLOYEE) PAGES
 // ==========================================
+import SalaryStats from './pages/QuanLy/statistics/SalaryStats';
+import AttendanceStats from './pages/QuanLy/statistics/AttendanceStats';
+import RequestsStats from './pages/QuanLy/statistics/RequestsStats';
+import ContractsStats from './pages/QuanLy/statistics/ContractsStats';
+import ChangesStats from './pages/QuanLy/statistics/ChangesStats';
+
+// ===== NHÂN VIÊN =====
 import EmployeeDashboard from './pages/NhanVien/Dashboard';
 import CheckIn from './pages/NhanVien/CheckIn';
 import PayrollEmployee from './pages/NhanVien/Payroll'; // Đổi tên local để tránh trùng với Manager
@@ -65,7 +69,6 @@ import Contract from "./pages/NhanVien/Contract";
 // 6. LAYOUT
 // ==========================================
 import MainLayout from './layouts/MainLayout';
-
 function App() {
   return (
     <BrowserRouter>
@@ -128,8 +131,14 @@ function App() {
           <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} />
           <Route path="/QuanLy/rewards-discipline" element={<RewardsDiscipline />} />
           <Route path="/QuanLy/notifications" element={<NotificationPage />} />
-          {/* Menu tính lương cho Quản lý */}
-          <Route path="/QuanLy/payroll" element={<Payroll />} />
+          <Route path="/QuanLy/statistics">
+              <Route path="payroll" element={<Payroll />} />
+              <Route path="salary" element={<SalaryStats />} />
+              <Route path="attendance" element={<AttendanceStats />} />
+              <Route path="requests" element={<RequestsStats />} />
+              <Route path="contracts" element={<ContractsStats />} />
+          <Route path="changes" element={<ChangesStats />} />
+          </Route>
 
           {/* --- ROUTES NHÂN VIÊN (EMPLOYEE) --- */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />

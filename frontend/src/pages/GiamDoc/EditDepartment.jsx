@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
 import toast from "react-hot-toast";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { directorBranchService } from "../../services/directorBranchService";
+import { directorDepartmentService } from "../../services/directorDepartmentService";
 
 export default function EditDepartment() {
   const { id } = useParams();
@@ -32,11 +33,7 @@ export default function EditDepartment() {
 
   const fetchDepartment = async () => {
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/director/departments/${id}`
-      );
-
-      const data = res.data?.data || res.data;
+      const data = await directorDepartmentService.getDepartmentById(id);
 
       setForm({
         department_name: data.department_name || "",
@@ -57,10 +54,8 @@ export default function EditDepartment() {
 
   const fetchBranches = async () => {
     try {
-      const res = await axios.get(
-        "http://localhost:5000/api/director/branches"
-      );
-      setBranches(res.data?.data || res.data || []);
+      const res = await directorBranchService.getBranches();
+      setBranches(res || []);
     } catch (err) {
       console.log(err);
       toast.error("Không tải được chi nhánh");
@@ -69,11 +64,8 @@ export default function EditDepartment() {
 
   const fetchManagers = async () => {
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/director/departments/${id}/employees`
-      );
-  
-      setManagers(res.data || []);
+      const res = await directorDepartmentService.getEmployeesByDepartment(id);
+      setManagers(res || []);
   
     } catch (err) {
       console.log("Lỗi load managers:", err);
@@ -85,10 +77,7 @@ export default function EditDepartment() {
     try {
       setSaving(true);
 
-      await axios.put(
-        `http://localhost:5000/api/director/departments/${id}`,
-        form
-      );
+      await directorDepartmentService.updateDepartment(id, form);
 
       toast.success("Cập nhật phòng ban thành công");
 
