@@ -1,0 +1,42 @@
+.submenu {
+  padding-left: 40px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: all 0.25s ease;
+}
+
+.submenu-item {
+  padding: 8px 10px;
+  margin-left: 10px;
+  border-radius: 6px;
+  color: #6b7280;
+  text-decoration: none;
+  display: flex;
+  align-items: center; 
+  gap: 1px;              
+  font-size: 13px;
+}
+
+.submenu-item.active {
+  background-color: #ECFDF5;
+  color: #059669;
+  font-weight: 500;
+  border: 2px solid #a1ef97 !important;
+  text-align: center !important;
+}
+
+.submenu-item:hover {
+  background-color: #f3f4f6;
+}
+
+.submenu.open {
+  max-height: 200px;
+  opacity: 1;
+  transform: translateY(0);
+}

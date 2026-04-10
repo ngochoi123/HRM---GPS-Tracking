@@ -1,0 +1,46 @@
+.request-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+.request-left {
+  background: #fff;
+  min-height: 500px;
+  border-radius: 20px;
+  max-width: 800px;
+  padding: 15px 20px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  
+}
+.request-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  
+}
+
+.card-request-top {
+  background: linear-gradient(135deg, #00AE0C 40%, #009688 100%);
+  color: white;
+  height: 200px;
+  border-radius: 20px;
+  padding: 20px;
+  position: relative; /* Quan trọng để định vị icon ô */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: sans-serif;
+  
+}
+.card-request-bot-1 {
+  background: #fff;
+  min-height: 640px;
+  max-height: 800px;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}

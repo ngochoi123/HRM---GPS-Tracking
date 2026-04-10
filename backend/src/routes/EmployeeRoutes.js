@@ -29,6 +29,8 @@ router.post('/change-password', employeeController.changePassword);
 //Đơn từ
 router.post('/leave-request',upload.single('attachment'),employeeController.createRequest);
 router.get('/leave-request/:id', employeeController.getMyRequests);
+router.get('/overtime-request/:id', employeeController.getMyOvertimeRequests);
+router.post('/overtime-request', employeeController.createOvertimeRequest);
 
 router.get('/approvers/:id', employeeController.getApprovers);
 

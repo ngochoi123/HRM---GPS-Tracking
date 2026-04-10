@@ -4,6 +4,7 @@ const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { normalizeWorkLocation, checkInEmployee, checkOutEmployee } = require('../services/attendanceActions');
 const { getClientIp, parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
+
 exports.getDashboard = async (req, res) => {
  try {
     const { id } = req.params;
@@ -611,5 +612,82 @@ exports.getApprovers = async (req, res) => {
   } catch (error) {
     console.error('getApprovers error:', error);
     res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+//Hàm tạo đơn tăng ca
+exports.createOvertimeRequest = async (req, res) => {
+  try {
+    const {
+      employee_id,
+      ot_date,
+      start_time,
+      end_time,
+      reason,
+      approver_id
+    } = req.body;
+
+    // validate
+    if (!employee_id || !ot_date || !start_time || !end_time || !approver_id) {
+      return res.status(400).json({ message: "Thiếu dữ liệu!" });
+    }
+
+    if (end_time <= start_time) {
+      return res.status(400).json({ message: "Giờ không hợp lệ!" });
+    }
+
+    const query = `
+      INSERT INTO overtime_request 
+      (employee_id, ot_date, start_time, end_time, reason, approver_id, status, created_at)
+      VALUES (:employee_id, :ot_date, :start_time, :end_time, :reason, :approver_id, 'pending', NOW())
+      RETURNING *;
+    `;
+
+    const [result] = await db.query(query, {
+      replacements: {
+        employee_id,
+        ot_date,
+        start_time,
+        end_time,
+        reason,
+        approver_id
+      }
+    });
+
+    res.status(201).json({
+      message: "Tạo đơn tăng ca thành công",
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error("❌ Lỗi create OT:", error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+// hàm lấy danh sách đơn tăng ca
+exports.getMyOvertimeRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT 
+        ot.*,
+        e.full_name AS approver_name
+      FROM overtime_request ot
+      LEFT JOIN employee e ON ot.approver_id = e.id
+      WHERE ot.employee_id = :id
+      ORDER BY ot.created_at DESC
+    `;
+
+    const [rows] = await db.query(query, {
+      replacements: { id }
+    });
+
+    res.json(rows);
+
+  } catch (error) {
+    console.error("❌ Lỗi get OT:", error);
+    res.status(500).json({ message: "Lỗi server" });
   }
 };

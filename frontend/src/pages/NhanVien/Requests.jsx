@@ -26,6 +26,8 @@ const Requests = () => {
     reason: "",
   });
 
+
+
   const [view, setView] = useState("create"); 
 // "create" | "history"
   const [recentRequests, setRecentRequests] = useState([]);
@@ -34,6 +36,9 @@ const Requests = () => {
 
   const [approvers, setApprovers] = useState([]); // danh sách người kiểm duyệt
   const [approverId, setApproverId] = useState(""); // id người được chọn
+
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
 
   const user = JSON.parse(localStorage.getItem("user"));
 
@@ -46,12 +51,34 @@ const handleRowClick = (request) => {
   setShowModal(true);
 };
 
+const handleCancel = () => {
+  setForm({
+    type: "annual",
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
+
+  setApproverId("");
+
+  // reset file
+  if (fileRef.current) {
+    fileRef.current.value = "";
+  }
+};
+
 // Hàm đóng modal
 const closeModal = () => {
   setShowModal(false);
   setSelectedRequest(null);
 };
 
+const handleCloseAllModals = () => {
+  setShowConfirmSubmit(false);
+  setShowConfirmCancel(false);
+  setShowModal(false);
+  setSelectedRequest(null);
+};
 
   // Mapping loại đơn từ Database sang Tiếng Việt
 const getLeaveTypeText = (type) => {
@@ -65,6 +92,50 @@ const getLeaveTypeText = (type) => {
   };
   return types[type] || type;
 };
+
+const LEAVE_LIMIT = 12;
+const currentYear = new Date().getFullYear();
+
+const getAnnualUsedDays = () => {
+  const currentYear = new Date().getFullYear();
+
+  return requests
+    .filter((r) => {
+      // Đảm bảo loại đơn là annual và đã được duyệt
+      return r.leave_type === "annual" && r.status === "approved";
+    })
+    .reduce((total, r) => {
+      let start = new Date(r.start_datetime);
+      let end = new Date(r.end_datetime);
+      
+      // Kiểm tra nếu ngày tháng không hợp lệ
+      if (isNaN(start) || isNaN(end)) return total;
+
+      let count = 0;
+      let current = new Date(start);
+      // Reset giờ về 0 để so sánh chính xác ngày
+      current.setHours(0, 0, 0, 0);
+      let finalEnd = new Date(end);
+      finalEnd.setHours(0, 0, 0, 0);
+
+      while (current <= finalEnd) {
+        const year = current.getFullYear();
+        const day = current.getDay(); // 0: Chủ nhật, 6: Thứ bảy
+
+        // Kiểm tra đúng năm và không phải cuối tuần
+        if (year === currentYear && day !== 0 && day !== 6) {
+          count++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      return total + count;
+    }, 0);
+};
+
+
+const used = getAnnualUsedDays();
+const remaining = LEAVE_LIMIT - used;
+const percentUsed = (used / LEAVE_LIMIT) * 100;
 
 const filteredRequests = filterMonth
   ? requests.filter((r) => {
@@ -127,7 +198,8 @@ const calculateTotalDays = (start, end) => {
   employeeService
     .getLeaveRequests(user.id)
     .then((res) => {
-      setRecentRequests((res || []).slice(0, 3)); // lấy 3 đơn gần nhất
+      setRequests(res.data);
+      setRecentRequests(res.data.slice(0, 3)); // lấy 3 đơn gần nhất
     })
     .catch((err) => console.error(err));
 }, [user?.id]);
@@ -162,6 +234,55 @@ const calculateTotalDays = (start, end) => {
   }, [view,user?.id]);
 
   // ----------------- Submit -----------------
+
+  const submitRequest = async () => {
+  if (!approverId) {
+    alert("Chọn người kiểm duyệt!");
+    return;
+  }
+
+  const payload = new FormData();
+  payload.append("userId", user.id);
+  payload.append("leave_type", form.type);
+  payload.append("start_datetime", form.startDate);
+  payload.append("end_datetime", form.endDate);
+  payload.append("reason", form.reason);
+  payload.append("approverId", approverId);
+
+  if (fileRef.current?.files[0]) {
+    payload.append("attachment", fileRef.current.files[0]);
+  }
+
+  try {
+    await axios.post(
+      "http://localhost:5000/api/employee/leave-request",
+      payload
+    );
+
+    setNotification("Gửi đơn thành công!");
+    setShowConfirmSubmit(false);
+
+  } catch (err) {
+    console.error(err);
+    setNotification("Lỗi tạo đơn!");
+  }
+};
+
+const handleCancelConfirm = () => {
+  setForm({
+    type: "annual",
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
+
+  setApproverId("");
+
+  if (fileRef.current) fileRef.current.value = "";
+
+  setShowConfirmCancel(false);
+};
+
   const handleSubmit = async (e) => {
   e.preventDefault();
 
@@ -216,6 +337,7 @@ const calculateTotalDays = (start, end) => {
 
   return (
     <div className="request-container">
+
       {notification && (
       <div className="toast">
         {notification}
@@ -229,11 +351,11 @@ const calculateTotalDays = (start, end) => {
       {/* ================= HEADER ================= */}
       <div className="request-left-header">
         <div className="header-left">
-          <h2>Tạo đơn nghỉ phép</h2>
+          <h2>Tạo đơn xin nghỉ phép</h2>
           <p>Tạo và quản lý đơn nghỉ của bạn.</p>
         </div>
         <div className="header-right">
-          <button className="btn-cannel">
+          <button className="btn-cannel" onClick={() => setShowConfirmCancel(true)}>
             <HiMiniXCircle /> Hủy
           </button>
         </div>
@@ -342,14 +464,17 @@ const calculateTotalDays = (start, end) => {
           <div className="input-grid-1">
             <div className="input-group" style={{ marginTop: "20px" }}>
               <label>Lý do cụ thể</label>
-              <input
-                type="text"
+              <textarea
                 className="input-option-1"
-                placeholder="Nhập lý do..."
+                placeholder="Nhập nội dung..."
                 value={form.reason}
                 onChange={(e) =>
                   setForm({ ...form, reason: e.target.value })
                 }
+                onInput={(e) => {
+                  e.target.style.height = "auto";
+                  e.target.style.height = e.target.scrollHeight + "px";
+                }}
               />
             </div>
 
@@ -373,7 +498,7 @@ const calculateTotalDays = (start, end) => {
 
       {/* ================= FOOTER ================= */}
       <div className="acction-footer">
-        <button className="btn-request" onClick={handleSubmit}>
+        <button className="btn-request" onClick={() => setShowConfirmSubmit(true)}>
           <BsSend /> Gửi
         </button>
       </div>
@@ -475,6 +600,7 @@ const calculateTotalDays = (start, end) => {
 
 
       </div>
+
       {showModal && selectedRequest && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -551,7 +677,7 @@ const calculateTotalDays = (start, end) => {
               </h3>
               <div className="input-grid-1">
                 <div className="input-group" style={{ marginTop: "20px" }}>
-                  <label>Lý do cụ thể</label>
+                  <label style={{textAlign:"left",marginLeft:"7px"}}>Lý do cụ thể</label>
                   <textarea
                     className="input-option-3"
                     value={selectedRequest.reason}
@@ -590,23 +716,27 @@ const calculateTotalDays = (start, end) => {
         <div className="card-request-top">
           <div className="card-header">
             <FiClock style={{ fontSize: "20px" }} />
-            <span>Quỹ phép năm 2026</span>
+            <span>Quỹ phép năm {new Date().getFullYear()}</span>
           </div>
 
           <div className="card-main-value">
-            <span className="remaining-days">08.5</span>
-            <span className="total-days">/ 12 ngày</span>
+            <span className="remaining-days">{remaining.toFixed(1)}</span>
+            <span className="total-days">/ {LEAVE_LIMIT} ngày</span>
           </div>
 
           <div className="card-sub-text">Số phép còn lại có thể sử dụng</div>
 
           <div className="card-footer">
             <div className="usage-info">
-              <span>Đã dùng: 3.5 ngày</span>
-              <span>29%</span>
+              <span>Đã dùng: {used.toFixed(1)} ngày</span>
+              <span>{percentUsed.toFixed(0)}%</span>
             </div>
+
             <div className="progress-bar">
-              <div className="progress-fill" style={{ width: "29%" }}></div>
+              <div
+                className="progress-fill"
+                style={{ width: `${Math.min(percentUsed, 100)}%` }}
+              ></div>
             </div>
           </div>
 
@@ -671,8 +801,56 @@ const calculateTotalDays = (start, end) => {
         </div>
       </div>
       
-      
+      {showConfirmSubmit && (
+  <div className="modal-overlay" onClick={handleCloseAllModals}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3>Xác nhận gửi đơn</h3>
+      <p>Bạn có chắc muốn gửi đơn này không?</p>
 
+      <div className="confirm-actions">
+        <button
+          className="btn-confirm"
+          onClick={submitRequest}
+        >
+          Đồng ý
+        </button>
+
+        <button
+          className="btn-cancel"
+          onClick={() => setShowConfirmSubmit(false)}
+        >
+          Hủy
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showConfirmCancel && (
+  <div className="modal-overlay" onClick={handleCloseAllModals}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3>Xác nhận hủy</h3>
+      <p>Dữ liệu đã nhập sẽ bị xóa. Bạn có chắc không?</p>
+
+      <div className="confirm-actions">
+        <button
+          className="btn-danger"
+          onClick={handleCancelConfirm}
+        >
+          Xóa dữ liệu
+        </button>
+
+        <button
+          className="btn-cancel"
+          onClick={() => setShowConfirmCancel(false)}
+        >
+          Quay lại
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+      
     </div>
   );
 };

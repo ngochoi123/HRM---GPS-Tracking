@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
+import './menu.css';   
+import { FaAngleRight } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, MapPin, CreditCard, FileText, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
 
 const SidebarNhanVien = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [openMenu, setOpenMenu] = useState(null);
+  useEffect(() => {
+  const index = menuItems.findIndex(item =>
+    item.children?.some(child => location.pathname.startsWith(child.path))
+  );
+
+  if (index !== -1) {
+    setOpenMenu(index);
+  }
+}, [location.pathname]);
 
   // State quản lý hiển thị Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -13,7 +25,15 @@ const SidebarNhanVien = () => {
     { path: '/NhanVien/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/NhanVien/checkin', icon: <MapPin size={20} />, label: 'Chấm công' },
     { path: '/NhanVien/payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
-    { path: '/NhanVien/requests', icon: <FileText size={20} />, label: 'Đơn từ' },
+    {
+      path: '/NhanVien/requests',
+      label: 'Đơn từ',
+      icon: <FileText size={20} />,
+      children: [
+        { path: '/NhanVien/requests/leave', label: 'Đơn nghỉ phép' },
+        { path: '/NhanVien/requests/overtime', label: 'Đơn tăng ca' }
+      ]
+    },
     // Đã xóa menu "Hồ sơ cá nhân" vì đã tích hợp trên Header dùng chung cho mọi Role
   ];
 
@@ -43,15 +63,54 @@ const SidebarNhanVien = () => {
         <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
           NHÂN VIÊN
         </p>
-        {menuItems.map((item) => (
-          <Link 
-            key={item.path} 
-            to={item.path} 
-            className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
-          >
-            {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
-          </Link>
-        ))}
+{menuItems.map((item, index) => (
+  <div key={index}>
+
+    {/* MENU CHA */}
+    {item.children ? (
+      <div
+       className={`menu-item ${
+        location.pathname.startsWith(item.path) ||
+        item.children?.some(child => location.pathname.startsWith(child.path))
+          ? 'active'
+          : ''
+      }`}
+        onClick={() => setOpenMenu(openMenu === index ? null : index)}
+      >
+        {item.icon}
+        <span style={{ marginLeft: "12px" }}>{item.label}</span>
+      </div>
+    ) : (
+      <Link
+        to={item.path}
+        onClick={() => setOpenMenu(null)}
+        className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
+      >
+        {item.icon}
+        <span style={{ marginLeft: "12px" }}>{item.label}</span>
+      </Link>
+    )}
+
+    {/* MENU CON */}
+    {item.children && (
+  <div className={`submenu ${openMenu === index ? "open" : ""}`}>
+        {item.children.map((child) => (
+   <Link
+      key={child.path}
+      to={child.path}
+      className={`submenu-item ${
+        location.pathname.startsWith(child.path) ? "active" : ""
+      }`}
+    >
+      <FaAngleRight style={{ marginRight: "8px", fontSize: "12px" }} />
+      {child.label}
+    </Link>
+))}
+      </div>
+    )}
+
+  </div>
+))}
       </nav>
 
       {/* 3. MENU FOOTER (SUPPORT) */}
