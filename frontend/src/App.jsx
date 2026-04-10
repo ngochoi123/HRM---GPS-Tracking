@@ -125,15 +125,15 @@ function App() {
 
           {/* --- ROUTES QUẢN LÝ (MANAGER) --- */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
-          <Route path="/QuanLy/checkin" element={<ManagerCheckIn />} /> 
+          <Route path="/QuanLy/CheckIn" element={<ManagerCheckIn />} /> 
           <Route path="/QuanLy/my-requests" element={<MyRequests />} />
           <Route path="/QuanLy/my-salary" element={<MySalary />} />
-          <Route path="/QuanLy/employees" element={<EmployeeManagement />} />
+          <Route path="/QuanLy/Employees" element={<EmployeeManagement />} />
           <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} />
+          <Route path="/QuanLy/Payroll/payroll" element={<Payroll />} />
           <Route path="/QuanLy/rewards-discipline" element={<RewardsDiscipline />} />
           <Route path="/QuanLy/notifications" element={<NotificationPage />} />
           <Route path="/QuanLy/statistics">
-              <Route path="payroll" element={<Payroll />} />
               <Route path="salary" element={<SalaryStats />} />
               <Route path="attendance" element={<AttendanceStats />} />
               <Route path="requests" element={<RequestsStats />} />
@@ -143,8 +143,8 @@ function App() {
 
           {/* --- ROUTES NHÂN VIÊN (EMPLOYEE) --- */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
-          <Route path="/NhanVien/CheckIn" element={<CheckIn />} /> {/* giữ để tránh sai URL */}
-          <Route path="/NhanVien/payroll" element={<Payroll />} />
+          <Route path="/NhanVien/checkin" element={<CheckIn />} /> {/* giữ để tránh sai URL */}
+          <Route path="/NhanVien/payroll" element={<PayrollEmployee />} />
           
           <Route path="/NhanVien/profile" element={<Profile />} />
           <Route path="/NhanVien/contracts" element={<Contract />} />

@@ -1,5 +1,5 @@
 import axios from 'axios';
-const API_URL = 'http://localhost:5000/api/payroll';
+const API_URL = 'https://kltn-gps-api.onrender.com/api/payroll';
 
 export const payrollService = {
   getCalculation: async (monthYear, departmentId) => {

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 
 const ChangesStats = () => {
 
@@ -14,10 +13,10 @@ const ChangesStats = () => {
   useEffect(() => {
     const fetchData = async () => {
         try {
-          const summaryRes = await fetch('http://localhost:5000/api/manager/stats/changes-summary');
+          const summaryRes = await fetch('https://kltn-gps-api.onrender.com/api/manager/stats/changes-summary');
           const summaryData = await summaryRes.json();
       
-          const listRes = await fetch('http://localhost:5000/api/manager/stats/changes-list');
+          const listRes = await fetch('https://kltn-gps-api.onrender.com/api/manager/stats/changes-list');
           const listData = await listRes.json();
       
           const total = Number(summaryData.total);

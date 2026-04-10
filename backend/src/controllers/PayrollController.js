@@ -28,7 +28,9 @@ const calculatePayroll = async (req, res) => {
                 `SELECT COUNT(id) as days FROM attendance 
                  WHERE employee_id = :id AND to_char(attendance_date, 'MM-YYYY') = :my 
                  AND status IN ('on_time', 'late', 'early_leave')`,
-                { replacements: { id: emp.id, my: monthYear } }
+                { replacements: { id: emp.id, my: monthYear },
+                type: db.QueryTypes.SELECT }
+                
             );
 
             const decisions = await db.query(

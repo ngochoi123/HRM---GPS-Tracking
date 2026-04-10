@@ -3,7 +3,6 @@ const cors = require('cors');
 const db = require('./config/database');
 const http = require('http'); // 1. Thêm http
 const { Server } = require('socket.io'); // 2. Thêm Server từ socket.io
-const payrollRoutes = require('./routes/payrollRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -58,6 +57,7 @@ const directorRoutes = require('./routes/directorRoutes');
 const employeeRoutes = require('./routes/EmployeeRoutes');
 const managementRoutes = require('./routes/managementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const payrollRoutes = require('./routes/payrollRoutes');
 
 // ================= 4. USE ROUTES =================
 app.use('/api/auth', authRoutes);
