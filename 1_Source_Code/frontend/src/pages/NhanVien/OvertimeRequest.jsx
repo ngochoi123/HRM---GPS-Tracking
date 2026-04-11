@@ -7,9 +7,11 @@ import { PiClockCounterClockwise } from "react-icons/pi";
 import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { employeeService } from "../../services/employeeService";
 import { IoArrowBack } from "react-icons/io5";
+import { GoCheckCircle } from "react-icons/go";
 import { MdCalendarMonth } from "react-icons/md";
 import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
+import { GoBlocked } from "react-icons/go";
 import './OvertimeRequest.css'
 const OvertimeRequest = () => {
   const [form, setForm] = useState({
@@ -19,17 +21,30 @@ const OvertimeRequest = () => {
     reason: ""
   });
 const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const [approvers, setApprovers] = useState([]);   // danh sách
-  const [approverId, setApproverId] = useState(""); // người chọn
-  const [recentRequests, setRecentRequests] = useState([]);
-const [notification, setNotification] = useState("");
-  const [view, setView] = useState("create");
+const [approvers, setApprovers] = useState([]);   // danh sách
+const [approverId, setApproverId] = useState(""); // người chọn
+const [recentRequests, setRecentRequests] = useState([]);
+const [view, setView] = useState("create");
 const [requests, setRequests] = useState([]);
 const [filterMonth, setFilterMonth] = useState("");
+const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+const [notification, setNotification] = useState("");
 
 
 
+const [showModal, setShowModal] = useState(false);
+const [selectedRequest, setSelectedRequest] = useState(null);
 
+const openModal = (request) => {
+  setSelectedRequest(request);
+  setShowModal(true);
+};
+
+const closeModal = () => {
+  setSelectedRequest(null);
+  setShowModal(false);
+};
 
 const formatDate = (date) => {
   if (!date) return "";
@@ -72,7 +87,7 @@ const filteredRequests = filterMonth
 
 const handleSubmit = async () => {
   if (!form.ot_date || !form.start_time || !form.end_time || !approverId) {
-    alert("Vui lòng nhập đầy đủ thông tin!");
+    setNotification("Vui lòng nhập đầy đủ thông tin!");
     return;
   }
 
@@ -90,8 +105,14 @@ const handleSubmit = async () => {
 
     await employeeService.createOvertimeRequest(payload);
 
-    alert("Gửi đơn tăng ca thành công!");
+    // reload data
+    const res = await employeeService.getOvertimeRequests(user.id);
+    const data = res?.data || res || [];
 
+    setRequests(data);
+    setRecentRequests(data.slice(0, 3));
+
+    // reset form
     setForm({
       ot_date: "",
       start_time: "",
@@ -99,14 +120,35 @@ const handleSubmit = async () => {
       reason: ""
     });
 
-    setApproverId(""); 
+    setApproverId("");
+
+    setShowConfirmSubmit(false);
+    setNotification("Gửi đơn tăng ca thành công!");
+
+    setTimeout(() => setNotification(""), 3000);
 
   } catch (err) {
     console.error(err);
-    alert("Lỗi gửi đơn!");
+    setNotification("Lỗi gửi đơn!");
+    setTimeout(() => setNotification(""), 3000);
   }
 };
 
+const handleCancelConfirm = () => {
+  setForm({
+    ot_date: "",
+    start_time: "",
+    end_time: "",
+    reason: ""
+  });
+
+  setApproverId("");
+
+  setShowConfirmCancel(false);
+  setNotification("Đã xóa dữ liệu!");
+
+  setTimeout(() => setNotification(""), 2000);
+};
 
 
 const totalApprovedOTHours = requests
@@ -175,6 +217,16 @@ const getLatestMonthYear = () => {
     return `${hours}h ${minutes}p`;
    };
 
+  const formatDateDMY = (date) => {
+  if (!date) return "";
+
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+};
   
 
   const displayMonth = filterMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
@@ -222,8 +274,13 @@ useEffect(() => {
 }, [requests]);
 
   return (
-    <div className="request-container">
     
+    <div className="request-container">
+        {notification && (
+          <div className="toast">
+            {notification}
+          </div>
+        )}
       <div className="request-left">
         {view === "create" ? (
     <>
@@ -233,7 +290,7 @@ useEffect(() => {
                 <p>Tạo và quản lý đơn tăng ca của bạn.</p>
             </div>
             <div className="header-right">
-                <button className="btn-cannel">
+                <button className="btn-cannel" onClick={() => setShowConfirmCancel(true)}>
                     <HiMiniXCircle /> Hủy
                 </button>
             </div>
@@ -343,7 +400,7 @@ useEffect(() => {
         </div>
 
         <div className="acction-footer">
-            <button className="btn-request" onClick={handleSubmit} >
+            <button className="btn-request" onClick={() => setShowConfirmSubmit(true)} >
                 <BsSend /> Gửi
             </button>
         </div>
@@ -406,7 +463,7 @@ useEffect(() => {
                         </tr>
                     ) : (
                         filteredRequests.map((r) => (
-                        <tr key={r.id} style={{ cursor: "pointer" }}>
+                        <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => openModal(r)}>
 
                             {/* Ngày gửi đơn */}
                             <td>{formatDate(r.created_at)}</td>
@@ -451,6 +508,124 @@ useEffect(() => {
     )}                    
       </div>
 
+      {showModal && selectedRequest && (
+  <div className="modal-overlay" onClick={closeModal}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+
+      <h2 style={{ marginBottom: "20px", fontSize: "20px" }}>
+        Chi tiết đơn tăng ca
+      </h2>
+
+      {/* THÔNG TIN CHUNG */}
+      <div className="info-section">
+        <h3 className="section-title">
+          <FaRegFileAlt className="icon" /> Thông tin chung
+        </h3>
+
+        <div className="input-grid">
+          <div className="input-group-1">
+            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Ngày tăng ca</label>
+            <input
+              type="text"
+              className="input-option-2"
+              value={formatDateDMY(selectedRequest.ot_date)}
+              readOnly
+            />
+          </div>
+
+          <div className="input-group-1">
+            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Người kiểm duyệt</label>
+            <input
+              type="text"
+              className="input-option-2"
+              value={selectedRequest.approver_name || "---"}
+              readOnly
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* THỜI GIAN */}
+      <div className="info-section">
+        <h3 className="section-title">
+          <FaRegClock className="icon" /> Thời gian tăng ca
+        </h3>
+
+        <div className="input-grid">
+          <div className="input-group-1">
+            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Bắt đầu</label>
+            <input
+              type="time"
+              className="input-option-2"
+              value={selectedRequest.start_time || ""}
+              readOnly
+            />
+          </div>
+
+          <div className="input-group-1">
+            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Kết thúc</label>
+            <input
+              type="time"
+              className="input-option-2"
+              value={selectedRequest.end_time || ""}
+              readOnly
+            />
+          </div>
+        </div>
+
+        <div className="info-section-bottom-1">
+          <div className="info-section-bottom-left">
+            <p>Tổng thời gian:</p>
+          </div>
+
+          <div className="info-section-bottom-right">
+            <p>
+              {calculateOTHours(
+                selectedRequest.start_time,
+                selectedRequest.end_time
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* NỘI DUNG */}
+      <div className="info-section">
+        <h3 className="section-title">
+          <MdChatBubbleOutline className="icon" /> Nội dung công việc
+        </h3>
+
+        <textarea
+          className="input-option-3"
+          value={selectedRequest.reason || ""}
+          readOnly
+        />
+      </div>
+
+      {/* TRẠNG THÁI */}
+      <div className="info-section">
+        <h3 className="section-title">Trạng thái</h3>
+
+        <span className={`status-pill ${selectedRequest.status}`}>
+          {selectedRequest.status === "approved"
+            ? "Đã duyệt"
+            : selectedRequest.status === "pending"
+            ? "Chờ duyệt"
+            : "Từ chối"}
+        </span>
+      </div>
+
+      {/* BUTTON */}
+      <div style={{ textAlign: "right" }}>
+        <button onClick={closeModal} className="btn-close-modal">
+          Đóng
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+
       <div className="request-right">
         <div className="card-request-top">
   <div className="card-header">
@@ -488,7 +663,7 @@ useEffect(() => {
     </div>
   </div>
 
-  {/* GIỮ ICON Ô */}
+
   <svg
     className="umbrella-bg"
     viewBox="0 0 24 24"
@@ -519,20 +694,17 @@ useEffect(() => {
       recentRequests.map((r) => (
         <div className="recent-item" key={r.id}>
           
-          {/* ICON - dùng chung class leave */}
           <div className={`recent-icon-wrapper ${r.status}`}>
-            {r.status === "approved" ? <GoCheckCircle /> : <LuClock2 />}
+            {r.status === "approved" ? <GoCheckCircle /> :
+             r.status === "pending" ? <LuClock2 /> :
+             r.status === "rejected" ? <GoBlocked /> :
+             null}
           </div>
-
-          {/* CONTENT - dùng chung class leave */}
-          <div className="recent-info">
-            
-            {/* OVERTIME TYPE */}
+        
+          <div className="recent-info">          
             <p className="recent-type">
               Tăng ca
             </p>
-
-            {/* DATE RANGE */}
             <p className="recent-date">
               {formatDate(r.ot_date)} ({r.start_time} - {r.end_time})
             </p>
@@ -557,6 +729,44 @@ useEffect(() => {
 </div>
 
       </div>
+    {showConfirmSubmit && (
+  <div className="modal-overlay" onClick={() => setShowConfirmSubmit(false)}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3>Xác nhận gửi đơn</h3>
+      <p>Bạn có chắc muốn gửi đơn tăng ca này không?</p>
+
+      <div className="confirm-actions">
+        <button className="btn-confirm" onClick={handleSubmit}>
+          Đồng ý
+        </button>
+
+        <button className="btn-cancel" onClick={() => setShowConfirmSubmit(false)}>
+          Hủy
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showConfirmCancel && (
+  <div className="modal-overlay" onClick={() => setShowConfirmCancel(false)}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3>Xác nhận hủy</h3>
+      <p>Dữ liệu nhập sẽ bị xóa. Bạn có chắc không?</p>
+
+      <div className="confirm-actions">
+        <button className="btn-danger" onClick={handleCancelConfirm}>
+          Xóa dữ liệu
+        </button>
+
+        <button className="btn-cancel" onClick={() => setShowConfirmCancel(false)}>
+          Quay lại
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
     </div>
   );

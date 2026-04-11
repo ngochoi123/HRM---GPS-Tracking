@@ -3,6 +3,9 @@
   grid-template-columns: 2fr 1fr;
   gap: 20px;
   padding: 20px;
+
+  height: calc(100vh - 40px); 
+  align-items: start;
 }
 
 /* LEFT */
@@ -14,6 +17,7 @@
   padding: 15px 20px;
   font-family: 'Inter', sans-serif;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  
   
 }
 
@@ -420,6 +424,13 @@
   box-shadow: 0 4px 10px rgba(0,0,0,0.2);
   z-index: 9999;
   animation: fadeIn 0.3s ease;
+  animation: fadeInOut 3s ease forwards;
+}
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
 }
 
 @keyframes fadeIn {
@@ -510,7 +521,30 @@
   background-color: white;
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 14px;
-  overflow: hidden; /* Để bo góc table khớp với container */
+  overflow: hidden;
+  max-height: 600px;        /* Chiều cao tối đa của bảng trước khi xuất hiện thanh cuộn */
+  overflow-y: auto;         /* Cho phép cuộn dọc */
+  overflow-x: hidden;       /* Ngăn cuộn ngang không cần thiết */
+  position: relative;
+}
+.history-table-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.history-table-container::-webkit-scrollbar-thumb {
+    background: #e2e8f0; 
+    border-radius: 10px;
+}
+
+.history-table-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.history-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #00AE0C; 
+    box-shadow: 0 2px 2px rgba(0,0,0,0.1); 
 }
 
 .history-table {
@@ -616,10 +650,14 @@
   background-color: #e6f7ef; /* Xanh lá nhạt */
   color: #00b050; /* Xanh lá */
 }
+.recent-icon-wrapper.rejected {
+  background-color: #ffe6e6; /* Đỏ nhạt */
+  color: #e60000; /* Đỏ */
+}
 
 /* Nội dung text */
 .recent-info {
-  flex: 1; /* Chiếm hết khoảng trống ở giữa */
+  flex: 1; 
   display: flex;
   flex-direction: column;
 }
@@ -637,7 +675,7 @@
   margin-top: 4px;
 }
 
-/* Status Pill (Cái nhãn bên phải) */
+
 .status-pill {
   font-size: 10px;
   font-weight: bold;
@@ -645,13 +683,13 @@
   border-radius: 8px;
   text-transform: uppercase;
   
-  /* Thêm các dòng dưới đây để căn giữa chuẩn */
-  display: inline-flex;       /* Dùng flex để các phần tử con nằm cùng hàng */
-  align-items: center;        /* Căn giữa theo chiều dọc */
-  justify-content: center;    /* Căn giữa toàn bộ nội dung theo chiều ngang */
-  gap: 5px;                   /* Khoảng cách giữa chấm tròn và chữ */
-  white-space: nowrap;        /* Tuyệt đối không cho rớt dòng */
-  min-width: 90px;            /* Đảm bảo độ rộng nút cân đối */
+
+  display: inline-flex;       
+  align-items: center;       
+  justify-content: center;    
+  gap: 5px;                   
+  white-space: nowrap;        
+  min-width: 90px;            
 }
 
 /* Tinh chỉnh riêng cái chấm để nó không bị lệch so với chữ viết hoa */
