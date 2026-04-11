@@ -38,8 +38,13 @@ app.use('/uploads', express.static('uploads'));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", 
-    methods: ["GET", "POST"]
+    origin: [
+      'https://hrmgpsattendance.web.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true,
   }
 });
 

@@ -4,17 +4,26 @@ const nodemailer = require('nodemailer');
 const { Resend } = require('resend'); // Thêm Resend
 const PDFDocument = require('pdfkit');
 
-// Khởi tạo Resend (cho Production)
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization: chỉ tạo Resend khi thực sự cần (tránh crash khi local không có RESEND_API_KEY)
+let _resendClient = null;
+function getResendClient() {
+  if (!_resendClient) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('[emailService] Thiếu RESEND_API_KEY trong .env. Không thể gửi email qua Resend.');
+    }
+    _resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resendClient;
+}
 
-// Khởi tạo Nodemailer (cho Local)
+// Khởi tạo Nodemailer (cho Local) — luôn sẵn sàng, không phụ thuộc Resend key
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4 // Ép IPv4 cho chắc ăn ở local
+  family: 4, // Ép IPv4 cho chắc ăn ở local
 });
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -26,7 +35,7 @@ async function transportMail({ to, subject, html, attachments = [] }) {
   if (isProd) {
     // CHẠY TRÊN RENDER: Dùng Resend qua HTTP API (Cổng 443 không bao giờ treo)
     console.log(`🚀 [Resend] Đang gửi mail tới: ${to}`);
-    return resend.emails.send({
+    return getResendClient().emails.send({
       from: 'HR System <hrmgpsattendance.web.app>', // Sau này bạn có domain riêng thì thay vào đây
       to: to,
       subject: subject,
