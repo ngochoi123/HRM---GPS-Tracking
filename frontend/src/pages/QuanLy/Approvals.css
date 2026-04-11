@@ -1,0 +1,439 @@
+.approvals-container{
+    background: white;
+    width: 100%;
+    min-height: 650px; 
+    max-height: 100vh; 
+    
+    display: flex;
+    flex-direction: column;
+}
+
+.approvals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+}
+.approvals-title{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.approvals-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.approvals-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 5px;
+}
+.approvals-icon-main{
+  font-size: 20px;
+  color: #D97706;
+}
+.approvals-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 20%;
+  background: #FEF3C7; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.approvals-header-right{
+  display: flex;
+  gap: 10px;
+}
+
+/* ===== BACK BUTTON ===== */
+.btn-back-outline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 10px 16px;
+  border-radius: 12px;
+
+  border: 1px solid #9d9d9d;
+  background: #eae5e5;
+
+  color: rgb(76, 94, 62);
+  font-size: 14px;
+  font-weight: 500;
+
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+/* hover */
+.btn-back-outline:hover {
+  background: #00b33c;
+  color: #fff;
+  border-color: #00b33c;
+
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 179, 60, 0.25);
+}
+
+/* click */
+.btn-back-outline:active {
+  transform: scale(0.96);
+  box-shadow: 0 3px 8px rgba(0, 179, 60, 0.2);
+}
+
+.approvals-btn-history {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  
+  
+  background: #ffffff; 
+  border: 1px solid #e2e8f0; 
+  color: #475569;           
+  
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.approvals-btn-history:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  color: #1e293b;
+}
+.approvals-btn-history:active {
+  transform: scale(0.98);
+}
+
+.approvals-btn-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: none;
+
+  /* Màu xanh Cyan giống mẫu */
+  background: #00bcd4; 
+  color: #ffffff;
+  
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 188, 212, 0.25); /* Đổ bóng nhẹ cùng tông màu */
+  transition: all 0.2s ease;
+}
+
+.approvals-btn-all:hover {
+  background: #00acc1; /* Đậm hơn một chút khi hover */
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(0, 188, 212, 0.35);
+}
+
+.approvals-btn-all:active {
+  transform: scale(0.98);
+}
+
+/* stats bar*/
+.approvals-statsbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 15px 25px;
+  border-radius: 10px;
+  margin-top: 15px;
+  margin-left: 25px;
+  margin-right: 25px; 
+  border: 1px solid #ccc;
+}
+
+/* Phần số liệu bên trái */
+.approvals-statsbar-left {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.stat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8; 
+  letter-spacing: 0.5px;
+}
+
+.stat-number {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.stat-number.orange { color: #f59e0b; } /* Màu vàng cam */
+.stat-number.green { color: #10b981; }  /* Màu xanh lá */
+
+.stat-divider {
+  width: 1px;
+  height: 30px;
+  background-color: #94a3b8;
+}
+
+
+.approvals-statsbar-right {
+  background: #f8fafc; 
+  padding: 6px;
+  border-radius: 30px;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 5px;
+}
+
+.filter-tab {
+  border: none;
+  background: transparent;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 25px;
+  transition: all 0.2s ease;
+}
+
+.filter-tab:hover {
+  color: #00bcd4;
+}
+
+.filter-tab.active {
+  background: #ffffff;
+  color: #00bcd4;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+}
+
+
+
+/*content*/
+/* Container chung của phần Content */
+.approvals-content {
+  margin-top: 24px;
+  padding:15px;
+  overflow-y: auto;
+}
+/* 2. Tùy chỉnh độ rộng thanh cuộn */
+.approvals-content::-webkit-scrollbar {
+    width: 6px; /* Làm thanh cuộn mỏng đi (mặc định thường là 12px-16px) */
+}
+
+/* 3. Tùy chỉnh phần nền của thanh cuộn (Track) */
+.approvals-content::-webkit-scrollbar-track {
+    background: transparent; /* Để nền trong suốt cho đỡ thô */
+}
+
+/* 4. Tùy chỉnh phần thanh trượt (Thumb) */
+.approvals-content::-webkit-scrollbar-thumb {
+    background: #e2e8f0; /* Màu xám nhạt tinh tế */
+    border-radius: 10px; /* Bo tròn đầu thanh cuộn */
+    transition: all 0.3s ease;
+}
+
+/* 5. Hiệu ứng khi di chuột vào thanh trượt */
+.approvals-content::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1; /* Đậm hơn một chút khi tương tác */
+}
+
+.content-title {
+  font-size: 13px;
+  color: #94a3b8; /* Màu xám nhạt */
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Thẻ Card chính cho mỗi nhân viên */
+.request-card {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 20px 24px;
+  border: 1px solid #f1f5f9;
+  position: relative; 
+  transition: all 0.2s ease;
+  border-left: 5px solid #2fbd2f;
+}
+
+.request-card:hover {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px);
+}
+
+.card-border-left {
+  position: absolute;
+
+}
+
+/* --- Section 1: User Profile --- */
+.card-user-section {
+  display: flex;
+  align-items: center;
+  width: 250px; /* Cố định độ rộng cột 1 */
+  gap: 16px;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  background: #e2e8f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #475569;
+  overflow: hidden;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 16px;
+}
+
+.user-role {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* --- Section 2: Request Info --- */
+.card-info-section {
+  flex: 1; 
+}
+
+.tag-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.tag-type {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+/* Style cho tag Nghỉ phép năm */
+.green-bg {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.tag-status {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.request-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 4px 0;
+}
+
+.request-time {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* --- Section 3: Actions --- */
+.card-action-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Nút icon xem chi tiết (màu xanh cyan nhạt) */
+.btn-icon-view {
+  background: #ecfeff;
+  color: #0891b2;
+  border: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-icon-view:hover {
+  background: #cffafe;
+}
+
+/* Nhóm nút Từ chối / Phê duyệt */
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  padding-left: 20px;
+  border-left: 1px solid #f1f5f9;
+}
+
+.btn-text-reject {
+  background: #fff1f2;
+  color: #e11d48;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-text-reject:hover {
+  background: #ffe4e6;
+}
+
+.btn-approve-primary {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-approve-primary:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}

@@ -255,7 +255,25 @@ const calculateTotalDays = (start, end) => {
   try {
     await employeeService.createLeaveRequest(payload);
 
+    // 1. Hiển thị thông báo
     setNotification("Gửi đơn thành công!");
+    
+    // 2. Đóng modal xác nhận ngay lập tức
+    setShowConfirmSubmit(false);
+    
+    // 3. Reset form về trạng thái trống
+    handleCancel();
+
+    // 4. Reload lại danh sách đơn để cập nhật UI
+    const res = await employeeService.getLeaveRequests(user.id);
+    const data = res?.data || res || [];
+    setRequests(data);
+    setRecentRequests(data.slice(0, 3));
+
+    // 5. QUAN TRỌNG: Tự động tắt thông báo sau 3 giây
+    setTimeout(() => {
+      setNotification("");
+    }, 3000);
     setShowConfirmSubmit(false);
 
   } catch (err) {
