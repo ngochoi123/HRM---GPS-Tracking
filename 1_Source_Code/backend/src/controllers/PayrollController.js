@@ -1,7 +1,4 @@
 const db = require('../config/database');
-<<<<<<< HEAD
-const { calculateTaxesAndInsurances } = require('../services/payrollService');
-=======
 const {
     calcStandardWorkHours,
     getAttendanceStatusForCheckIn,
@@ -113,20 +110,14 @@ const resolveStatusAfterEdit = (checkInDt, checkOutDt) => {
     }
     return 'absent';
 };
->>>>>>> develop
 
 const calculatePayroll = async (req, res) => {
     console.log("🚀🚀🚀 CHÚ Ý: ĐÃ VÀO HÀM TÍNH LƯƠNG!!! Tháng:", req.query.monthYear);
     const { monthYear, departmentId } = req.query;
-<<<<<<< HEAD
-
-    try {
-=======
     let tx;
 
     try {
         tx = await db.transaction();
->>>>>>> develop
         let empQuery = `
             SELECT e.id, e.employee_code, e.full_name, c.base_salary, d.department_name
             FROM employee e 
@@ -142,19 +133,6 @@ const calculatePayroll = async (req, res) => {
             replacements.deptId = departmentId;
         }
 
-<<<<<<< HEAD
-        const employees = await db.query(empQuery, { replacements, type: db.QueryTypes.SELECT });
-
-        const results = [];
-        for (const emp of employees) {
-            const [att] = await db.query(
-                `SELECT COUNT(id) as days FROM attendance 
-                 WHERE employee_id = :id AND to_char(attendance_date, 'MM-YYYY') = :my 
-                 AND status IN ('on_time', 'late', 'early_leave')`,
-                { replacements: { id: emp.id, my: monthYear },
-                type: db.QueryTypes.SELECT }
-                
-=======
         const employees = await db.query(empQuery, {
             replacements,
             type: db.QueryTypes.SELECT,
@@ -179,16 +157,12 @@ const calculatePayroll = async (req, res) => {
                     type: db.QueryTypes.SELECT,
                     transaction: tx
                 }
->>>>>>> develop
             );
 
             const decisions = await db.query(
                 `SELECT decision_type, SUM(amount) as total FROM hr_decision 
                  WHERE employee_id = :id AND to_char(issue_date, 'MM-YYYY') = :my 
                  GROUP BY decision_type`,
-<<<<<<< HEAD
-                { replacements: { id: emp.id, my: monthYear }, type: db.QueryTypes.SELECT }
-=======
                 { replacements: { id: emp.id, my: monthYear }, type: db.QueryTypes.SELECT, transaction: tx }
             );
 
@@ -206,7 +180,6 @@ const calculatePayroll = async (req, res) => {
                     type: db.QueryTypes.SELECT,
                     transaction: tx
                 }
->>>>>>> develop
             );
 
             let reward = 0, discipline = 0;
@@ -215,24 +188,6 @@ const calculatePayroll = async (req, res) => {
                 if (d.decision_type === 'discipline') discipline = parseFloat(d.total);
             });
 
-<<<<<<< HEAD
-            const [ot] = await db.query(
-                `SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600), 0) as ot_hours 
-                 FROM overtime_request 
-                 WHERE employee_id = :id AND to_char(ot_date, 'MM-YYYY') = :my AND status = 'approved'`,
-                { replacements: { id: emp.id, my: monthYear }, type: db.QueryTypes.SELECT }
-            );
-            
-            // 1. THU NHẬP THÁNG = Lương Cơ Bản
-            const base = parseFloat(emp.base_salary || 0);
-            const actualSalary = base; 
-            
-            const days = parseFloat(att?.days || 0);
-            const otHours = parseFloat(ot?.ot_hours || 0);
-            const overtimeMoney = otHours * (base / 22 / 8) * 1.5;
-
-            // 2. TÍNH BẢO HIỂM (Dựa trên Lương CB)
-=======
             const otHours = overtimeRows.reduce(
                 (sum, row) => sum + parseFloat(row.ot_hours || 0),
                 0
@@ -306,41 +261,16 @@ const calculatePayroll = async (req, res) => {
             const actualSalary = base;
 
             // 2. TÍNH BẢO HIỂM (Tính theo Lương CB / Thu Nhập Tháng)
->>>>>>> develop
             const compInsurance = {
                 bhxh: base * 0.175,
                 bhyt: base * 0.03,
                 bhtn: base * 0.01,
-<<<<<<< HEAD
-                total: base * 0.215
-=======
                 total: base * 0.215 // Tổng DN Đóng BH
->>>>>>> develop
             };
             const empInsurance = {
                 bhxh: base * 0.08,
                 bhyt: base * 0.015,
                 bhtn: base * 0.01,
-<<<<<<< HEAD
-                total: base * 0.105
-            };
-
-            // 3. THU NHẬP SAU BH (Của NLĐ) = Thu nhập tháng - Tổng BH Người lao động
-            const incomeAfterIns = actualSalary - empInsurance.total;
-
-            // 4. TÍNH THUẾ TNCN (Gross = Thu nhập tháng + Thưởng + Tăng ca)
-            const gross = actualSalary + reward + overtimeMoney;
-            const { pitTax } = calculateTaxesAndInsurances(base, gross);
-
-            // 5. THỰC NHẬN (NET) = Thu nhập sau BH + Thưởng + Tăng Ca - Kỷ luật - Thuế TNCN
-            const netSalary = incomeAfterIns + reward + overtimeMoney - discipline - pitTax;
-
-            // 6. CHI PHÍ TIỀN LƯƠNG (Của Công ty) = Tổng Gross + Doanh Nghiệp Đóng BH
-            // Công thức này bao hàm cả (Thực nhận + Thuế TNCN + BH NLĐ + Kỷ luật + BH DN)
-            const companyCost = gross + compInsurance.total;
-
-            results.push({
-=======
                 total: base * 0.105 // Tổng NLĐ Đóng BH
             };
 
@@ -416,7 +346,6 @@ const calculatePayroll = async (req, res) => {
 
             results.push({
                 employee_id: emp.id,
->>>>>>> develop
                 employee_code: emp.employee_code,
                 full_name: emp.full_name,
                 department_name: emp.department_name,
@@ -429,15 +358,6 @@ const calculatePayroll = async (req, res) => {
                 compInsurance,
                 empInsurance,
                 income_after_insurance: incomeAfterIns,
-<<<<<<< HEAD
-                pitTax: pitTax, 
-                net_salary: netSalary,
-                company_cost: companyCost
-            });
-        }
-        res.json({ success: true, data: results });
-    } catch (error) { 
-=======
                 company_cost: companyCost,
                 net_salary: netSalary,
                 attendance_detail: attendanceDetail
@@ -447,14 +367,10 @@ const calculatePayroll = async (req, res) => {
         res.json({ success: true, data: results });
     } catch (error) { 
         if (tx) await tx.rollback();
->>>>>>> develop
         res.status(500).json({ success: false, error: error.message }); 
     }
 };
 
-<<<<<<< HEAD
-module.exports = { calculatePayroll };
-=======
 /**
  * Sửa giờ check-in / check-out (bảng attendance) — dùng khi chấm công sai, cần chỉnh tay.
  * Body: { employeeId, attendanceDate, checkIn?, checkOut?, attendanceId? }
@@ -642,4 +558,3 @@ const correctAttendance = async (req, res) => {
 };
 
 module.exports = { calculatePayroll, correctAttendance };
->>>>>>> develop
