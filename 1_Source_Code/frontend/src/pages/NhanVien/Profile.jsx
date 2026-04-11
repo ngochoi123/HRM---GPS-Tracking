@@ -8,6 +8,7 @@ import { FaAddressBook } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { ArrowLeft } from "lucide-react";
+import { useParams } from "react-router-dom";
 
 import "./Profile.css";
 import { employeeService } from "../../services/employeeService";
@@ -17,7 +18,7 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [modalMessage, setModalMessage] = useState("");
-
+  const { id } = useParams();
   const [showContractModal, setShowContractModal] = useState(false);
 const [contractMessage, setContractMessage] = useState("");
   
@@ -114,16 +115,18 @@ const handleChangePassword = async () => {
 };
 
 
-  useEffect(() => {
-    
-    const userLocal = JSON.parse(localStorage.getItem("user"));
-    if (!userLocal?.id) return;
+useEffect(() => {
+  const userLocal = JSON.parse(localStorage.getItem("user"));
 
-    employeeService
-      .getProfile(userLocal.id)
-      .then((res) => setUser(res))
-      .catch((err) => console.error(err));
-  }, []);
+  const targetId = id || userLocal?.id; // ✅ nếu có id thì dùng id, không thì dùng user hiện tại
+
+  if (!targetId) return;
+
+  employeeService
+    .getProfile(targetId)
+    .then((res) => setUser(res))
+    .catch((err) => console.error(err));
+}, [id]);
 
   if (!user) {
     return <div className="profile-page-background">Đang tải dữ liệu...</div>;

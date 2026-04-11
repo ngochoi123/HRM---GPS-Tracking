@@ -102,7 +102,7 @@ const getAnnualUsedDays = () => {
   return requests
     .filter((r) => {
       // Đảm bảo loại đơn là annual và đã được duyệt
-      return r.leave_type === "annual" && r.status === "approved";
+return r.leave_type === "annual" && r.status === "approved";
     })
     .reduce((total, r) => {
       let start = new Date(r.start_datetime);
@@ -328,8 +328,7 @@ const handleCancelConfirm = () => {
 
   const start = new Date(form.startDate);
   const end = new Date(form.endDate);
-
-  const diffTime = end - start;
+const diffTime = end - start;
 
   if (diffTime < 0) return 0;
 
@@ -423,7 +422,7 @@ const handleCancelConfirm = () => {
               <label>Ngày bắt đầu</label>
               <input
                 type="date"
-                className="input-option"
+className="input-option"
                 value={form.startDate}
                 onChange={(e) =>
                   setForm({ ...form, startDate: e.target.value })
@@ -511,7 +510,7 @@ const handleCancelConfirm = () => {
       {/* ================= HISTORY ================= */}
       <div className="history-page-header">
         <div>
-          <h2>Đơn đã gửi</h2>
+<h2>Đơn đã gửi</h2>
           <p>Tất cả các đơn bạn đã gửi</p>
         </div>
 
@@ -590,7 +589,7 @@ const handleCancelConfirm = () => {
                         </span>
                       </td>
                     </tr>
-                  ))
+))
                 )}
               </tbody>
             </table>
@@ -667,7 +666,7 @@ const handleCancelConfirm = () => {
                 </div>
                 <div className="info-section-bottom-right">
                   <p>
-                    {calculateTotalDays(selectedRequest.start_datetime, selectedRequest.end_datetime)}
+{calculateTotalDays(selectedRequest.start_datetime, selectedRequest.end_datetime)}
                   </p>
                 </div>
               </div>
@@ -754,7 +753,7 @@ const handleCancelConfirm = () => {
           >
             <path d="M23 12a11.02 11.02 0 0 0-22 0zm-11 0v9"></path>
             <path d="M9 21a3 3 0 0 0 6 0"></path>
-          </svg>
+</svg>
         </div>
 
         <div className="card-request-bot">
@@ -841,7 +840,7 @@ const handleCancelConfirm = () => {
           onClick={handleCancelConfirm}
         >
           Xóa dữ liệu
-        </button>
+</button>
 
         <button
           className="btn-cancel"

@@ -464,23 +464,30 @@ const query = `
 };
 const getChangesSummary = async (req, res) => {
   try {
+    const { month } = req.query; // yyyy-MM
+
     const query = `
       SELECT
-        (SELECT COUNT(*) FROM employee WHERE status = 'active') AS total,
+  (SELECT COUNT(*) 
+   FROM employee 
+   WHERE join_date <= TO_DATE(:month, 'YYYY-MM')
+     AND (status = 'active' OR TO_CHAR(updated_at, 'YYYY-MM') > :month)
+  ) AS total,
 
-        (SELECT COUNT(*) 
-         FROM employee 
-         WHERE DATE_TRUNC('month', join_date) = DATE_TRUNC('month', CURRENT_DATE)
-        ) AS new_employees,
+  (SELECT COUNT(*) 
+   FROM employee 
+   WHERE TO_CHAR(join_date, 'YYYY-MM') = :month
+  ) AS new_employees,
 
-        (SELECT COUNT(*) 
-         FROM employee 
-         WHERE status = 'inactive'
-         AND DATE_TRUNC('month', updated_at) = DATE_TRUNC('month', CURRENT_DATE)
-        ) AS leave_employees
+  (SELECT COUNT(*) 
+   FROM employee 
+   WHERE status = 'inactive'
+     AND TO_CHAR(updated_at, 'YYYY-MM') = :month
+  ) AS leave_employees
     `;
 
     const result = await db.query(query, {
+      replacements: { month },
       type: db.QueryTypes.SELECT
     });
 
@@ -493,29 +500,54 @@ const getChangesSummary = async (req, res) => {
 };
 const getChangesList = async (req, res) => {
   try {
+    const { month } = req.query;
+
     const query = `
       SELECT 
+        e.id AS employee_id,
         e.full_name,
         d.department_name,
-        CASE 
-          WHEN DATE_TRUNC('month', e.join_date) = DATE_TRUNC('month', CURRENT_DATE)
-          THEN 'Gia nhập'
-          ELSE 'Nghỉ việc'
-        END AS type,
-        COALESCE(e.updated_at, e.join_date) AS date
+        'Gia nhập' AS type,
+        e.join_date AS date
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
-      WHERE 
-        DATE_TRUNC('month', e.join_date) = DATE_TRUNC('month', CURRENT_DATE)
-        OR (
-          e.status = 'inactive' 
-          AND DATE_TRUNC('month', e.updated_at) = DATE_TRUNC('month', CURRENT_DATE)
-        )
-      ORDER BY date DESC
+      WHERE TO_CHAR(e.join_date, 'YYYY-MM') = :month
+
+      UNION ALL
+
+      SELECT 
+        e.id AS employee_id,
+        e.full_name,
+        d.department_name,
+        'Nghỉ việc' AS type,
+        e.updated_at AS date
+      FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE e.status = 'inactive'
+        AND TO_CHAR(e.updated_at, 'YYYY-MM') = :month
+
+      UNION ALL
+
+      SELECT 
+        e.id AS employee_id,
+        e.full_name,
+        d.department_name,
+        'Nghỉ phép' AS type,
+        lr.start_datetime AS date
+      FROM leave_request lr
+      JOIN employee e ON e.id = lr.employee_id
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE lr.status = 'approved'
+        AND TO_CHAR(lr.start_datetime, 'YYYY-MM') = :month
+
+      ORDER BY date DESC;
     `;
 
     const result = await db.query(query, {
+      replacements: { month },
       type: db.QueryTypes.SELECT
     });
 
@@ -523,6 +555,56 @@ const getChangesList = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi getChangesList:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+const getTenureStats = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        CASE 
+          WHEN AGE(CURRENT_DATE, join_date) < INTERVAL '1 year' THEN 'fresher'
+          WHEN AGE(CURRENT_DATE, join_date) < INTERVAL '3 years' THEN 'junior'
+          WHEN AGE(CURRENT_DATE, join_date) < INTERVAL '5 years' THEN 'mid'
+          ELSE 'senior'
+        END AS level,
+        COUNT(*) as count
+      FROM employee
+      WHERE status = 'active' AND join_date IS NOT NULL
+      GROUP BY level
+    `;
+
+    const result = await db.query(query, {
+      type: db.QueryTypes.SELECT
+    });
+
+    // 👉 format lại cho frontend dễ dùng
+    const data = {
+      fresher: 0,
+      junior: 0,
+      mid: 0,
+      senior: 0
+    };
+
+    let total = 0;
+
+    result.forEach(item => {
+      data[item.level] = Number(item.count);
+      total += Number(item.count);
+    });
+
+    // 👉 convert sang %
+    const percentData = {
+      fresher: total ? Math.round((data.fresher / total) * 100) : 0,
+      junior: total ? Math.round((data.junior / total) * 100) : 0,
+      mid: total ? Math.round((data.mid / total) * 100) : 0,
+      senior: total ? Math.round((data.senior / total) * 100) : 0
+    };
+
+    res.status(200).json(percentData);
+
+  } catch (error) {
+    console.error('Lỗi getTenureStats:', error);
     res.status(500).json({ message: 'Lỗi server' });
   }
 };
@@ -536,7 +618,8 @@ module.exports = {
   getPresentEmployees,
   getAbsentEmployees,
   getChangesSummary,
-  getChangesList
+  getChangesList,
+  getTenureStats
 };
 
 

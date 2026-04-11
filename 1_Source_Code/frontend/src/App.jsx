@@ -171,6 +171,7 @@ function App() {
           <Route path="/NhanVien/payroll" element={<PayrollEmployee />} />
           
           <Route path="/NhanVien/profile" element={<Profile />} />
+          <Route path="/profile/:id" element={<Profile />} />  // ✅ THÊM DÒNG NÀY
           <Route path="/NhanVien/contracts" element={<Contract />} />
           <Route path="/NhanVien/requests/leave" element={<Requests />} />
           <Route path="/NhanVien/requests/overtime" element={<OvertimeRequest />} />

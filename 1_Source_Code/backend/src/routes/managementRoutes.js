@@ -36,6 +36,7 @@ router.get('/dashboard/present', managementController.getPresentEmployees);
 router.get('/dashboard/absent', managementController.getAbsentEmployees);
 router.get('/stats/changes-summary', managementController.getChangesSummary);
 router.get('/stats/changes-list', managementController.getChangesList);
+router.get('/stats/tenure', managementController.getTenureStats);
 // --- ROUTE QUYẾT ĐỊNH (CÓ UPLOAD FILE) ---
 // GET /decisions/dashboard phải khai báo trước GET /decisions/:id
 router.get('/decisions/dashboard', decisionController.getDecisionDashboard);
