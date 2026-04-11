@@ -5,6 +5,11 @@ import { MdChatBubbleOutline } from "react-icons/md";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
 import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { employeeService } from "../../services/employeeService";
+import { IoArrowBack } from "react-icons/io5";
+import { MdCalendarMonth } from "react-icons/md";
+import { CiSearch } from "react-icons/ci";
+import { LuClock2 } from "react-icons/lu";
 import './OvertimeRequest.css'
 const OvertimeRequest = () => {
   const [form, setForm] = useState({
@@ -13,6 +18,57 @@ const OvertimeRequest = () => {
     end_time: "",
     reason: ""
   });
+const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const [approvers, setApprovers] = useState([]);   // danh sách
+  const [approverId, setApproverId] = useState(""); // người chọn
+  const [recentRequests, setRecentRequests] = useState([]);
+const [notification, setNotification] = useState("");
+  const [view, setView] = useState("create");
+const [requests, setRequests] = useState([]);
+const [filterMonth, setFilterMonth] = useState("");
+
+
+
+
+
+const formatDate = (date) => {
+  if (!date) return "";
+  return new Date(date).toLocaleDateString("vi-VN");
+};
+
+const formatTime = (time) => {
+  if (!time) return "";
+  return time.slice(0, 5);
+};
+
+const calculateOTHours = (start, end) => {
+  if (!start || !end) return "";
+
+  const [h1, m1] = start.split(":").map(Number);
+  const [h2, m2] = end.split(":").map(Number);
+
+  const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if (diff <= 0) return "Không hợp lệ";
+
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+
+  return `${h}h ${m}p`;
+};
+
+const filteredRequests = filterMonth
+  ? requests.filter((r) => {
+      if (!r.ot_date) return false;
+
+      const d = new Date(r.ot_date);
+
+      const ym = `${d.getFullYear()}-${String(
+        d.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      return ym === filterMonth;
+    })
+  : requests;
 
 const handleSubmit = async () => {
   if (!form.ot_date || !form.start_time || !form.end_time || !approverId) {
@@ -32,7 +88,7 @@ const handleSubmit = async () => {
       approver_id: approverId
     };
 
-    await axiosClient.post("/employee/overtime-request", payload);
+    await employeeService.createOvertimeRequest(payload);
 
     alert("Gửi đơn tăng ca thành công!");
 
@@ -49,6 +105,56 @@ const handleSubmit = async () => {
     console.error(err);
     alert("Lỗi gửi đơn!");
   }
+};
+
+
+
+const totalApprovedOTHours = requests
+  .filter((r) => {
+    if (r.status !== "approved") return false;
+    if (!r.ot_date) return false;
+
+    const d = new Date(r.ot_date);
+
+    const ym = `${d.getFullYear()}-${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    return filterMonth ? ym === filterMonth : true;
+  })
+  .reduce((sum, r) => {
+    if (!r.start_time || !r.end_time) return sum;
+
+    const [h1, m1] = r.start_time.split(":").map(Number);
+    const [h2, m2] = r.end_time.split(":").map(Number);
+
+    const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff <= 0) return sum;
+
+    return sum + diff / 60;
+  }, 0);
+  const totalApprovedOTHoursFixed = totalApprovedOTHours.toFixed(1);
+const getLatestMonthYear = () => {
+  if (!Array.isArray(requests) || requests.length === 0) {
+    return "--/----";
+  }
+
+  const sorted = [...requests].sort(
+    (a, b) =>
+      new Date(b.start_datetime || b.created_at) -
+      new Date(a.start_datetime || a.created_at)
+  );
+
+  const latest = new Date(
+    sorted[0].start_datetime || sorted[0].created_at
+  );
+
+  if (isNaN(latest)) return "--/----";
+
+  const month = String(latest.getMonth() + 1).padStart(2, "0");
+  const year = latest.getFullYear();
+
+  return `${month}/${year}`;
 };
 
   const calculateHours = () => {
@@ -69,26 +175,58 @@ const handleSubmit = async () => {
     return `${hours}h ${minutes}p`;
    };
 
-  const [approvers, setApprovers] = useState([]);   // danh sách
-  const [approverId, setApproverId] = useState(""); // người chọn
+  
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const displayMonth = filterMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-    useEffect(() => {
-    if (!user?.id) return;
+  const [year, month] = displayMonth.split("-");
 
-    axiosClient
-        .get(`/employee/approvers/${user.id}`)
-        .then((res) => {
-        setApprovers(res);
-        })
-        .catch((err) => console.error(err));
-    }, [user?.id]);
+   useEffect(() => {
+  if (!user?.id) return;
+
+  employeeService
+    .getApprovers(user.id)
+    .then((res) => {
+      console.log("Approvers Data:", res); 
+            
+      const data = res?.data || res || [];
+      setApprovers(data);
+    })
+    .catch((err) => {
+      console.error("Lỗi lấy approvers:", err);
+      setApprovers([]);
+    });
+}, [user?.id]);
+
+useEffect(() => {
+  if (!user?.id) return;
+
+  employeeService
+    .getOvertimeRequests(user.id)
+    .then((res) => {
+      const data = res?.data || res || [];
+
+      console.log("OT REQUESTS:", data);
+
+      setRequests(data);
+      setRecentRequests(data.slice(0, 3));
+    })
+    .catch((err) => {
+      console.error("Lỗi lấy OT:", err);
+      setRequests([]);
+      setRecentRequests([]);
+    });
+}, [user?.id]);
+useEffect(() => {
+  console.log("STATE REQUESTS:", requests);
+}, [requests]);
+
   return (
     <div className="request-container">
     
       <div className="request-left">
-
+        {view === "create" ? (
+    <>
         <div className="request-left-header">
             <div className="header-left">
                 <h2>Tạo xin đơn tăng ca</h2>
@@ -192,6 +330,7 @@ const handleSubmit = async () => {
                     <textarea
                         className="input-option-1"
                         value={form.reason}
+                        placeholder="Nội dung công việc..."
                         onChange={(e) =>
                             setForm({ ...form, reason: e.target.value })
                         }
@@ -208,20 +347,214 @@ const handleSubmit = async () => {
                 <BsSend /> Gửi
             </button>
         </div>
+    </>
+  ) : (
+    <>
+        {/* ================= HISTORY ================= */}
+        <div className="history-page-header">
+        <div>
+            <h2>Đơn đã gửi</h2>
+            <p>Tất cả các đơn bạn đã gửi</p>
+        </div>
 
+        <button className="btn-back" onClick={() => setView("create")}>
+            <IoArrowBack /> Quay lại
+        </button>
+        </div>
+
+        {/* CARD */}
+        <div className="history-card">
+
+        {/* FILTER */}
+        <div className="history-filter">
+            <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
+
+            <div className="filter-right">
+            <div className="filter-right-search">
+                <MdCalendarMonth className="month-icon" />
+                <span> Tháng: </span>
+            </div>
+            <input
+                className="input-month-search"
+                type="month"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+            />
+            <button className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
+            </div>
+        </div>
+
+        {/* TABLE */}
+        <div className="history-table-container">
+            <table className="history-table">
+            <thead>
+                <tr>
+                <th>Ngày gửi đơn</th>
+                <th>Ngày tăng ca</th>
+                <th>Thời gian bắt đầu</th>
+                <th>Thời gian kết thúc</th>
+                <th>Tổng thời gian tăng ca</th>
+                <th>Trạng thái</th>
+                </tr>
+            </thead>
+                <tbody>
+                    {filteredRequests.length === 0 ? (
+                        <tr>
+                        <td colSpan="6" className="empty">
+                            Không có dữ liệu đơn tăng ca
+                        </td>
+                        </tr>
+                    ) : (
+                        filteredRequests.map((r) => (
+                        <tr key={r.id} style={{ cursor: "pointer" }}>
+
+                            {/* Ngày gửi đơn */}
+                            <td>{formatDate(r.created_at)}</td>
+
+                            {/* Loại đơn */}
+                            <td> {formatDate(r.ot_date)}</td>
+
+                            {/* Thời gian bắt đầu */}
+                            <td>
+                            {formatDate(r.ot_date)} {formatTime(r.start_time)}
+                            </td>
+
+                            {/* Thời gian kết thúc */}
+                            <td>
+                            {formatDate(r.ot_date)} {formatTime(r.end_time)}
+                            </td>
+
+                            {/* Tổng giờ OT */}
+                            <td>{calculateOTHours(r.start_time, r.end_time)}</td>
+
+                            {/* Trạng thái */}
+                            <td>
+                                <span className={`status-pill ${r.status}`} style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
+                                    <span className="dot" style={{ marginRight: '4px' }}>●</span>
+                                    {r.status === "approved"
+                                    ? "Đã duyệt"
+                                    : r.status === "pending"
+                                    ? "Chờ duyệt"
+                                    : "Từ chối"}
+                                </span>
+                            </td>
+
+                        </tr>
+                        ))
+                    )}
+                </tbody>
+            </table>
+        </div>
+        </div>
+
+    </>
+    )}                    
       </div>
 
       <div className="request-right">
-        <div className="card-request-top"></div>
+        <div className="card-request-top">
+  <div className="card-header">
+    <PiClockCounterClockwise style={{ fontSize: "20px" }} />
+    <span>Tăng ca tháng {month}/{year}</span>
+  </div>
+
+  <div className="card-main-value">
+    <span className="remaining-days">
+      {totalApprovedOTHours.toFixed(1)}
+    </span>
+
+    <span className="total-days">giờ</span>
+  </div>
+
+  <div className="card-sub-text">
+    Tổng giờ tăng ca của bạn trong tháng này
+  </div>
+
+  <div className="card-footer">
+    <div className="usage-info">
+      <span>
+        Số đơn được duyệt:{" "}
+        {requests.filter(r => r.status === "approved").length}
+      </span>
+    </div>
+
+    <div className="progress-bar">
+      <div
+        className="progress-fill"
+        style={{
+          width: `${Math.min((totalApprovedOTHours / 60) * 100, 100)}%`
+        }}
+      />
+    </div>
+  </div>
+
+  {/* GIỮ ICON Ô */}
+  <svg
+    className="umbrella-bg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="white"
+    strokeWidth="1.5"
+  >
+    <path d="M23 12a11.02 11.02 0 0 0-22 0zm-11 0v9" />
+    <path d="M9 21a3 3 0 0 0 6 0" />
+  </svg>
+</div>
         <div className="card-request-bot-1">
-            <div className="card-header-bot">
-                <h3 className="card-header-bot-2">
-                    <PiClockCounterClockwise style={{ fontSize: "17px", color: "green" }}
-                    /> Đơn gần đây
-                </h3>
-                <button className="btn-all" onClick={() => setView("history")} >Xem tất cả</button>
-            </div>
+  <div className="card-header-bot">
+    <h3 className="card-header-bot-2">
+      <PiClockCounterClockwise style={{ fontSize: "17px", color: "green" }} />
+      Đơn gần đây
+    </h3>
+
+    <button className="btn-all" onClick={() => setView("history")}>
+      Xem tất cả
+    </button>
+  </div>
+
+  <div className="card-content-bot">
+    {recentRequests.length === 0 ? (
+      <p className="empty-text">Chưa có đơn nào</p>
+    ) : (
+      recentRequests.map((r) => (
+        <div className="recent-item" key={r.id}>
+          
+          {/* ICON - dùng chung class leave */}
+          <div className={`recent-icon-wrapper ${r.status}`}>
+            {r.status === "approved" ? <GoCheckCircle /> : <LuClock2 />}
+          </div>
+
+          {/* CONTENT - dùng chung class leave */}
+          <div className="recent-info">
+            
+            {/* OVERTIME TYPE */}
+            <p className="recent-type">
+              Tăng ca
+            </p>
+
+            {/* DATE RANGE */}
+            <p className="recent-date">
+              {formatDate(r.ot_date)} ({r.start_time} - {r.end_time})
+            </p>
+
+          </div>
+
+          {/* STATUS - dùng chung class leave */}
+          <div className="recent-right">
+            <span className={`status-pill ${r.status}`}>
+              {r.status === "approved"
+                ? "ĐÃ DUYỆT"
+                : r.status === "pending"
+                ? "CHỜ DUYỆT"
+                : "TỪ CHỐI"}
+            </span>
+          </div>
+
         </div>
+      ))
+    )}
+  </div>
+</div>
 
       </div>
 

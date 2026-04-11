@@ -388,9 +388,9 @@
 }
 .card-header-bot{
   display: flex;
-  gap: 160px;
+  
   align-items: center;
-
+  justify-content: space-between;
 }
 .btn-all{
   font-size: 11px;
@@ -644,6 +644,22 @@
   padding: 4px 10px;
   border-radius: 8px;
   text-transform: uppercase;
+  
+  /* Thêm các dòng dưới đây để căn giữa chuẩn */
+  display: inline-flex;       /* Dùng flex để các phần tử con nằm cùng hàng */
+  align-items: center;        /* Căn giữa theo chiều dọc */
+  justify-content: center;    /* Căn giữa toàn bộ nội dung theo chiều ngang */
+  gap: 5px;                   /* Khoảng cách giữa chấm tròn và chữ */
+  white-space: nowrap;        /* Tuyệt đối không cho rớt dòng */
+  min-width: 90px;            /* Đảm bảo độ rộng nút cân đối */
+}
+
+/* Tinh chỉnh riêng cái chấm để nó không bị lệch so với chữ viết hoa */
+.status-pill .dot {
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  margin-bottom: 1px;         /* Đẩy lên 1 chút nếu font chữ làm chấm bị sệ */
 }
 
 .status-pill.pending {
@@ -654,6 +670,12 @@
 .status-pill.approved {
   background-color: #D1FAE5 !important;
   color: #059669 !important;
+}
+
+/* Nếu có trạng thái từ chối thì thêm vào cho đủ bộ */
+.status-pill.rejected {
+  background-color: #FEE2E2 !important;
+  color: #DC2626 !important;
 }
 
 .btn-back {
