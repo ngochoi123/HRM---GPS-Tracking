@@ -1,23 +1,53 @@
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend'); // Thêm Resend
 const PDFDocument = require('pdfkit');
 
-const FONTS_DIR = path.join(__dirname, '../fonts');
+// Khởi tạo Resend (cho Production)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Cấu hình transporter với Gmail
+// Khởi tạo Nodemailer (cho Local)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, 
+    pass: process.env.EMAIL_PASS,
   },
-  connectionTimeout: 10000, 
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  dnsTimeout: 5000,
-  family: 4 
+  family: 4 // Ép IPv4 cho chắc ăn ở local
 });
+
+const isProd = process.env.NODE_ENV === 'production';
+
+/**
+ * HÀM GỬI MAIL TỔNG QUÁT (Cốt lõi để tách môi trường)
+ */
+async function transportMail({ to, subject, html, attachments = [] }) {
+  if (isProd) {
+    // CHẠY TRÊN RENDER: Dùng Resend qua HTTP API (Cổng 443 không bao giờ treo)
+    console.log(`🚀 [Resend] Đang gửi mail tới: ${to}`);
+    return resend.emails.send({
+      from: 'HR System <hrmgpsattendance.web.app>', // Sau này bạn có domain riêng thì thay vào đây
+      to: to,
+      subject: subject,
+      html: html,
+      attachments: attachments.map(att => ({
+        filename: att.filename,
+        content: att.content, // Resend nhận Buffer trực tiếp
+      }))
+    });
+  } else {
+    // CHẠY Ở LOCAL: Dùng Nodemailer/Gmail
+    console.log(`🏠 [Local] Đang gửi mail tới: ${to}`);
+    return transporter.sendMail({
+      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+      attachments,
+    });
+  }
+}
 
 function resolveVietnameseFontPath() {
   const preferred = path.join(FONTS_DIR, 'Times-New-Roman.ttf');
@@ -262,127 +292,111 @@ function buildDecisionEmailHtml(employeeName, decisionData, isReward) {
   `;
 }
 
-// Hàm gửi OTP
 const sendOTPEmail = async (toEmail, otpCode) => {
-  try {
-    const mailOptions = {
-      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: 'Mã xác nhận OTP Đặt lại mật khẩu',
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f8;">
-          <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h2 style="color: #1da053; text-align: center;">YÊU CẦU ĐẶT LẠI MẬT KHẨU</h2>
-            <p>Chào bạn,</p>
-            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email này.</p>
-            <p>Mã xác nhận (OTP) của bạn là:</p>
-            <div style="text-align: center; margin: 20px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #111827; background: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                ${otpCode}
-              </span>
-            </div>
-            <p style="color: #dc2626; font-size: 14px;"><i>*Mã này sẽ hết hạn trong vòng 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai!</i></p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #6b7280; text-align: center;">Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
-          </div>
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f8;">
+      <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h2 style="color: #1da053; text-align: center;">YÊU CẦU ĐẶT LẠI MẬT KHẨU</h2>
+        <p>Chào bạn,</p>
+        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email này.</p>
+        <p>Mã xác nhận (OTP) của bạn là:</p>
+        <div style="text-align: center; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #111827; background: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+            ${otpCode}
+          </span>
         </div>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Đã gửi email thành công: ' + info.response);
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi gửi email: ', error);
-    throw new Error('Không thể gửi email OTP');
-  }
-};
-
-const sendAccountEmail = async (email, fullName, username, password) => {
-  try {
-    const subject = 'Cấp tài khoản hệ thống HR People Tech';
-
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
-        <div style="background-color: #8b5cf6; padding: 20px; text-align: center; color: white;">
-          <h2>CHÀO MỪNG GIA NHẬP HỆ THỐNG</h2>
-        </div>
-        <div style="padding: 20px; color: #374151; line-height: 1.6;">
-          <p>Xin chào <strong>${fullName}</strong>,</p>
-          <p>Bộ phận Admin vừa cấp cho bạn một tài khoản để truy cập vào hệ thống Quản lý Nhân sự của công ty. Dưới đây là thông tin đăng nhập của bạn:</p>
-          
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 0 0 10px 0;">👤 <strong>Tên đăng nhập:</strong> <span style="color: #8b5cf6;">${username}</span></p>
-            <p style="margin: 0;">🔑 <strong>Mật khẩu tạm thời:</strong> <span style="color: #ef4444; font-weight: bold;">${password}</span></p>
-          </div>
-
-          <p><em>⚠️ Lưu ý: Vì lý do bảo mật, hệ thống sẽ yêu cầu bạn đổi mật khẩu ngay trong lần đăng nhập đầu tiên.</em></p>
-          
-          <div style="text-align: center; margin-top: 30px;">
-            <a href="http://localhost:3000/login" style="background-color: #8b5cf6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Đăng nhập ngay</a>
-          </div>
-        </div>
-        <div style="background-color: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #9ca3af;">
-          Đây là email tự động, vui lòng không trả lời email này.
-        </div>
+        <p style="color: #dc2626; font-size: 14px;"><i>*Mã này sẽ hết hạn trong vòng 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai!</i></p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #6b7280; text-align: center;">Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
       </div>
-    `;
+    </div>
+  `;
 
-    const info = await transporter.sendMail({
-      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: subject,
-      html: htmlContent,
+  try {
+    const info = await transportMail({ 
+      to: toEmail, 
+      subject: 'Mã xác nhận OTP Đặt lại mật khẩu', 
+      html: htmlContent 
     });
-
-    console.log(`Đã gửi email cấp tài khoản tới: ${email} - ID: ${info.messageId}`);
+    console.log(`Đã gửi email OTP thành công tới: ${toEmail}`);
     return true;
   } catch (error) {
-    console.error('Lỗi khi gửi email tài khoản:', error);
-    throw new Error('Không thể gửi email thông báo tài khoản');
+    console.error('Lỗi gửi OTP:', error);
+    throw error;
   }
 };
 
 /**
- * Gửi email quyết định; pdfBuffer đã được tạo sẵn (đính kèm theo số quyết định).
+ * Gửi Thông tin tài khoản
+ */
+const sendAccountEmail = async (email, fullName, username, password) => {
+  const subject = 'Cấp tài khoản hệ thống HR People Tech';
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+      <div style="background-color: #8b5cf6; padding: 20px; text-align: center; color: white;">
+        <h2>CHÀO MỪNG GIA NHẬP HỆ THỐNG</h2>
+      </div>
+      <div style="padding: 20px; color: #374151; line-height: 1.6;">
+        <p>Xin chào <strong>${fullName}</strong>,</p>
+        <p>Bộ phận Admin vừa cấp cho bạn một tài khoản để truy cập vào hệ thống Quản lý Nhân sự của công ty. Dưới đây là thông tin đăng nhập của bạn:</p>
+        <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;">👤 <strong>Tên đăng nhập:</strong> <span style="color: #8b5cf6;">${username}</span></p>
+          <p style="margin: 0;">🔑 <strong>Mật khẩu tạm thời:</strong> <span style="color: #ef4444; font-weight: bold;">${password}</span></p>
+        </div>
+        <p><em>⚠️ Lưu ý: Vì lý do bảo mật, hệ thống sẽ yêu cầu bạn đổi mật khẩu ngay trong lần đăng nhập đầu tiên.</em></p>
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${process.env.FRONTEND_URL || 'https://hrmgpsattendance.web.app/login'}/login" style="background-color: #8b5cf6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Đăng nhập ngay</a>
+        </div>
+      </div>
+      <div style="background-color: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #9ca3af;">
+        Đây là email tự động, vui lòng không trả lời email này.
+      </div>
+    </div>
+  `;
+
+  try {
+    // Không await để chạy ngầm
+    transportMail({ to: email, subject: subject, html: htmlContent })
+      .then(info => console.log(`Đã gửi email cấp tài khoản tới: ${email}`))
+      .catch(e => console.error("Gửi mail tài khoản thất bại:", e));
+    return true;
+  } catch (error) {
+    console.error('Lỗi kích hoạt luồng gửi email:', error);
+    return false;
+  }
+};
+
+/**
+ * Gửi Quyết định (Đính kèm PDF)
  */
 const sendDecisionEmail = async (email, employeeName, decisionData, pdfBuffer) => {
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
-    throw new Error('sendDecisionEmail: thiếu pdfBuffer hợp lệ');
-  }
-
   const { decision_number, decision_type } = decisionData;
   const isReward = decision_type === 'reward';
+  
   const subject = isReward
     ? `[Khen thưởng] Quyết định ${decision_number} — ${employeeName}`
     : `[Kỷ luật] Quyết định ${decision_number} — ${employeeName}`;
+    
   const htmlContent = buildDecisionEmailHtml(employeeName, decisionData, isReward);
   const attachmentName = safePdfFilename(decision_number);
 
-  const info = await transporter.sendMail({
-    from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject,
-    html: htmlContent,
-    attachments: [
-      {
-        filename: attachmentName,
-        content: pdfBuffer,
-        contentType: 'application/pdf',
-      },
-    ],
-  });
+  const attachments = [
+    {
+      filename: attachmentName,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    }
+  ];
 
-  console.log(`Đã gửi email quyết định (${attachmentName}) tới: ${email} — ${info.messageId}`);
-  return true;
-};
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("❌ Lỗi kết nối Mail Server:", error);
-  } else {
-    console.log("✅ Mail Server đã sẵn sàng gửi tin nhắn!");
+  try {
+    await transportMail({ to: email, subject, html: htmlContent, attachments });
+    console.log(`Đã gửi email quyết định tới: ${email}`);
+    return true;
+  } catch (error) {
+    console.error('Lỗi gửi quyết định:', error);
+    throw error;
   }
-});
+};
 
 module.exports = {
   sendOTPEmail,
