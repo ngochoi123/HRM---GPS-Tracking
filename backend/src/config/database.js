@@ -8,21 +8,32 @@ const environmentLabel = isProduction ? 'Cloud (Production)' : 'Local Developmen
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   logging: false, // console gọn gàng
-  dialectOptions: isProduction
-    ? {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
+  dialectOptions: {
+    ...(isProduction
+      ? {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false
+          }
         }
-      }
-    : {},
+      : {}),
+    // PostgreSQL: luôn dùng UTF-8 cho chuỗi Unicode (tiếng Việt)
+    client_encoding: 'UTF8'
+  },
 
   // Cấu hình Pool (Bạn đã set max: 5 rất tốt để chống sập Database)
   pool: {
-    max: 5, 
+    max: 5,
     min: 0,
     acquire: 30000,
-    idle: 10000
+    idle: 10000,
+    afterCreate: async (conn) => {
+      try {
+        await conn.query("SET client_encoding TO 'UTF8'");
+      } catch (e) {
+        /* ignore nếu driver đã mặc định UTF8 */
+      }
+    }
   }
 });
 

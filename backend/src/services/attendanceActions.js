@@ -344,4 +344,7 @@ module.exports = {
   haversineDistanceMeters,
   WIFI_IP_DENIED_MESSAGE,
   emitAttendanceChanged,
+  calcStandardWorkHours,
+  getAttendanceStatusForCheckIn,
+  getAttendanceStatusForCheckOut,
 };
