@@ -7,13 +7,18 @@ require('dotenv').config();
 
 const app = express();
 
-// ================= 1. MIDDLEWARE =================
-// Thay dòng app.use(cors()) cũ bằng đoạn sau:
-app.use(cors({
-  origin: "*", 
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  credentials: true
-}));
+
+const corsOptions = {
+  origin: [
+    'https://hrmgpsattendance.web.app', 
+    'http://localhost:3000',            
+    'http://localhost:5173'             
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true 
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '100mb' })); 
 app.use(express.urlencoded({ limit: '100mb', extended: true, parameterLimit: 100000 }));
 app.use('/uploads', express.static('uploads'));
