@@ -1,93 +1,149 @@
-# Quanlynhansu
+# 🎓 Website Quản lý Nhân sự tích hợp Chấm công GPS (GPS Tracking)
 
+**Đồ án tốt nghiệp — Khoa Công nghệ Thông tin, Đại học Duy Tân**
+**Ngành: Công nghệ Phần mềm**
 
+---
 
-## Getting started
+## 📋 Thông tin dự án
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+| Thông tin | Chi tiết |
+|---|---|
+| **Tên đề tài** | Xây dựng Website quản lý nhân sự tích hợp chấm công theo thời gian thực (GPS Tracking) |
+| **Nhóm sinh viên** | Châu Ngọc Hội (L), Lê Trường Giang, Trần Trọng Khang, Trần Nguyễn Quốc Lĩnh, Nguyễn Đặng Yến Nhi |
+| **GVHD** | Th.S Trần Thị Thanh Lan |
+| **Thời gian** | 12/03/2026 – 13/05/2026 |
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## 📖 Giới thiệu
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+Dự án tập trung vào việc giải quyết bài toán quản trị nhân sự hiện đại, **thay thế các phương thức chấm công truyền thống** bằng công nghệ định vị GPS (Geofencing). Hệ thống cho phép doanh nghiệp giám sát sự hiện diện của nhân viên tại các chi nhánh một cách minh bạch, chính xác và xử lý các nghiệp vụ nhân sự (đơn từ, bảng lương, thông báo) trên một nền tảng duy nhất.
+
+### Tính năng chính
+
+- 📍 **Chấm công GPS & Geofencing** — Xác thực vị trí check-in/out dựa trên tọa độ văn phòng (bán kính 100m–500m).
+- 👥 **Quản lý Nhân sự Đa cấp** — Quản lý hồ sơ nhân viên, chi nhánh, phòng ban và chức vụ.
+- 📄 **Quản lý Đơn từ Trực tuyến** — Tạo và phê duyệt đơn nghỉ phép, tăng ca, đổi ca ngay trên hệ thống.
+- 💰 **Tự động hóa Bảng lương** — Tính toán công, lương cơ bản, phụ cấp và khấu trừ dựa trên dữ liệu thực tế.
+- 📊 **Dashboard Giám sát** — Biểu đồ thống kê nhân sự, quỹ lương và tình hình đi làm theo thời gian thực.
+- 🔔 **Thông báo Real-time** — Truyền thông nội bộ và thông báo phê duyệt qua Socket.io và Email.
+
+---
+
+## 🗂️ Cấu trúc dự án (Standardized)
+
+Dự án được tổ chức theo chuẩn nộp đồ án:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/minhtran-63/quanlynhansu.git
-git branch -M main
-git push -uf origin main
+QuanLyNhanSu_GPS/
+├── 1_Source_Code/
+│   ├── backend/          # Express API Server (Node.js)
+│   ├── frontend/         # React Web Application (Vite)
+│   └── Mobile/           # Ứng dụng di động cho nhân viên (Expo)
+├── 2_Documents/          # Proposal, User Story, Database, UI Design...
+├── 3_Reports/            # Project Plan, Test Report, Slide Báo cáo...
+├── .gitignore
+└── README.md
 ```
 
-## Integrate with your tools
+| Thành phần | Công nghệ chính | Mô tả |
+|---|---|---|
+| **Backend** | Node.js, Express, PostgreSQL | REST API, xử lý Logic, Socket.io, JWT |
+| **Frontend** | ReactJS, Tailwind, Lucide | Giao diện quản trị, Dashboard, Quản lý User |
+| **Database** | Supabase (PostgreSQL) | Lưu trữ quan hệ, Pgcrypto mã hóa |
 
-* [Set up project integrations](https://gitlab.com/minhtran-63/quanlynhansu/-/settings/integrations)
+---
 
-## Collaborate with your team
+## 🛠️ Công nghệ sử dụng
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Backend (`1_Source_Code/backend`)
 
-## Test and Deploy
+- **Runtime:** Node.js v24+ & Express.js
+- **Database:** PostgreSQL (Supabase Cloud)
+- **ORM:** Sequelize (Quản lý Model & Transaction)
+- **Real-time:** Socket.io (Theo dõi GPS và thông báo)
+- **Email:** Resend API (Gửi OTP và cấp tài khoản)
+- **Security:** JWT (JSON Web Token), Bcrypt (Mã hóa mật khẩu)
 
-Use the built-in continuous integration in GitLab.
+### Frontend (`1_Source_Code/frontend`)
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+- **Framework:** React.js (Vite)
+- **Styling:** Tailwind CSS & Lucide Icons
+- **State Management:** React Context API
+- **HTTP Client:** Axios (Tích hợp Interceptors xử lý Token)
+- **Charts:** Recharts / ApexCharts (Thống kê Dashboard)
 
-***
+---
 
-# Editing this README
+## ⚙️ Cài đặt & Chạy
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Yêu cầu
 
-## Suggestions for a good README
+- Node.js >= 18.x
+- PostgreSQL Database
+- Tài khoản Resend (để gửi Email)
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### 1. Backend
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+cd 1_Source_Code/backend
+npm install
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Tạo file .env và điền các thông số:
+# PORT=5000
+# DATABASE_URL=your_postgres_url
+# JWT_SECRET=your_secret
+# RESEND_API_KEY=re_your_key
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+npm run dev
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### 2. Frontend
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+cd 1_Source_Code/frontend
+npm install
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Tạo file .env
+# VITE_API_URL=http://localhost:5000
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+npm run dev
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 🔒 Phân quyền hệ thống (RBAC)
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Dựa trên cấu trúc Database, hệ thống phân định rõ **4 vai trò chính**:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+| Vai trò | Quyền hạn |
+|---|---|
+| **ADMIN** | Quản trị toàn bộ hệ thống, cấp tài khoản, cấu hình chi nhánh. |
+| **DIRECTOR** | Xem báo cáo tổng thể công ty, quỹ lương và phê duyệt cấp cao. |
+| **MANAGER** | Quản lý nhân sự trực thuộc phòng ban, duyệt đơn từ. |
+| **EMPLOYEE** | Chấm công GPS, gửi đơn từ, xem bảng lương cá nhân. |
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
-## License
-For open source projects, say how it is licensed.
+## 👤 Nhóm tác giả
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+| Họ và tên | MSSV | Vai trò |
+|---|---|---|
+| **Châu Ngọc Hội** | 28211146177 | Nhóm trưởng |
+| **Lê Trường Giang** | 28211301705 | Thành viên |
+| **Trần Trọng Khang** | 28211126425 | Thành viên |
+| **Trần Nguyễn Quốc Lĩnh** | 28211126424 | Thành viên |
+| **Nguyễn Đặng Yến Nhi** | 28201152319 | Thành viên |
+
+---
+
+## 📄 Bản quyền học thuật
+
+```
+Academic Use Only
+
+Dự án này là tài sản học thuật thuộc chương trình đào tạo của Đại học Duy Tân.
+Nghiêm cấm sao chép hoặc sử dụng cho mục đích thương mại khi chưa có sự đồng ý của nhóm tác giả.
+Copyright © 2026 - Nhóm Đồ án GPS HR Management.
+```

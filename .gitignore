@@ -1,61 +1,56 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
-frontend/node_modules/
-backend/node_modules/
-MobileAttendance/node_modules/
+1_Source_Code/node_modules/
+1_Source_Code/frontend/node_modules/
+1_Source_Code/backend/node_modules/
+1_Source_Code/Mobile/node_modules/
 
 # Environment variables
 .env
 *.env
-backend/.env
-frontend/.env
-MobileAttendance/.env
-MobileAttendance/.env*.local
+1_Source_Code/backend/.env
+1_Source_Code/frontend/.env
+1_Source_Code/Mobile/.env
+1_Source_Code/Mobile/.env*.local
 
 # Build outputs
 dist/
-frontend/dist/
+1_Source_Code/dist/
+1_Source_Code/frontend/dist/
 build/
-MobileAttendance/dist/
-MobileAttendance/web-build/
+1_Source_Code/Mobile/dist/
+1_Source_Code/Mobile/web-build/
 
 # IDE & OS files
 .vscode/
 .DS_Store
 Thumbs.db
+.cursorrule
+.data
 
-# ==========================================
-# MobileAttendance (Expo/React Native) Specific
-# ==========================================
+# Firebase
+1_Source_Code/.firebase/
 
-# Expo
-MobileAttendance/.expo/
-MobileAttendance/expo-env.d.ts
-MobileAttendance/app-example/
+# Expo / React Native
+1_Source_Code/Mobile/.expo/
+1_Source_Code/Mobile/expo-env.d.ts
+1_Source_Code/Mobile/app-example/
+1_Source_Code/Mobile/.kotlin/
+1_Source_Code/Mobile/*.orig.*
+1_Source_Code/Mobile/*.jks
+1_Source_Code/Mobile/*.p8
+1_Source_Code/Mobile/*.p12
+1_Source_Code/Mobile/*.key
+1_Source_Code/Mobile/*.mobileprovision
+1_Source_Code/Mobile/.metro-health-check*
+1_Source_Code/Mobile/ios/
+1_Source_Code/Mobile/android/
 
-# Native builds
-MobileAttendance/.kotlin/
-MobileAttendance/*.orig.*
-MobileAttendance/*.jks
-MobileAttendance/*.p8
-MobileAttendance/*.p12
-MobileAttendance/*.key
-MobileAttendance/*.mobileprovision
-
-# Metro
-MobileAttendance/.metro-health-check*
-
-# Logs & Debug
+# Logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS specifics
-*.pem
-
-# typescript
+# TypeScript
 *.tsbuildinfo
-
-# Generated native folders
-MobileAttendance/ios/
-MobileAttendance/android/
+*.pem
