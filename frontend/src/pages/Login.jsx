@@ -136,7 +136,7 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="form-input"
                   placeholder={
-                    'Nh\u1EADp t\u00EAn \u0111\u0103ng nh\u1EADp'
+                    'Nhập tên đăng nhập'
                   }
                 />
               </div>
@@ -152,7 +152,7 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="form-input"
                     placeholder={
-                      'Nh\u1EADp m\u1EADt kh\u1EA9u'
+                      'Nhập Mật Khẩu'
                     }
                   />
                   <button
@@ -174,14 +174,14 @@ const Login = () => {
                 </div>
               </div>
 
-              <div className="login-actions login-actions-bar">
-                <label className="remember-me remember-me-light">
+              <div className="login-actions">
+                <label className="remember-me">
                   <input type="checkbox" />{' '}
                   {'Ghi nh\u1EDB m\u1EADt kh\u1EA9u'}
                 </label>
                 <button
                   type="button"
-                  className="forgot-password-link forgot-password-inline"
+                  className="forgot-password-link"
                   onClick={() => navigate('/forgot-password')}
                 >
                   {'Qu\u00EAn m\u1EADt kh\u1EA9u?'}
