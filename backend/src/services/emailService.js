@@ -5,19 +5,12 @@ const PDFDocument = require('pdfkit');
 
 const FONTS_DIR = path.join(__dirname, '../fonts');
 
-// Cấu hình transporter với Gmail
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  requireTLS: true,
+  service: 'gmail', 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false
-  }
 });
 
 function resolveVietnameseFontPath() {
@@ -377,6 +370,13 @@ const sendDecisionEmail = async (email, employeeName, decisionData, pdfBuffer) =
   console.log(`Đã gửi email quyết định (${attachmentName}) tới: ${email} — ${info.messageId}`);
   return true;
 };
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("❌ Lỗi kết nối Mail Server:", error);
+  } else {
+    console.log("✅ Mail Server đã sẵn sàng gửi tin nhắn!");
+  }
+});
 
 module.exports = {
   sendOTPEmail,
