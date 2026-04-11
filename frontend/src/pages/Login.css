@@ -115,18 +115,6 @@
   margin-bottom: 24px;
 }
 
-/* GUI-DN04: nen xanh de chu remember-me (trang) doc duoc */
-.login-actions-bar {
-  background: linear-gradient(135deg, #15803d 0%, #1da053 100%);
-  padding: 14px 16px;
-  border-radius: 12px;
-  margin-top: 8px;
-  margin-bottom: 20px;
-}
-
-.remember-me-light {
-  color: #ffffff !important;
-}
 
 .forgot-password-inline {
   font-size: 14px;

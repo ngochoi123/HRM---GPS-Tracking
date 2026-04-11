@@ -1,11 +1,3 @@
-/**
- * Host backend (API + Socket.io, cổng 5000).
- *
- * - Android Emulator: mặc định `10.0.2.2` (ánh xạ tới máy dev).
- * - iOS / máy thật: KHÔNG dùng `localhost` — thiết bị không trỏ được về PC.
- *   Bắt buộc tạo `.env` ở gốc project: EXPO_PUBLIC_API_HOST=192.168.x.x
- *   rồi khởi động lại `npx expo start` (clear cache nếu cần).
- */
 const fromEnv =
   typeof process.env.EXPO_PUBLIC_API_HOST === "string"
     ? process.env.EXPO_PUBLIC_API_HOST.trim()
