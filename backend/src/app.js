@@ -7,6 +7,16 @@ require('dotenv').config();
 
 const app = express();
 
+// Phản hồi JSON luôn khai báo UTF-8 (trình duyệt / client parse đúng tiếng Việt)
+app.use((req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    res.set('Content-Type', 'application/json; charset=utf-8');
+    return json(body);
+  };
+  next();
+});
+
 // ================= 1. MIDDLEWARE =================
 // Thay dòng app.use(cors()) cũ bằng đoạn sau:
 app.use(cors({

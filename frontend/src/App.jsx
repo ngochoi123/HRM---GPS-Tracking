@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster, ToastBar } from "react-hot-toast";
 
 // ==========================================
 // 1. AUTHENTICATION PAGES
@@ -75,16 +75,40 @@ function App() {
     <BrowserRouter>
       {/* 🔥 THÔNG BÁO TOAST TOÀN CỤC */}
       <Toaster
-        position="top-right"
+        position="bottom-right"
+        gutter={10}
+        containerStyle={{ zIndex: 11000 }}
         toastOptions={{
-          duration: 3000,
+          duration: 2200,
+          success: { duration: 2000 },
+          error: { duration: 3200 },
           style: {
             borderRadius: '12px',
             background: '#333',
             color: '#fff',
+            zIndex: 11000,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
           },
         }}
-      />
+      >
+        {(t) => (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toast.dismiss(t.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toast.dismiss(t.id);
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <ToastBar toast={t} position={t.position || 'bottom-right'} />
+          </div>
+        )}
+      </Toaster>
 
       <Routes>
         {/* Điều hướng mặc định về Login */}

@@ -4,6 +4,10 @@ import axios from 'axios';
 // baseURL được đọc từ biến môi trường Vite: VITE_API_URL
 const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
+  // Không set Content-Type mặc định: tránh phá upload FormData; JSON body axios tự gắn UTF-8
+  headers: {
+    Accept: 'application/json; charset=utf-8',
+  },
 });
 
 // Request interceptor: tự động gắn JWT token (nếu có) vào header Authorization
