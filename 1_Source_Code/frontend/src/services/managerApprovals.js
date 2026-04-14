@@ -18,4 +18,7 @@ export const managerApprovals={
       status: 'rejected',
     });
   },
+  getApprovalHistory: (managerId) => {
+    return axiosClient.get(`/manager/approval-history/${managerId}`);
+  },
 };

@@ -46,5 +46,6 @@ router.put('/decisions/:id', upload.single('attachment'), decisionController.upd
 // Phê duyệt đơn
 router.get('/approval-requests/:id', managementController.getApprovalRequests);
 router.put('/approval/:type/:id', managementController.updateApprovalStatus);
+router.get('/approval-history/:id', managementController.getApprovalHistory);
 
 module.exports = router;
