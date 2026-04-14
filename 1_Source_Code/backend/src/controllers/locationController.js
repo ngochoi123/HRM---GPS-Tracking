@@ -226,5 +226,109 @@ const deleteWorkLocation = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi khi xóa: " + error.message });
   }
 };
+const getBranches = async (req, res) => {
+    try {
+      const branches = await db.query(
+        `SELECT id, branch_name as name FROM branch WHERE is_active = true ORDER BY id ASC`,
+        { type: db.QueryTypes.SELECT }
+      );
+      res.status(200).json({ success: true, data: branches });
+    } catch (error) {
+      console.error("Lỗi getBranches:", error);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  };
 
-module.exports = { getLocations, createLocation, updateLocationSettings, deleteWorkLocation };
+  // 2. Lấy danh sách phòng ban theo branch_id
+const getDepartmentsByBranch = async (req, res) => {
+    try {
+      const { branchId } = req.params;
+      const departments = await db.query(
+        `SELECT id, department_name as name FROM department WHERE branch_id = :branchId AND is_active = true ORDER BY department_name ASC`,
+        { replacements: { branchId }, type: db.QueryTypes.SELECT }
+      );
+      res.status(200).json({ success: true, data: departments });
+    } catch (error) {
+      console.error("Lỗi getDepartments:", error);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  };
+
+  // 3. Lấy danh sách nhân viên theo department_id (JOIN qua bảng position)
+const getEmployeesByDepartment = async (req, res) => {
+    try {
+      const { departmentId } = req.params;
+      const employees = await db.query(
+        `SELECT e.id, CONCAT(e.full_name, ' (', e.employee_code, ')') as name 
+         FROM employee e 
+         JOIN position p ON e.position_id = p.id 
+         WHERE p.department_id = :departmentId AND e.status = 'active'
+         ORDER BY e.full_name ASC`,
+        { replacements: { departmentId }, type: db.QueryTypes.SELECT }
+      );
+      res.status(200).json({ success: true, data: employees });
+    } catch (error) {
+      console.error("Lỗi getEmployees:", error);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  };
+
+  // 4. Lấy danh sách địa điểm làm việc theo branch_id
+const getWorkLocationsByBranch = async (req, res) => {
+    try {
+      const { branchId } = req.params;
+      const locations = await db.query(
+        `SELECT id, location_name as name FROM work_location WHERE branch_id = :branchId AND is_active = true ORDER BY location_name ASC`,
+        { replacements: { branchId }, type: db.QueryTypes.SELECT }
+      );
+      res.status(200).json({ success: true, data: locations });
+    } catch (error) {
+      console.error("Lỗi getWorkLocations:", error);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  };
+
+  // 5. Tạo mới phân công (Xử lý constraint check_single_target)
+const createLocationAssignment = async (req, res) => {
+    try {
+      const { assign_type, target_id, work_location_id, assigned_date, is_temporary, end_date } = req.body;
+
+      // Xử lý logic 3 cột target (đảm bảo đúng 1 cột có giá trị, 2 cột null)
+      let branch_id = null;
+      let department_id = null;
+      let employee_id = null;
+
+      if (assign_type === 'branch') branch_id = target_id;
+      else if (assign_type === 'department') department_id = target_id;
+      else if (assign_type === 'employee') employee_id = target_id;
+      else return res.status(400).json({ success: false, message: 'Loại phân công không hợp lệ' });
+
+      const query = `
+        INSERT INTO location_assignment 
+        (employee_id, work_location_id, assigned_date, is_temporary, branch_id, department_id, end_date)
+        VALUES (:employee_id, :work_location_id, :assigned_date, :is_temporary, :branch_id, :department_id, :end_date)
+        RETURNING id
+      `;
+
+      await db.query(query, {
+        replacements: {
+          employee_id,
+          work_location_id,
+          assigned_date,
+          is_temporary: is_temporary || false,
+          branch_id,
+          department_id,
+          end_date: is_temporary ? end_date : null
+        },
+        type: db.QueryTypes.INSERT
+      });
+
+      res.status(201).json({ success: true, message: 'Phân công thành công' });
+    } catch (error) {
+      console.error("Lỗi createLocationAssignment:", error);
+      res.status(500).json({ success: false, message: 'Lỗi server khi lưu phân công' });
+    }
+  }
+
+
+module.exports = { getLocations, createLocation, updateLocationSettings, deleteWorkLocation, getBranches, getDepartmentsByBranch, getEmployeesByDepartment, getWorkLocationsByBranch, createLocationAssignment };

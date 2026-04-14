@@ -10,7 +10,7 @@ const SidebarAdmin = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems = [
-    { path: '/Admin/dashboard', icon: <LayoutDashboard size={20} />, label: 'Tổng quan' },
+    { path: '/Admin/dashboard', icon: <LayoutDashboard size={20} />, label: 'Phân công chấm công' },
     { path: '/Admin/users', icon: <UserCog size={20} />, label: 'Quản lý tài khoản' },
     { path: '/Admin/LocationSettings', icon: <Settings size={20} />, label: 'Cài đặt vị trí chấm công' },
   ];
