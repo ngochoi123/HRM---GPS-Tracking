@@ -5,9 +5,6 @@ export default {
       "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-<<<<<<< HEAD
-      extend: {},
-=======
       extend: {
         fontFamily: {
           sans: [
@@ -21,7 +18,6 @@ export default {
           ],
         },
       },
->>>>>>> develop
     },
     plugins: [],
   }
