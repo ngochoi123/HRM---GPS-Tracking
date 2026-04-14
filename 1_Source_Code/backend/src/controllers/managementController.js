@@ -608,6 +608,122 @@ const getTenureStats = async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 };
+//phê duyệt
+const getApprovalRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 🔵 LEAVE REQUEST
+    const leaveQuery = `
+      SELECT 
+        lr.id,
+        lr.employee_id,
+        e.full_name AS employee_name,
+        'leave' AS type,
+        lr.leave_type,
+        lr.start_datetime,
+        lr.end_datetime,
+        lr.reason,
+        lr.status,
+        lr.created_at
+      FROM leave_request lr
+      JOIN employee e ON lr.employee_id = e.id
+      WHERE lr.approver_id = :id
+      AND lr.status = 'pending'
+    `;
+
+    // 🟠 OVERTIME REQUEST
+    const otQuery = `
+      SELECT 
+        ot.id,
+        ot.employee_id,
+        e.full_name AS employee_name,
+        'overtime' AS type,
+        NULL AS leave_type,
+        ot.ot_date AS start_datetime,
+        ot.ot_date AS end_datetime,
+        ot.reason,
+        ot.status,
+        ot.created_at,
+        ot.start_time,
+        ot.end_time
+      FROM overtime_request ot
+      JOIN employee e ON ot.employee_id = e.id
+      WHERE ot.approver_id = :id
+      AND ot.status = 'pending'
+    `;
+
+    const [leaveRows] = await db.query(leaveQuery, {
+      replacements: { id }
+    });
+
+    const [otRows] = await db.query(otQuery, {
+      replacements: { id }
+    });
+
+    // 🔥 Gộp lại
+    const combined = [...leaveRows, ...otRows].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    res.json(combined);
+
+  } catch (error) {
+    console.error("❌ getApprovalRequests error:", error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+const updateApprovalStatus = async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { status } = req.body; // approved | rejected
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+    }
+
+    let query = '';
+
+    // 🟢 Đơn nghỉ phép
+    if (type === 'leave') {
+      query = `
+        UPDATE leave_request
+        SET status = :status
+        WHERE id = :id
+        RETURNING *;
+      `;
+    }
+
+    // 🟠 Đơn tăng ca
+    else if (type === 'overtime') {
+      query = `
+        UPDATE overtime_request
+        SET status = :status
+        WHERE id = :id
+        RETURNING *;
+      `;
+    }
+
+    else {
+      return res.status(400).json({ message: 'Type không hợp lệ' });
+    }
+
+    const [result] = await db.query(query, {
+      replacements: { id, status }
+    });
+
+    res.json({
+      message: 'Cập nhật thành công',
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error("❌ updateApprovalStatus:", error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 module.exports = {
   getEmployees,
   getEmployeeById,
@@ -619,8 +735,9 @@ module.exports = {
   getAbsentEmployees,
   getChangesSummary,
   getChangesList,
-  getTenureStats
+  getTenureStats,
+  getApprovalRequests,
+  updateApprovalStatus
 };
-
 
 

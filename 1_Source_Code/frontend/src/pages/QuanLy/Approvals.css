@@ -346,17 +346,39 @@
   font-weight: 600;
   padding: 4px 12px;
   border-radius: 8px;
+  display: flex;
+  
+  
 }
 
 /* Style cho tag Nghỉ phép năm */
 .green-bg {
-  color: #10b981;
+  color: #047857;
   background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px; /* pill */
+  padding: 4px 10px;
+  font-weight: bold;
+
+  
 }
+.orange-bg{
+  color: #7E22CE;
+  background-color: #FAF5FF;
+  border: 1px solid rgba(126, 34, 206, 0.25);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-weight: bold;
+}
+
 
 .tag-status {
   font-size: 12px;
-  color: #94a3b8;
+  color: #9CA3AF;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  line-height: 1;
 }
 
 .request-title {
@@ -370,6 +392,10 @@
   font-size: 13px;
   color: #64748b;
   margin: 0;
+}
+.time-label {
+  color: #374151; 
+  
 }
 
 /* --- Section 3: Actions --- */

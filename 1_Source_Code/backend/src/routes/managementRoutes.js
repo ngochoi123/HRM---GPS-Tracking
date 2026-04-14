@@ -43,5 +43,8 @@ router.get('/decisions/dashboard', decisionController.getDecisionDashboard);
 router.get('/decisions/:id', decisionController.getDecisionById);
 router.post('/decisions', upload.single('attachment'), decisionController.createDecision);
 router.put('/decisions/:id', upload.single('attachment'), decisionController.updateDecision);
+// Phê duyệt đơn
+router.get('/approval-requests/:id', managementController.getApprovalRequests);
+router.put('/approval/:type/:id', managementController.updateApprovalStatus);
 
 module.exports = router;

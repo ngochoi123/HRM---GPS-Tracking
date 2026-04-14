@@ -732,7 +732,7 @@ useEffect(() => {
     {showConfirmSubmit && (
   <div className="modal-overlay" onClick={() => setShowConfirmSubmit(false)}>
     <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-      <h3>Xác nhận gửi đơn</h3>
+      <h3 style={{fontWeight:"bold",fontSize:"18px"}}>Xác nhận gửi đơn</h3>
       <p>Bạn có chắc muốn gửi đơn tăng ca này không?</p>
 
       <div className="confirm-actions">
@@ -751,7 +751,7 @@ useEffect(() => {
 {showConfirmCancel && (
   <div className="modal-overlay" onClick={() => setShowConfirmCancel(false)}>
     <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-      <h3>Xác nhận hủy</h3>
+      <h3 style={{fontWeight:"bold",fontSize:"18px"}}>Xác nhận hủy</h3>
       <p>Dữ liệu nhập sẽ bị xóa. Bạn có chắc không?</p>
 
       <div className="confirm-actions">
