@@ -608,6 +608,140 @@ const getTenureStats = async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 };
+const getAttendanceStats = async (req, res) => {
+  try {
+    const { month } = req.query; // format: YYYY-MM
+
+    // =============================
+    // 1. Tổng giờ công
+    // =============================
+    const totalHoursQuery = `
+      SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (check_out_time - check_in_time)) / 3600), 0) AS total_hours
+      FROM attendance
+      WHERE TO_CHAR(attendance_date, 'YYYY-MM') = :month
+        AND check_in_time IS NOT NULL
+        AND check_out_time IS NOT NULL
+    `;
+
+    // =============================
+    // 2. Đi trễ (giả sử sau 08:00 là trễ)
+    // =============================
+    const lateQuery = `
+      SELECT COUNT(*) AS late_count
+      FROM attendance
+      WHERE TO_CHAR(attendance_date, 'YYYY-MM') = :month
+        AND check_in_time::time > '08:00:00'
+    `;
+
+    // =============================
+    // 3. OT (sau 17:30)
+    // =============================
+    const otQuery = `
+      SELECT COALESCE(SUM(
+        GREATEST(EXTRACT(EPOCH FROM (check_out_time::time - '17:30:00'::time)) / 3600, 0)
+      ), 0) AS ot_hours
+      FROM attendance
+      WHERE TO_CHAR(attendance_date, 'YYYY-MM') = :month
+        AND check_out_time IS NOT NULL
+    `;
+
+    // =============================
+    // 4. Đi trễ theo phòng ban
+    // =============================
+    const deptQuery = `
+      SELECT 
+        d.department_name,
+        COUNT(*) FILTER (WHERE a.check_in_time::time > '08:00:00') * 100.0 / COUNT(*) AS percent
+      FROM attendance a
+      JOIN employee e ON a.employee_id = e.id
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE TO_CHAR(a.attendance_date, 'YYYY-MM') = :month
+      GROUP BY d.department_name
+    `;
+
+    // =============================
+    // 5. Nhân viên vi phạm
+    // =============================
+    const violatorQuery = `
+      SELECT 
+        e.full_name,
+        d.department_name,
+        COUNT(*) AS late_count,
+        SUM(
+  GREATEST(
+    EXTRACT(EPOCH FROM (a.check_in_time::time - '08:00:00')) / 60,
+    0
+  )
+) AS late_minutes
+      FROM attendance a
+      JOIN employee e ON a.employee_id = e.id
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE TO_CHAR(a.attendance_date, 'YYYY-MM') = :month
+        AND a.check_in_time::time > '08:00:00'
+      GROUP BY e.full_name, d.department_name
+      ORDER BY late_count DESC
+      LIMIT 5
+    `;
+
+    const [totalHours] = await db.query(totalHoursQuery, {
+      replacements: { month },
+      type: db.QueryTypes.SELECT
+    });
+
+    const [late] = await db.query(lateQuery, {
+      replacements: { month },
+      type: db.QueryTypes.SELECT
+    });
+
+    const [ot] = await db.query(otQuery, {
+      replacements: { month },
+      type: db.QueryTypes.SELECT
+    });
+
+    const dept = await db.query(deptQuery, {
+      replacements: { month },
+      type: db.QueryTypes.SELECT
+    });
+
+    const rawViolators = await db.query(violatorQuery, {
+      replacements: { month },
+      type: db.QueryTypes.SELECT
+    });
+    
+    // format lại cho frontend
+    const violators = rawViolators.map(item => {
+      const minutes = Math.max(0, Math.floor(item.late_minutes || 0));
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+    
+      return {
+        name: item.full_name,
+        dept: item.department_name || 'Chưa phân bổ',
+        lateCount: Number(item.late_count),
+        lateTime: `${h}h ${m}m`
+      };
+    });
+
+    res.json({
+      totalHours: Math.round(totalHours.total_hours || 0),
+      lateCount: Number(late.late_count || 0),
+      otHours: Math.round(ot.ot_hours || 0),
+    
+      lateByDept: dept.map(d => ({
+        label: d.department_name || 'Khác',
+        percent: Math.round(d.percent || 0)
+      })),
+    
+      violators
+    });
+
+  } catch (error) {
+    console.error('getAttendanceStats error:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
 module.exports = {
   getEmployees,
   getEmployeeById,
@@ -619,7 +753,8 @@ module.exports = {
   getAbsentEmployees,
   getChangesSummary,
   getChangesList,
-  getTenureStats
+  getTenureStats,
+  getAttendanceStats
 };
 
 
