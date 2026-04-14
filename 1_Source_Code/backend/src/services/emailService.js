@@ -1,83 +1,68 @@
 const fs = require('fs');
 const path = require('path');
-const nodemailer = require('nodemailer');
-const axios = require('axios'); // Dùng Axios cho Render
+const axios = require('axios');
 const PDFDocument = require('pdfkit');
-
-// Biến kiểm tra môi trường (Render tự động set NODE_ENV=production)
-const isProd = process.env.NODE_ENV === 'production';
 
 // Thư mục chứa font tiếng Việt
 const FONTS_DIR = path.join(__dirname, '..', 'fonts');
 
 // ==========================================
-// 1. KHỞI TẠO NODEMAILER (CHỈ DÙNG CHO LOCAL)
-// ==========================================
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER, // Gmail cá nhân
-    pass: process.env.EMAIL_PASS, // Mật khẩu ứng dụng 16 ký tự
-  },
-  family: 4, // Ép IPv4 cho chắc ăn ở local
-});
-
-// ==========================================
-// 2. HÀM GỬI MAIL CỐT LÕI (TỰ ĐỘNG CHIA NHÁNH)
+// 1. HÀM GỬI MAIL CỐT LÕI (Dùng Brevo API)
 // ==========================================
 async function transportMail({ to, subject, html, attachments = [] }) {
-  if (isProd) {
-    // --------------------------------------------------
-    // MÔI TRƯỜNG RENDER: Dùng Brevo API qua cổng HTTP 443
-    // --------------------------------------------------
-    console.log(`🚀 [Render - Production] Đang gửi mail tới: ${to} qua Brevo API...`);
-    
-    // Chuyển PDF Buffer sang Base64 cho API
-    const brevoAttachments = attachments.map(att => ({
-      name: att.filename,
-      content: att.content.toString('base64')
-    }));
+  console.log(`🚀 Đang gửi email tới: ${to} qua Brevo API...`);
+  
+  const payload = {
+    sender: { 
+      name: "Hệ thống Quản lý Nhân sự GPS", 
+      email: "peopelteach@gmail.com" // Đã cố định email gửi đi
+    },
+    to: [{ email: to }], // Email nhận truyền vào linh hoạt
+    subject: subject,
+    htmlContent: html,
+  };
 
-    const payload = {
-      sender: { 
-        name: "Hệ thống Quản lý Nhân sự GPS", 
-        email: process.env.EMAIL_USER // Phải trùng email đã xác minh trên Brevo
-      },
-      to: [{ email: to }],
-      subject: subject,
-      htmlContent: html,
-    };
+  // Xử lý file đính kèm (PDF)
+  if (attachments && attachments.length > 0) {
+    payload.attachment = attachments.map(att => {
+      let base64Content = att.content;
+      
+      if (Buffer.isBuffer(att.content)) {
+        base64Content = att.content.toString('base64');
+      } else if (typeof att.content === 'string' && !/^[A-Za-z0-9+/=]+$/.test(att.content)) {
+        base64Content = Buffer.from(att.content).toString('base64');
+      }
 
-    if (brevoAttachments.length > 0) {
-      payload.attachment = brevoAttachments;
-    }
+      return {
+        name: att.filename || att.name || 'document.pdf',
+        content: base64Content
+      };
+    });
+  }
 
+  try {
     const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
       headers: {
-        'accept': 'application/json',
         'api-key': process.env.BREVO_API_KEY,
-        'content-type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     });
+    console.log("✅ Gửi email thành công! Message ID:", response.data.messageId);
     return response.data;
-
-  } else {
-    // --------------------------------------------------
-    // MÔI TRƯỜNG LOCAL: Dùng Nodemailer + Gmail
-    // --------------------------------------------------
-    console.log(`🏠 [Local - Development] Đang gửi mail tới: ${to} qua Nodemailer...`);
-    return transporter.sendMail({
-      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html,
-      attachments,
-    });
+  } catch (error) {
+    console.error("❌ Lỗi gửi email qua Brevo API:");
+    if (error.response) {
+      console.error(error.response.data);
+    } else {
+      console.error(error.message);
+    }
+    throw error;
   }
 }
 
 // ==========================================
-// 3. CÁC HÀM TIỆN ÍCH XỬ LÝ DỮ LIỆU & PDF
+// 2. CÁC HÀM TIỆN ÍCH XỬ LÝ DỮ LIỆU & PDF
 // ==========================================
 function resolveVietnameseFontPath() {
   const preferred = path.join(FONTS_DIR, 'Times-New-Roman.ttf');
@@ -121,9 +106,7 @@ function generateDecisionPdfBuffer(employeeName, decisionData) {
     if (fontPath) {
       doc.registerFont(fontMain, fontPath);
     } else {
-      console.warn(
-        '[emailService] Chưa có file .ttf trong src/fonts (ví dụ Times-New-Roman.ttf). PDF có thể hiển thị sai dấu tiếng Việt.'
-      );
+      console.warn('[emailService] Chưa có file .ttf trong src/fonts. PDF có thể hiển thị sai dấu tiếng Việt.');
     }
 
     const useFont = fontPath ? fontMain : 'Helvetica';
@@ -160,12 +143,7 @@ function generateDecisionPdfBuffer(employeeName, decisionData) {
 
     doc.fontSize(11);
     doc.text(`Số: ${decision_number}`, leftX, y, { width: 220, align: 'left' });
-    doc.text(
-      `${issuePlace}, ${formatVietnameseCalendarDate(issue_date)}`,
-      rightX,
-      y,
-      { width: rightW, align: 'center' }
-    );
+    doc.text(`${issuePlace}, ${formatVietnameseCalendarDate(issue_date)}`, rightX, y, { width: rightW, align: 'center' });
     y += 36;
 
     doc.fontSize(13).text('QUYẾT ĐỊNH', leftX, y, { width: 495, align: 'center' });
@@ -200,52 +178,27 @@ function generateDecisionPdfBuffer(employeeName, decisionData) {
 
     doc.fontSize(11);
     if (isReward) {
-      doc.text(
-        `Điều 1. Khen thưởng: ${employeeName} theo hình thức «${form}» trong năm ${yearRef}.`,
-        leftX,
-        y,
-        { width: 495, align: 'left' }
-      );
+      doc.text(`Điều 1. Khen thưởng: ${employeeName} theo hình thức «${form}» trong năm ${yearRef}.`, leftX, y, { width: 495, align: 'left' });
       y += 16;
       if (amountNum > 0) {
-        doc.text(
-          `- Mức khen thưởng: ${new Intl.NumberFormat('vi-VN').format(amountNum)} VNĐ`,
-          leftX,
-          y,
-          { width: 495, align: 'left' }
-        );
+        doc.text(`- Mức khen thưởng: ${new Intl.NumberFormat('vi-VN').format(amountNum)} VNĐ`, leftX, y, { width: 495, align: 'left' });
         y += 14;
       }
       doc.text(`- Lý do, thành tích: ${reason}`, leftX, y, { width: 495, align: 'left' });
       y += 28;
     } else {
-      doc.text(
-        `Điều 1. Áp dụng hình thức kỷ luật «${form}» đối với ông/bà ${employeeName}.`,
-        leftX,
-        y,
-        { width: 495, align: 'left' }
-      );
+      doc.text(`Điều 1. Áp dụng hình thức kỷ luật «${form}» đối với ông/bà ${employeeName}.`, leftX, y, { width: 495, align: 'left' });
       y += 16;
       doc.text(`- Lý do chi tiết: ${reason}`, leftX, y, { width: 495, align: 'left' });
       y += 14;
       if (amountNum > 0) {
-        doc.text(
-          `- Số tiền (nếu có): ${new Intl.NumberFormat('vi-VN').format(amountNum)} VNĐ`,
-          leftX,
-          y,
-          { width: 495, align: 'left' }
-        );
+        doc.text(`- Số tiền (nếu có): ${new Intl.NumberFormat('vi-VN').format(amountNum)} VNĐ`, leftX, y, { width: 495, align: 'left' });
         y += 14;
       }
       y += 14;
     }
 
-    doc.text(
-      'Điều 2. Quyết định có hiệu lực kể từ ngày ký. Phòng Kế toán, Phòng Hành chính — Nhân sự và các phòng/ban có liên quan chịu trách nhiệm thi hành quyết định này.',
-      leftX,
-      y,
-      { width: 495, align: 'left' }
-    );
+    doc.text('Điều 2. Quyết định có hiệu lực kể từ ngày ký. Phòng Kế toán, Phòng Hành chính — Nhân sự và các phòng/ban có liên quan chịu trách nhiệm thi hành quyết định này.', leftX, y, { width: 495, align: 'left' });
     y += 56;
     doc.text('Nơi nhận:', leftX, y, { width: 200 });
     y += 14;
@@ -275,7 +228,7 @@ function buildDecisionEmailHtml(employeeName, decisionData, isReward) {
 }
 
 // ==========================================
-// 4. CÁC HÀM XUẤT RA (EXPORTS) ĐỂ CONTROLLER GỌI
+// 3. CÁC HÀM XUẤT RA (EXPORTS) ĐỂ CONTROLLER GỌI
 // ==========================================
 
 const sendOTPEmail = async (toEmail, otpCode) => {
@@ -344,7 +297,7 @@ const sendDecisionEmail = async (email, employeeName, decisionData, pdfBuffer) =
   ];
 
   try {
-    await transportMail({ to: email, subject, html: htmlContent, attachments });
+    await transportMail({ to: email, subject: subject, html: htmlContent, attachments });
     console.log(`✅ Đã gửi email quyết định tới: ${email}`);
     return true;
   } catch (error) {
