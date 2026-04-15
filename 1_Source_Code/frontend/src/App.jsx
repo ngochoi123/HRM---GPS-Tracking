@@ -26,7 +26,7 @@ import Departments from './pages/GiamDoc/Departments';
 import Contracts from './pages/GiamDoc/Contracts';
 import Branches from './pages/GiamDoc/Branches';
 import Positions from './pages/GiamDoc/Positions';
-import Approvals from './pages/GiamDoc/Approvals';
+import Approvals from './pages/GiamDoc/ApprovalsDirector';
 import DepartmentDetail from './pages/GiamDoc/DepartmentDetail';
 import DepartmentCreate from "./pages/GiamDoc/DepartmentCreate";
 import EditDepartment from "./pages/GiamDoc/EditDepartment";

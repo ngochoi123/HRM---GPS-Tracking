@@ -1,18 +1,23 @@
-import React, { useState, useRef, useEffect, startTransition } from "react";
+﻿import React, { useState, useRef, useEffect, startTransition } from "react";
 import { Bell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import NotificationDetailModal from "./NotificationDetailModal";
 import { notificationService } from "../../services/notificationService";
-
-// BỔ SUNG: Import đầy đủ thư viện Icon đa dạng để đồng bộ với trang Quản lý
 import {
-  FaInfoCircle, FaExclamationTriangle, FaCogs,
-  FaMoneyBillWave, FaUmbrellaBeach, FaSnowflake,
-  FaBirthdayCake, FaGift, FaClock, FaPlane,
-  FaHeartbeat, FaBullhorn
+  FaInfoCircle,
+  FaExclamationTriangle,
+  FaCogs,
+  FaMoneyBillWave,
+  FaUmbrellaBeach,
+  FaSnowflake,
+  FaBirthdayCake,
+  FaGift,
+  FaClock,
+  FaPlane,
+  FaHeartbeat,
+  FaBullhorn
 } from "react-icons/fa";
 import { MdEventNote, MdGroups } from "react-icons/md";
 
-/** Gọi API ngoài component — tránh effect gọi hàm component-level bị ESLint/React cảnh báo setState. */
 async function fetchBellList(userId) {
   return notificationService.getMyBell(userId);
 }
@@ -22,19 +27,18 @@ export default function NotificationBell() {
   const [isExpanded, setIsExpanded] = useState(false);
   const dropdownRef = useRef(null);
   const listScrollRef = useRef(null);
-
   const [selectedNoti, setSelectedNoti] = useState(null);
   const [notifications, setNotifications] = useState([]);
 
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : {};
   const myUserId = user.employee_id || user.id;
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
 
-  const isReadValue = (v) => {
-    if (v === true) return true;
-    if (v === 1) return true;
-    const sv = String(v).toLowerCase();
-    return sv === "true" || sv === "1";
+  const isReadValue = (value) => {
+    if (value === true || value === 1) return true;
+    const normalized = String(value).toLowerCase();
+    return normalized === "true" || normalized === "1";
   };
 
   useEffect(() => {
@@ -47,14 +51,14 @@ export default function NotificationBell() {
         const list = await fetchBellList(myUserId);
         if (cancelled) return;
         startTransition(() => {
-          setNotifications(list);
+          setNotifications(Array.isArray(list) ? list : []);
         });
       } catch (error) {
         if (!cancelled) console.error("Lỗi khi lấy chuông thông báo:", error);
       }
     };
 
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void load();
     }, 0);
     const interval = window.setInterval(() => {
@@ -63,7 +67,7 @@ export default function NotificationBell() {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
       window.clearInterval(interval);
     };
   }, [myUserId]);
@@ -75,7 +79,7 @@ export default function NotificationBell() {
       void (async () => {
         try {
           const list = await fetchBellList(myUserId);
-          startTransition(() => setNotifications(list));
+          startTransition(() => setNotifications(Array.isArray(list) ? list : []));
         } catch (error) {
           console.error("Lỗi khi lấy chuông thông báo:", error);
         }
@@ -107,7 +111,7 @@ export default function NotificationBell() {
 
   const markAllAsRead = async () => {
     try {
-      setNotifications(notifications.map((n) => ({ ...n, is_read: true })));
+      setNotifications(safeNotifications.map((item) => ({ ...item, is_read: true })));
       await notificationService.markAllAsRead(myUserId);
     } catch (error) {
       console.error("Lỗi khi đánh dấu đọc tất cả:", error);
@@ -115,19 +119,18 @@ export default function NotificationBell() {
   };
 
   const handleViewNotification = async (noti) => {
-    const d = new Date(noti.created_at);
-    const timeStr = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-    const dateStr = d.toLocaleDateString("vi-VN");
-
+    const createdDate = new Date(noti.created_at);
+    const timeStr = createdDate.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const dateStr = createdDate.toLocaleDateString("vi-VN");
     const { icon, bg, textColor } = getSmartIcon(noti.title, noti.notification_type);
 
     setSelectedNoti({
       ...noti,
       fullTime: `${timeStr}, ${dateStr}`,
       target: "Cá nhân",
-      icon: icon,
-      bg: bg,
-      textColor: textColor
+      icon,
+      bg,
+      textColor
     });
 
     setIsOpen(false);
@@ -135,48 +138,56 @@ export default function NotificationBell() {
 
     if (!isReadValue(noti.is_read)) {
       try {
-        setNotifications((prev) => prev.map((n) => (n.id === noti.id ? { ...n, is_read: true } : n)));
+        setNotifications((prev) =>
+          prev.map((item) => (item.id === noti.id ? { ...item, is_read: true } : item))
+        );
         await notificationService.markAsRead(noti.id, myUserId);
       } catch (error) {
-        console.error("Lỗi không cập nhật được trạng thái Đã Đọc:", error);
+        console.error("Lỗi không cập nhật được trạng thái đã đọc:", error);
       }
     }
   };
 
   const getSmartIcon = (title, type) => {
-    const lowerTitle = title?.toLowerCase() || "";
+    const lowerTitle = String(title || "").toLowerCase();
+
+    if (
+      lowerTitle.includes("từ chối") ||
+      lowerTitle.includes("trả về") ||
+      lowerTitle.includes("bổ sung")
+    ) {
+      return { icon: <FaExclamationTriangle size={16} />, bg: "bg-red-100", textColor: "text-red-500" };
+    }
 
     if (lowerTitle.includes("hè") || lowerTitle.includes("biển") || lowerTitle.includes("du lịch")) return { icon: <FaUmbrellaBeach size={16} />, bg: "bg-orange-100", textColor: "text-orange-500" };
     if (lowerTitle.includes("đông") || lowerTitle.includes("lạnh")) return { icon: <FaSnowflake size={16} />, bg: "bg-cyan-100", textColor: "text-cyan-600" };
     if (lowerTitle.includes("lương") || lowerTitle.includes("thưởng") || lowerTitle.includes("tiền")) return { icon: <FaMoneyBillWave size={16} />, bg: "bg-green-100", textColor: "text-green-600" };
     if (lowerTitle.includes("sinh nhật") || lowerTitle.includes("kỷ niệm")) return { icon: <FaBirthdayCake size={16} />, bg: "bg-fuchsia-100", textColor: "text-fuchsia-600" };
     if (lowerTitle.includes("quà") || lowerTitle.includes("tặng")) return { icon: <FaGift size={16} />, bg: "bg-rose-100", textColor: "text-rose-600" };
-
     if (lowerTitle.includes("họp") || lowerTitle.includes("meeting") || lowerTitle.includes("giao ban")) return { icon: <MdGroups size={18} />, bg: "bg-indigo-100", textColor: "text-indigo-600" };
     if (lowerTitle.includes("nghỉ") || lowerTitle.includes("lễ") || lowerTitle.includes("phép")) return { icon: <MdEventNote size={16} />, bg: "bg-pink-100", textColor: "text-pink-600" };
-    if (lowerTitle.includes("giờ") || lowerTitle.includes("chấm công") || lowerTitle.includes("ca làm")) return { icon: <FaClock size={16} />, bg: "bg-purple-100", textColor: "text-purple-600" };
+    if (lowerTitle.includes("tăng ca") || lowerTitle.includes("giờ") || lowerTitle.includes("chấm công") || lowerTitle.includes("ca làm")) return { icon: <FaClock size={16} />, bg: "bg-purple-100", textColor: "text-purple-600" };
     if (lowerTitle.includes("công tác") || lowerTitle.includes("chuyến đi")) return { icon: <FaPlane size={16} />, bg: "bg-sky-100", textColor: "text-sky-600" };
     if (lowerTitle.includes("sức khỏe") || lowerTitle.includes("khám") || lowerTitle.includes("bảo hiểm")) return { icon: <FaHeartbeat size={16} />, bg: "bg-red-50", textColor: "text-red-400" };
     if (lowerTitle.includes("thông báo") || lowerTitle.includes("tin tức")) return { icon: <FaBullhorn size={16} />, bg: "bg-yellow-100", textColor: "text-yellow-600" };
-
     if (type === "warning") return { icon: <FaExclamationTriangle size={16} />, bg: "bg-red-100", textColor: "text-red-500" };
     if (type === "system") return { icon: <FaCogs size={16} />, bg: "bg-gray-200", textColor: "text-gray-600" };
-
     return { icon: <FaInfoCircle size={16} />, bg: "bg-blue-100", textColor: "text-blue-500" };
   };
 
   const stripHtml = (html) => {
-    const tmp = document.createElement("DIV");
+    const tmp = document.createElement("div");
     tmp.innerHTML = html || "";
     const text = (tmp.textContent || tmp.innerText || "").replace(/\s+/g, " ").trim();
     if (text.length <= 72) return text || "…";
     return `${text.slice(0, 72).trim()}…`;
   };
 
-  const unreadCount = notifications.filter((n) => !isReadValue(n.is_read)).length;
+  const unreadCount = safeNotifications.filter((item) => !isReadValue(item.is_read)).length;
   const previewLimit = 5;
-  const hasMoreThanPreview = notifications.length > previewLimit;
-  const displayedNotifications = isExpanded || !hasMoreThanPreview ? notifications : notifications.slice(0, previewLimit);
+  const hasMoreThanPreview = safeNotifications.length > previewLimit;
+  const displayedNotifications =
+    isExpanded || !hasMoreThanPreview ? safeNotifications : safeNotifications.slice(0, previewLimit);
 
   return (
     <div className="relative inline-block font-sans antialiased subpixel-antialiased" ref={dropdownRef}>
@@ -185,7 +196,7 @@ export default function NotificationBell() {
         aria-expanded={isOpen}
         aria-haspopup="true"
         onClick={() => {
-          setIsOpen((v) => !v);
+          setIsOpen((value) => !value);
           if (isOpen) setIsExpanded(false);
         }}
         className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 ${
@@ -242,13 +253,16 @@ export default function NotificationBell() {
               {displayedNotifications.length > 0 ? (
                 <ul className="flex flex-col gap-1.5 p-2.5">
                   {displayedNotifications.map((noti) => {
-                  const d = new Date(noti.created_at);
-                  const timeStr = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-                  const { icon, bg, textColor } = getSmartIcon(noti.title, noti.notification_type);
-                  const isUnread = !isReadValue(noti.is_read);
+                    const createdDate = new Date(noti.created_at);
+                    const timeStr = createdDate.toLocaleTimeString("vi-VN", {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    });
+                    const { icon, bg, textColor } = getSmartIcon(noti.title, noti.notification_type);
+                    const isUnread = !isReadValue(noti.is_read);
 
-                  return (
-                  <li key={noti.id} className="list-none">
+                    return (
+                      <li key={noti.id} className="list-none">
                         <button
                           type="button"
                           onClick={() => handleViewNotification(noti)}
@@ -258,9 +272,7 @@ export default function NotificationBell() {
                               : "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 shadow-[0_1px_6px_rgba(15,23,42,0.04)]"
                           }`}
                         >
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg} ${textColor}`}
-                          >
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg} ${textColor}`}>
                             {icon}
                           </div>
                           <div className="min-w-0 flex-1 overflow-hidden pr-1">
@@ -281,7 +293,7 @@ export default function NotificationBell() {
                               )}
                             </div>
                             <p className="mt-1.5 break-words line-clamp-2 text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
-                              {stripHtml(noti.content)}
+                              {stripHtml(noti.content || noti.desc || "")}
                             </p>
                             <p className="mt-2 text-xs tabular-nums text-slate-400">
                               <span>{timeStr}</span>

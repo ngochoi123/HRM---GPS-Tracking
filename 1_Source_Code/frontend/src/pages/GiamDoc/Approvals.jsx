@@ -1,3 +1,1 @@
-export default function Approvals() {
-    return <h1>Xét duyệt tài liệu</h1>;
-  }
+﻿export { default } from './ApprovalsDirector';
