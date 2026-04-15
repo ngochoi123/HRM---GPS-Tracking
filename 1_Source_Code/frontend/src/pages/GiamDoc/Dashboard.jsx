@@ -17,8 +17,9 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const response = await directorDashboardService.getOverview();
-      if (response?.success) {
-        setData(response.data);
+      const payload = response?.success ? response : response?.data ?? response;
+      if (payload?.success) {
+        setData(payload.data || payload);
       }
     } catch (error) {
       console.error("Lỗi khi tải dữ liệu dashboard:", error);
@@ -31,7 +32,7 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  const { summary, departments, managers, requests } = data;
+  const { summary, departments, managers, requests } = data || {};
   const performance = summary?.total > 0 ? Math.round((summary?.present / summary?.total) * 100) : 0;
 
   const statusMap = {
@@ -163,7 +164,13 @@ export default function Dashboard() {
                 <div>
                   <p className="font-medium text-sm truncate w-32">{r.name}</p>
                   <p className="text-xs text-gray-500">
-                    {r.type === "leave" ? "Nghỉ phép" : "Tăng ca"}
+                    {r.type === "leave"
+                      ? "Nghỉ phép"
+                      : r.type === "overtime"
+                        ? "Tăng ca"
+                      : r.type === "payroll"
+                        ? "Bảng lương"
+                        : "Yêu cầu khác"}
                   </p>
                 </div>
               </motion.div>

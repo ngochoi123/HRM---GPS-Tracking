@@ -1,4 +1,4 @@
-import axiosClient from '../api/axiosClient';
+﻿import axiosClient from '../api/axiosClient';
 
 export const payrollService = {
   getCalculation: async (monthYear, departmentId) => {
@@ -12,6 +12,13 @@ export const payrollService = {
   /** Sửa giờ chấm công (check-in / check-out) trong bảng attendance */
   correctAttendance: async (payload) => {
     const response = await axiosClient.patch('/payroll/attendance', payload, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response;
+  },
+
+  submitToDirector: async (payload) => {
+    const response = await axiosClient.post('/payroll/submit-to-director', payload, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     return response;

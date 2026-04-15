@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Eye, FileSpreadsheet, Send, Download, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { payrollService } from '../../../services/payrollService'; 
+import { payrollService } from '../../../services/payrollService';
 import PayrollDetailModal from './PayrollDetailModal';
 import * as XLSX from 'xlsx';
 
@@ -30,6 +30,15 @@ const buildPayrollYearOptions = () => {
   return list;
 };
 
+const isPayrollSubmittable = (item) => (item?.payroll_status || 'draft') === 'draft';
+
+const payrollStatusLabelMap = {
+  draft: 'Chưa gửi',
+  pending_approval: 'Đã gửi Giám đốc',
+  approved: 'Giám đốc đã duyệt',
+  paid: 'Đã chi trả'
+};
+
 const Payroll = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -48,9 +57,11 @@ const Payroll = () => {
 
   const payrollScrollRef = useRef(null);
   const payrollZoomRef = useRef(null);
+  const fetchRequestRef = useRef(0);
 
   const totalPages = Math.ceil(data.length / itemsPerPage) || 1;
   const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const selectableCurrentData = currentData.filter(isPayrollSubmittable);
 
   const payrollYearOptions = React.useMemo(() => buildPayrollYearOptions(), []);
   const rawParts = (monthYear || '').split('-');
@@ -106,45 +117,74 @@ const Payroll = () => {
     return () => ro.disconnect();
   }, [data.length, currentPage, loading, monthYear, currentData.length]);
 
-  // Hàm format số nguyên (loại bỏ thập phân để bảng gọn gàng)
   const fmt = (val) => new Intl.NumberFormat('vi-VN').format(Math.round(val || 0));
 
   const fmtPayrollDec2 = (val) => {
-    if (val == null || val === '') return '—';
+    if (val == null || val === '') return '0,00';
     const n = Number(val);
     if (!Number.isFinite(n)) return String(val);
-    return (Math.round(n * 100) / 100).toFixed(2);
+    return new Intl.NumberFormat('vi-VN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.round(n * 100) / 100);
   };
 
   const fetchPayrollData = useCallback(async (options = {}) => {
     if (!monthYear) return;
     const silent = Boolean(options.silent);
     const preserveEmployeeCode = options.preserveEmployeeCode ?? null;
+    const requestId = fetchRequestRef.current + 1;
+    fetchRequestRef.current = requestId;
 
     setLoading(true);
     try {
       const [year, month] = monthYear.split('-');
       const formattedMonthYear = `${month}-${year}`;
+      if (!preserveEmployeeCode) {
+        setSelected(null);
+      }
 
       const res = await payrollService.getCalculation(formattedMonthYear, null);
-      if (res.success) {
-        setData(res.data);
+      if (fetchRequestRef.current !== requestId) {
+        return;
+      }
+      if (res?.success) {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const normalizedRows = rows.map((row) => ({
+          ...row,
+          total_work_days: Number.isFinite(Number(row?.total_work_days))
+            ? Number(row.total_work_days)
+            : 0,
+        }));
+
+        setData(normalizedRows);
         if (!preserveEmployeeCode) {
           setCurrentPage(1);
-          setSelectedRows([]);
         }
+        setSelectedRows((prev) =>
+          prev.filter((code) => normalizedRows.some((row) => row.employee_code === code && isPayrollSubmittable(row)))
+        );
         if (preserveEmployeeCode) {
-          const row = res.data.find((d) => d.employee_code === preserveEmployeeCode);
+          const row = normalizedRows.find((d) => d.employee_code === preserveEmployeeCode);
           if (row) setSelected(row);
         }
         if (!silent) {
-          if (res.data.length === 0) {
+          if (normalizedRows.length === 0) {
             toast.error('Không tìm thấy dữ liệu tháng này!', { id: `payroll-empty-${year}-${month}` });
           } else {
             toast.success(`Đã tải bảng lương tháng ${month}/${year}`, {
               id: `payroll-loaded-${year}-${month}`,
             });
           }
+        }
+      } else {
+        setData([]);
+        setSelectedRows([]);
+        if (!preserveEmployeeCode) {
+          setCurrentPage(1);
+        }
+        if (!silent) {
+          toast.error(res?.error || res?.message || 'Không thể tải dữ liệu bảng lương.');
         }
       }
     } catch (e) {
@@ -165,13 +205,18 @@ const Payroll = () => {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedRows(currentData.map(item => item.employee_code));
+      setSelectedRows((prev) => [
+        ...new Set([...prev, ...selectableCurrentData.map((item) => item.employee_code)])
+      ]);
     } else {
-      setSelectedRows([]);
+      setSelectedRows((prev) =>
+        prev.filter((code) => !selectableCurrentData.some((item) => item.employee_code === code))
+      );
     }
   };
 
-  const handleSelectRow = (code) => {
+  const handleSelectRow = (code, disabled = false) => {
+    if (disabled) return;
     setSelectedRows(prev => 
       prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
     );
@@ -179,12 +224,12 @@ const Payroll = () => {
 
   const handleDownloadExcel = () => {
     if (data.length === 0) {
-      toast.error("Không có dữ liệu để tải xuống!");
+      toast.error('Không có dữ liệu để tải xuống!');
       return;
     }
 
     const excelData = data.map((item, idx) => ({
-      'STT': idx + 1,
+      STT: idx + 1,
       'Mã NV': item.employee_code,
       'Tên Nhân Viên': item.full_name,
       'Phòng Ban': item.department_name,
@@ -200,22 +245,49 @@ const Payroll = () => {
       'NLĐ Đóng BHYT (1.5%)': Math.round(item.empInsurance.bhyt),
       'NLĐ Đóng BHTN (1%)': Math.round(item.empInsurance.bhtn),
       'Thực Nhận Tháng': Math.round(item.income_after_insurance),
-      'Tổng DN Đóng BH': Math.round(item.compInsurance.total), // Đã sửa logic
+      'Tổng DN Đóng BH': Math.round(item.compInsurance.total),
       'Chi Phí Tiền Lương': Math.round(item.company_cost)
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "BangLuong");
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'BangLuong');
     
     const [year, month] = monthYear.split('-');
     XLSX.writeFile(workbook, `Bang_luong_thang_${month}-${year}.xlsx`);
   };
 
+  const handleSubmitToDirector = async () => {
+    if (!selectedRows.length) {
+      toast.error('Hãy chọn ít nhất một bảng lương để gửi.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const [year, month] = monthYear.split('-');
+      const formattedMonthYear = `${month}-${year}`;
+
+      const res = await payrollService.submitToDirector({
+        monthYear: formattedMonthYear,
+        employeeCodes: selectedRows
+      });
+
+      if (res?.success) {
+        toast.success(res.message || 'Đã gửi bảng lương đến Giám đốc.');
+        setSelectedRows([]);
+        await fetchPayrollData({ silent: true });
+      }
+    } catch (error) {
+      console.error('handleSubmitToDirector error:', error);
+      toast.error(error?.response?.data?.message || 'Không thể gửi bảng lương đến Giám đốc.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const startItem = data.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, data.length);
-
-  // LOGIC RÀNG BUỘC: Kiểm tra nếu chọn từ 2 người trở lên
   const isMultipleSelected = selectedRows.length >= 2;
 
   const easeOut = [0.22, 1, 0.36, 1];
@@ -227,7 +299,6 @@ const Payroll = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.38, ease: easeOut }}
     >
-      {/* Header Actions */}
       <Motion.div
         className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex justify-between items-center gap-4 mb-4 shrink-0"
         initial={{ opacity: 0, y: 10 }}
@@ -281,7 +352,11 @@ const Payroll = () => {
               ))}
             </select>
           </div>
-          <button disabled={data.length===0 || loading} className="bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 transition-all shadow-sm">
+          <button
+            onClick={handleSubmitToDirector}
+            disabled={data.length === 0 || loading || selectedRows.length === 0}
+            className="bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 transition-all shadow-sm"
+          >
             <Send size={16}/> Gửi đến Giám đốc
           </button>
         </div>
@@ -293,7 +368,6 @@ const Payroll = () => {
         </div>
       )}
 
-      {/* Bảng Lương Chính */}
       <Motion.div
         className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden mb-4 min-h-0"
         initial={{ opacity: 0, y: 12 }}
@@ -309,9 +383,10 @@ const Payroll = () => {
                   <label className="flex items-center gap-3 cursor-pointer p-1 -m-1">
                     <input 
                       type="checkbox" 
-                      onChange={handleSelectAll} 
-                      checked={currentData.length > 0 && selectedRows.length === currentData.length}
-                      className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer accent-green-600"
+                      onChange={handleSelectAll}
+                      checked={selectableCurrentData.length > 0 && selectableCurrentData.every((item) => selectedRows.includes(item.employee_code))}
+                      disabled={selectableCurrentData.length === 0}
+                      className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer accent-green-600 disabled:cursor-not-allowed"
                     />
                     <span>Tên Nhân Viên</span>
                   </label>
@@ -326,7 +401,6 @@ const Payroll = () => {
                 <th colSpan="3" className="p-1.5 border-b border-gray-200">Người Lao Động Đóng BH</th>
                 
                 <th rowSpan="2" className="p-2 border-b border-gray-200">Thực Nhận Tháng</th>
-                {/* ĐÃ SỬA TÊN CỘT TẠI ĐÂY */}
                 <th rowSpan="2" className="p-2 border-b border-gray-200 text-orange-500">Tổng DN Đóng BH</th>
                 <th rowSpan="2" className="p-2 border-b border-gray-200 text-indigo-700">Chi phí Tiền Lương</th>
                 
@@ -349,6 +423,7 @@ const Payroll = () => {
               ) : (
                 currentData.map((item, idx) => {
                   const isSelected = selectedRows.includes(item.employee_code);
+                  const isSubmittable = isPayrollSubmittable(item);
                   const rowBg = isSelected ? 'bg-green-50 text-gray-900' : 'bg-white hover:bg-gray-50/80';
                   const stickyBg = isSelected ? 'bg-green-50' : 'bg-white group-hover:bg-gray-50/80';
 
@@ -360,21 +435,31 @@ const Payroll = () => {
                           {isSelected && <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-5 bg-red-500 rounded-r-sm z-50"></div>}
                           
                           <input 
-                            type="checkbox" 
+                            type="checkbox"
                             checked={isSelected}
-                            onChange={() => handleSelectRow(item.employee_code)}
-                            className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer accent-green-600 mt-0.5"
+                            disabled={!isSubmittable}
+                            onChange={() => handleSelectRow(item.employee_code, !isSubmittable)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer accent-green-600 mt-0.5 disabled:cursor-not-allowed"
                           />
                           <div>
                             <div className="font-bold text-gray-800">{item.full_name}</div>
                             <div className="text-[10px] text-gray-500 font-semibold tabular-nums tracking-wide mt-0.5">{item.employee_code}</div>
+                            <div className={`text-[10px] font-bold mt-1 ${
+                              item.payroll_status === 'approved'
+                                ? 'text-emerald-600'
+                                : item.payroll_status === 'pending_approval'
+                                  ? 'text-amber-600'
+                                  : 'text-slate-400'
+                            }`}>
+                              {payrollStatusLabelMap[item.payroll_status || 'draft'] || 'Chưa gửi'}
+                            </div>
                           </div>
                         </label>
                       </td>
                       
                       <td className="px-2 py-3 text-right font-bold text-blue-800 tabular-nums">{fmt(item.actual_salary)}</td>
                       <td className="px-2 py-3 text-center text-blue-600 font-bold bg-blue-50/10 tabular-nums">{fmtPayrollDec2(item.total_work_days)}</td>
-                      <td className="px-2 py-3 text-center text-gray-500 tabular-nums">{item.overtime > 0 ? item.overtime : '-'}</td>
+                      <td className="px-2 py-3 text-center text-gray-500 tabular-nums">{fmtPayrollDec2(item.overtime)}</td>
                       <td className="px-2 py-3 text-center text-red-500 font-bold tabular-nums">{item.discipline > 0 ? fmt(item.discipline) : '-'}</td>
                       <td className="px-2 py-3 text-right text-green-600 font-bold tabular-nums">{item.reward > 0 ? fmt(item.reward) : '-'}</td>
                       
@@ -387,23 +472,20 @@ const Payroll = () => {
                       <td className="px-2 py-3 text-right tabular-nums">{fmt(item.empInsurance.bhtn)}</td>
                       
                       <td className="px-2 py-3 text-right font-bold text-gray-800 bg-gray-50/50 tabular-nums">{fmt(item.income_after_insurance)}</td>
-                      
-                      {/* ĐÃ SỬA RENDER DATA ĐÚNG VỚI CỘT MỚI: TỔNG DN ĐÓNG BH */}
                       <td className="px-2 py-3 text-right text-orange-600 font-bold tabular-nums">{fmt(item.compInsurance.total)}</td>
-                      
                       <td className="px-2 py-3 text-right font-extrabold text-indigo-700 bg-indigo-50/20 tabular-nums">{fmt(item.company_cost)}</td>
                       
                       <td className={`px-2 py-3 text-center sticky right-0 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.02)] ${stickyBg}`}>
                         <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
-                            onClick={() => !isMultipleSelected && setSelected(item)} 
+                            onClick={() => !isMultipleSelected && setSelected(item)}
                             disabled={isMultipleSelected}
                             className={`p-2 rounded-full transition-all shadow-sm ${
                               isMultipleSelected 
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                                 : 'bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white active:scale-95'
                             }`}
-                            title={isMultipleSelected ? "Chỉ được xem chi tiết 1 nhân viên" : "Xem chi tiết"}
+                            title={isMultipleSelected ? 'Chỉ được xem chi tiết 1 nhân viên' : 'Xem chi tiết'}
                           >
                             <Eye size={16}/>
                           </button>
@@ -419,7 +501,6 @@ const Payroll = () => {
         </div>
       </Motion.div>
 
-      {/* Footer Actions */}
       <Motion.div
         className="flex w-full items-center justify-between shrink-0 pb-1"
         initial={{ opacity: 0 }}

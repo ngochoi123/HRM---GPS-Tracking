@@ -1,11 +1,10 @@
-const db = require('../config/database');
+﻿const db = require('../config/database');
 const {
     calcStandardWorkHours,
     getAttendanceStatusForCheckIn,
     getAttendanceStatusForCheckOut,
 } = require('../services/attendanceActions');
 
-/** Hiển thị HH:mm theo giờ VN (khớp dữ liệu timestamptz trong DB). */
 const formatTime = (value) => {
     if (!value) return null;
     const date = new Date(value);
@@ -27,8 +26,8 @@ const formatHours = (value) => {
     return Number(value).toFixed(2);
 };
 
-/** Giờ công ngày tính lương: tối đa 8h; vượt phần chỉ tính qua tăng ca đã duyệt (cột OT riêng). */
 const STANDARD_DAY_HOURS_CAP = 8;
+const STANDARD_MONTH_WORK_DAYS = 26;
 
 const capWorkHoursForPayroll = (raw) => {
     const n = parseFloat(raw);
@@ -36,15 +35,18 @@ const capWorkHoursForPayroll = (raw) => {
     return Math.min(n, STANDARD_DAY_HOURS_CAP);
 };
 
-/** Công ngày (0–1) từ giờ đã trần, 2 chữ số thập phân — tránh lỗi float khi cộng. */
 const congFromCappedHours = (cappedHours) => {
     const ratio = Math.min(cappedHours / STANDARD_DAY_HOURS_CAP, 1);
     return Math.round(ratio * 100) / 100;
 };
 
 const roundWorkDaysSum = (sum) => Math.round(sum * 100) / 100;
+const roundTo2 = (value) => {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+};
 
-/** Ngày hiện tại theo lịch VN (YYYY-MM-DD) — tránh server UTC làm nhầm "chưa tới ngày" vs "vắng". */
 const getTodayYmdHoChiMinh = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Ho_Chi_Minh',
@@ -64,7 +66,15 @@ const ymdForCalendarDay = (yearStr, monthStr, dayOfMonth) => {
     return `${yearStr}-${m}-${d}`;
 };
 
-/** Lấy key ngày (01–31) từ cột date PG — ưu tiên chuỗi YYYY-MM-DD để khỏi lệch múi giờ. */
+const getDaysInMonth = (yearStr, monthStr) => {
+    const yearNum = Number(yearStr);
+    const monthNum = Number(monthStr);
+    if (!Number.isInteger(yearNum) || !Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) {
+        return 0;
+    }
+    return new Date(yearNum, monthNum, 0).getDate();
+};
+
 const dayKeyFromPgDate = (value) => {
     if (value == null) return null;
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
@@ -75,7 +85,6 @@ const dayKeyFromPgDate = (value) => {
     return String(new Date(value).getUTCDate()).padStart(2, '0');
 };
 
-/** YYYY-MM-DD từ cột date PG — ưu tiên chuỗi để tránh lệch timezone. */
 const ymdFromPgDate = (value) => {
     if (value == null) return null;
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
@@ -89,8 +98,7 @@ const ymdFromPgDate = (value) => {
     return `${y}-${m}-${day}`;
 };
 
-const UUID_RE =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIME_HM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 const parseHmToVNDate = (attendanceDateYmd, hm) => {
@@ -112,21 +120,31 @@ const resolveStatusAfterEdit = (checkInDt, checkOutDt) => {
 };
 
 const calculatePayroll = async (req, res) => {
-    console.log("🚀🚀🚀 CHÚ Ý: ĐÃ VÀO HÀM TÍNH LƯƠNG!!! Tháng:", req.query.monthYear);
     const { monthYear, departmentId } = req.query;
     let tx;
 
     try {
         tx = await db.transaction();
         let empQuery = `
-            SELECT e.id, e.employee_code, e.full_name, c.base_salary, d.department_name
-            FROM employee e 
-            JOIN contract c ON e.id = c.employee_id 
+            SELECT
+                e.id,
+                e.employee_code,
+                e.full_name,
+                COALESCE(c.base_salary, 0) AS base_salary,
+                d.department_name
+            FROM employee e
             JOIN position p ON e.position_id = p.id
             JOIN department d ON p.department_id = d.id
-            WHERE c.is_active = true AND e.status = 'active'
+            LEFT JOIN LATERAL (
+                SELECT c.base_salary
+                FROM contract c
+                WHERE c.employee_id = e.id
+                ORDER BY c.is_active DESC, c.created_at DESC
+                LIMIT 1
+            ) c ON true
+            WHERE e.status = 'active'
         `;
-        
+
         const replacements = {};
         if (departmentId) {
             empQuery += ` AND d.id = :deptId`;
@@ -136,7 +154,7 @@ const calculatePayroll = async (req, res) => {
         const employees = await db.query(empQuery, {
             replacements,
             type: db.QueryTypes.SELECT,
-            transaction: tx
+            transaction: tx,
         });
 
         const results = [];
@@ -155,15 +173,19 @@ const calculatePayroll = async (req, res) => {
                 {
                     replacements: { id: emp.id, my: monthYear },
                     type: db.QueryTypes.SELECT,
-                    transaction: tx
+                    transaction: tx,
                 }
             );
 
             const decisions = await db.query(
-                `SELECT decision_type, SUM(amount) as total FROM hr_decision 
-                 WHERE employee_id = :id AND to_char(issue_date, 'MM-YYYY') = :my 
+                `SELECT decision_type, SUM(amount) as total FROM hr_decision
+                 WHERE employee_id = :id AND to_char(issue_date, 'MM-YYYY') = :my
                  GROUP BY decision_type`,
-                { replacements: { id: emp.id, my: monthYear }, type: db.QueryTypes.SELECT, transaction: tx }
+                {
+                    replacements: { id: emp.id, my: monthYear },
+                    type: db.QueryTypes.SELECT,
+                    transaction: tx,
+                }
             );
 
             const overtimeRows = await db.query(
@@ -178,20 +200,19 @@ const calculatePayroll = async (req, res) => {
                 {
                     replacements: { id: emp.id, my: monthYear },
                     type: db.QueryTypes.SELECT,
-                    transaction: tx
+                    transaction: tx,
                 }
             );
 
-            let reward = 0, discipline = 0;
-            decisions.forEach(d => {
+            let reward = 0;
+            let discipline = 0;
+            decisions.forEach((d) => {
                 if (d.decision_type === 'reward') reward = parseFloat(d.total);
                 if (d.decision_type === 'discipline') discipline = parseFloat(d.total);
             });
 
-            const otHours = overtimeRows.reduce(
-                (sum, row) => sum + parseFloat(row.ot_hours || 0),
-                0
-            );
+            const otHours = overtimeRows.reduce((sum, row) => sum + parseFloat(row.ot_hours || 0), 0);
+            const overtimeWorkDays = roundTo2(otHours / STANDARD_DAY_HOURS_CAP);
 
             const attendanceByDay = new Map();
             attendanceRows.forEach((row) => {
@@ -206,9 +227,10 @@ const calculatePayroll = async (req, res) => {
             });
 
             const [month, year] = monthYear.split('-');
+            const daysInMonth = getDaysInMonth(year, month);
             const todayYmd = getTodayYmdHoChiMinh();
 
-            const attendanceDetail = Array.from({ length: 26 }, (_, index) => {
+            const attendanceDetail = Array.from({ length: daysInMonth }, (_, index) => {
                 const day = String(index + 1).padStart(2, '0');
                 const row = attendanceByDay.get(day);
                 const rowYmd = ymdForCalendarDay(year, month, index + 1);
@@ -219,8 +241,7 @@ const calculatePayroll = async (req, res) => {
                     const workHours = capWorkHoursForPayroll(rawHours);
                     const otRaw = overtimeByDay.get(day);
                     const otNum = otRaw != null ? parseFloat(otRaw) : 0;
-                    const otDisplay =
-                        Number.isFinite(otNum) && otNum > 0 ? formatHours(otNum) : null;
+                    const otDisplay = Number.isFinite(otNum) && otNum > 0 ? formatHours(otNum) : null;
 
                     return {
                         day,
@@ -231,7 +252,7 @@ const calculatePayroll = async (req, res) => {
                         hours: formatHours(workHours),
                         cong: congFromCappedHours(workHours),
                         ot: otDisplay,
-                        status: row.status || 'on_time'
+                        status: row.status || 'on_time',
                     };
                 }
 
@@ -244,7 +265,7 @@ const calculatePayroll = async (req, res) => {
                     hours: null,
                     cong: null,
                     ot: null,
-                    status: isFuture ? 'future' : 'absent'
+                    status: isFuture ? 'future' : 'absent',
                 };
             });
 
@@ -255,34 +276,29 @@ const calculatePayroll = async (req, res) => {
                 }, 0)
             );
 
-            // 1. THU NHẬP THÁNG = Lương cơ bản
             const base = parseFloat(emp.base_salary || 0);
-            const overtimeMoney = otHours * (base / 22 / 8) * 1.5;
             const actualSalary = base;
 
-            // 2. TÍNH BẢO HIỂM (Tính theo Lương CB / Thu Nhập Tháng)
             const compInsurance = {
                 bhxh: base * 0.175,
                 bhyt: base * 0.03,
                 bhtn: base * 0.01,
-                total: base * 0.215 // Tổng DN Đóng BH
+                total: base * 0.215,
             };
             const empInsurance = {
                 bhxh: base * 0.08,
                 bhyt: base * 0.015,
                 bhtn: base * 0.01,
-                total: base * 0.105 // Tổng NLĐ Đóng BH
+                total: base * 0.105,
             };
 
-            // 3. THỰC NHẬN THÁNG = Lương cơ bản - BH NLĐ - Kỷ luật + Thưởng
-            const incomeAfterIns = actualSalary - empInsurance.total - discipline + reward;
+            const payableWorkDays = roundTo2((overtimeWorkDays * 2) + days);
+            const grossSalaryByAttendance = roundTo2((payableWorkDays * actualSalary) / STANDARD_MONTH_WORK_DAYS);
+            const incomeAfterIns = roundTo2(grossSalaryByAttendance - empInsurance.total - discipline + reward);
+            const companyCost = roundTo2(grossSalaryByAttendance - discipline + reward + compInsurance.total);
 
-            // 4. CHI PHÍ TIỀN LƯƠNG = Lương cơ bản (thu nhập tháng) + Tổng DN đóng BH + Thưởng - Phạt
-            const companyCost = actualSalary + compInsurance.total + reward - discipline;
-
-            // Thực nhận dùng cùng logic với Thu nhập sau BH ở bảng tổng hợp
             const netSalary = incomeAfterIns;
-            const totalAllowance = reward + overtimeMoney;
+            const totalAllowance = roundTo2(reward + (overtimeWorkDays * 2 * actualSalary) / STANDARD_MONTH_WORK_DAYS);
             const totalDeduction = empInsurance.total + discipline;
 
             const [payrollRow] = await db.query(
@@ -313,7 +329,7 @@ const calculatePayroll = async (req, res) => {
                     total_allowance = EXCLUDED.total_allowance,
                     total_deduction = EXCLUDED.total_deduction,
                     net_salary = EXCLUDED.net_salary
-                RETURNING id`,
+                RETURNING id, status`,
                 {
                     replacements: {
                         employeeId: emp.id,
@@ -322,10 +338,10 @@ const calculatePayroll = async (req, res) => {
                         totalWorkDays: days,
                         totalAllowance,
                         totalDeduction,
-                        netSalary
+                        netSalary,
                     },
                     type: db.QueryTypes.SELECT,
-                    transaction: tx
+                    transaction: tx,
                 }
             );
 
@@ -338,9 +354,9 @@ const calculatePayroll = async (req, res) => {
                     replacements: {
                         payrollId: payrollRow.id,
                         employeeId: emp.id,
-                        monthYear
+                        monthYear,
                     },
-                    transaction: tx
+                    transaction: tx,
                 }
             );
 
@@ -349,32 +365,30 @@ const calculatePayroll = async (req, res) => {
                 employee_code: emp.employee_code,
                 full_name: emp.full_name,
                 department_name: emp.department_name,
-                base_salary: base, 
-                actual_salary: actualSalary, 
+                base_salary: base,
+                actual_salary: actualSalary,
                 total_work_days: days,
-                overtime: overtimeMoney,
-                discipline: discipline,
-                reward: reward,
+                overtime: overtimeWorkDays,
+                discipline,
+                reward,
                 compInsurance,
                 empInsurance,
                 income_after_insurance: incomeAfterIns,
                 company_cost: companyCost,
                 net_salary: netSalary,
-                attendance_detail: attendanceDetail
+                payroll_status: payrollRow.status,
+                attendance_detail: attendanceDetail,
             });
         }
+
         await tx.commit();
         res.json({ success: true, data: results });
-    } catch (error) { 
+    } catch (error) {
         if (tx) await tx.rollback();
-        res.status(500).json({ success: false, error: error.message }); 
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-/**
- * Sửa giờ check-in / check-out (bảng attendance) — dùng khi chấm công sai, cần chỉnh tay.
- * Body: { employeeId, attendanceDate, checkIn?, checkOut?, attendanceId? }
- */
 const correctAttendance = async (req, res) => {
     let tx;
     try {
@@ -384,8 +398,7 @@ const correctAttendance = async (req, res) => {
             return res.status(400).json({ success: false, error: 'employeeId không hợp lệ.' });
         }
 
-        const attDate =
-            typeof attendanceDate === 'string' ? attendanceDate.trim().slice(0, 10) : '';
+        const attDate = typeof attendanceDate === 'string' ? attendanceDate.trim().slice(0, 10) : '';
         if (!/^\d{4}-\d{2}-\d{2}$/.test(attDate)) {
             return res.status(400).json({ success: false, error: 'attendanceDate phải là YYYY-MM-DD.' });
         }
@@ -424,8 +437,7 @@ const correctAttendance = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Check-out phải sau check-in.' });
         }
 
-        const totalHours =
-            checkInDt && checkOutDt ? calcStandardWorkHours(checkInDt, checkOutDt) : 0;
+        const totalHours = checkInDt && checkOutDt ? calcStandardWorkHours(checkInDt, checkOutDt) : 0;
         const status = resolveStatusAfterEdit(checkInDt, checkOutDt);
 
         tx = await db.transaction();
@@ -439,10 +451,7 @@ const correctAttendance = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Không tìm thấy nhân viên.' });
         }
 
-        let targetId =
-            attendanceId != null && attendanceId !== ''
-                ? Number(attendanceId)
-                : null;
+        let targetId = attendanceId != null && attendanceId !== '' ? Number(attendanceId) : null;
         if (targetId != null && !Number.isFinite(targetId)) {
             await tx.rollback();
             return res.status(400).json({ success: false, error: 'attendanceId không hợp lệ.' });
@@ -557,4 +566,98 @@ const correctAttendance = async (req, res) => {
     }
 };
 
-module.exports = { calculatePayroll, correctAttendance };
+const submitPayrollToDirector = async (req, res) => {
+    const tx = await db.transaction();
+    try {
+        const monthYearRaw = typeof req.body?.monthYear === 'string' ? req.body.monthYear.trim() : '';
+        const employeeCodes = Array.isArray(req.body?.employeeCodes)
+            ? req.body.employeeCodes.map((code) => String(code || '').trim()).filter(Boolean)
+            : [];
+
+        if (!/^\d{2}-\d{4}$/.test(monthYearRaw)) {
+            await tx.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'monthYear phải theo định dạng MM-YYYY.',
+            });
+        }
+
+        if (!employeeCodes.length) {
+            await tx.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Cần chọn ít nhất một nhân viên để gửi lên Giám đốc.',
+            });
+        }
+
+        const matchedRows = await db.query(
+            `
+            SELECT
+                pr.id,
+                pr.status,
+                e.employee_code
+            FROM payroll pr
+            JOIN employee e ON e.id = pr.employee_id
+            WHERE pr.month_year = :monthYear
+              AND e.employee_code IN (:employeeCodes)
+            `,
+            {
+                replacements: {
+                    monthYear: monthYearRaw,
+                    employeeCodes,
+                },
+                type: db.QueryTypes.SELECT,
+                transaction: tx,
+            }
+        );
+
+        if (!matchedRows.length) {
+            await tx.rollback();
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy bảng lương phù hợp để gửi.',
+            });
+        }
+
+        const draftIds = matchedRows.filter((row) => row.status === 'draft').map((row) => row.id);
+
+        if (!draftIds.length) {
+            await tx.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'Các bảng lương đã chọn đã được gửi hoặc đã duyệt trước đó.',
+            });
+        }
+
+        await db.query(
+            `
+            UPDATE payroll
+            SET status = 'pending_approval'
+            WHERE id IN (:draftIds)
+            `,
+            {
+                replacements: { draftIds },
+                transaction: tx,
+            }
+        );
+
+        await tx.commit();
+        return res.json({
+            success: true,
+            message: `Đã gửi ${draftIds.length} bảng lương đến Giám đốc.`,
+            data: {
+                submittedCount: draftIds.length,
+                skippedCount: matchedRows.length - draftIds.length,
+            },
+        });
+    } catch (error) {
+        await tx.rollback();
+        console.error('submitPayrollToDirector', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi gửi bảng lương đến Giám đốc.',
+        });
+    }
+};
+
+module.exports = { calculatePayroll, correctAttendance, submitPayrollToDirector };

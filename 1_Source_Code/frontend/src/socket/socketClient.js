@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 // Ưu tiên đọc URL từ VITE_SOCKET_URL, fallback sang VITE_API_URL (bỏ hậu tố /api).
 let socketInstance = null;
 let socketUrlInUse = null;
+const LOCAL_SOCKET_URL = 'http://localhost:5000';
 
 function deriveSocketUrlFromApi(apiBase) {
   if (!apiBase || typeof apiBase !== 'string') return undefined;
@@ -12,9 +13,15 @@ function deriveSocketUrlFromApi(apiBase) {
 
 function resolveSocketUrl(overrideUrl) {
   if (overrideUrl && typeof overrideUrl === 'string') return overrideUrl;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return LOCAL_SOCKET_URL;
+    }
+  }
   const apiBase = import.meta.env.VITE_API_URL;
   const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
-  return envSocketUrl || deriveSocketUrlFromApi(apiBase);
+  return envSocketUrl || deriveSocketUrlFromApi(apiBase) || LOCAL_SOCKET_URL;
 }
 
 export function getSocketClient(overrideUrl) {

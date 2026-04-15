@@ -1,14 +1,14 @@
-import axiosClient from '../api/axiosClient';
+﻿import axiosClient from '../api/axiosClient';
 
-// Service CRUD thông báo nội bộ
 export const notificationService = {
-  getNotifications: () => {
-    return axiosClient.get('/notifications');
+  getNotifications: async () => {
+    const response = await axiosClient.get('/notifications');
+    return Array.isArray(response.data) ? response.data : [];
   },
 
-  // Chuông thông báo (cá nhân)
-  getMyBell: (userId) => {
-    return axiosClient.get(`/notifications/my-bell/${userId}`);
+  getMyBell: async (userId) => {
+    const response = await axiosClient.get(`/notifications/my-bell/${userId}`);
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   markAllAsRead: (userId) => {
@@ -19,8 +19,9 @@ export const notificationService = {
     return axiosClient.put(`/notifications/read/${notificationId}`, { userId });
   },
 
-  getNotificationDetail: (notificationId) => {
-    return axiosClient.get(`/notifications/${notificationId}/detail`);
+  getNotificationDetail: async (notificationId) => {
+    const response = await axiosClient.get(`/notifications/${notificationId}/detail`);
+    return response.data || {};
   },
 
   createNotification: (payload) => {
@@ -31,4 +32,3 @@ export const notificationService = {
     return axiosClient.put(`/notifications/${notificationId}`, payload);
   },
 };
-

@@ -8,6 +8,9 @@ router.get("/departments/stats", ctrl.getDepartmentsStats);
 router.get("/managers", ctrl.getManagers);
 router.get("/requests", ctrl.getRequests);
 router.get("/salary", ctrl.getSalary);
+router.get("/approvals/overview", ctrl.getDirectorApprovalsOverview);
+router.patch("/approvals/:type/:id", ctrl.updateDirectorApprovalStatus);
+router.post("/approvals/bulk-approve", ctrl.bulkApproveDirectorApprovals);
 router.get("/dashboard/overview", ctrl.getDashboardOverview); // Route mới cho dashboard overview
 // ===== DEPARTMENT =====
 router.get("/departments", ctrl.getDepartments);

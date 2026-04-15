@@ -1,4 +1,4 @@
-const db = require("../config/database");
+﻿const db = require("../config/database");
 const { QueryTypes } = require("sequelize");
 
 // ================= DASHBOARD =================
@@ -1258,11 +1258,12 @@ const getDashboardOverview = async (req, res) => {
       FROM attendance WHERE attendance_date = CURRENT_DATE AND status != 'absent'
     `);
 
-    // 3. Tổng yêu cầu đang pending (Nghỉ phép + Tăng ca)
+    // 3. Tổng yêu cầu đang pending (Nghỉ phép + Tăng ca + Bảng lương chờ duyệt)
     const [[{ total_req }]] = await db.query(`
       SELECT (
         (SELECT COUNT(*)::int FROM leave_request WHERE status = 'pending') +
-        (SELECT COUNT(*)::int FROM overtime_request WHERE status = 'pending')
+        (SELECT COUNT(*)::int FROM overtime_request WHERE status = 'pending') +
+        (SELECT COUNT(*)::int FROM payroll WHERE status = 'pending_approval')
       ) as total_req
     `);
 
@@ -1280,6 +1281,11 @@ const getDashboardOverview = async (req, res) => {
       SELECT lr.id, e.full_name as name, 'leave' as type, lr.created_at FROM leave_request lr JOIN employee e ON lr.employee_id = e.id WHERE lr.status = 'pending'
       UNION ALL
       SELECT ot.id, e.full_name as name, 'overtime' as type, ot.created_at FROM overtime_request ot JOIN employee e ON ot.employee_id = e.id WHERE ot.status = 'pending'
+      UNION ALL
+      SELECT pr.id, e.full_name as name, 'payroll' as type, pr.created_at
+      FROM payroll pr
+      JOIN employee e ON pr.employee_id = e.id
+      WHERE pr.status = 'pending_approval'
       ORDER BY created_at DESC
       LIMIT 8
     `);
@@ -1337,6 +1343,386 @@ const getDashboardOverview = async (req, res) => {
   }
 };
 
+const createPersonalNotification = async ({ transaction, employeeId, title, desc, content, notificationType = 'info' }) => {
+  const rows = await db.query(
+    `
+    INSERT INTO notification (
+      title,
+      content,
+      notification_type,
+      target,
+      "desc",
+      status,
+      target_employee_id,
+      created_at
+    )
+    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :employeeId, NOW())
+    RETURNING id
+    `,
+    {
+      replacements: { title, content, notificationType, desc: desc || '', employeeId },
+      type: QueryTypes.SELECT,
+      transaction
+    }
+  );
+
+  const notificationId = rows?.[0]?.id;
+  if (!notificationId) {
+    throw new Error('Không thể tạo thông báo.');
+  }
+
+  await db.query(
+    `INSERT INTO notification_recipient (notification_id, employee_id) VALUES (:notificationId, :employeeId)`,
+    { replacements: { notificationId, employeeId }, transaction }
+  );
+};
+
+const createApprovalNotification = async ({ transaction, type, employeeId, employeeName, monthYear, payrollRow, requestRow, isApproved }) => {
+  if (type === 'payroll') {
+    const title = isApproved ? `Bảng lương ${monthYear} đã được duyệt` : `Bảng lương ${monthYear} bị từ chối`;
+    const desc = isApproved ? 'Giám đốc đã duyệt bảng lương của bạn.' : 'Giám đốc đã từ chối bảng lương của bạn.';
+    const content = isApproved
+      ? `Bảng lương tháng ${monthYear} của ${employeeName} đã được Giám đốc phê duyệt. Thực nhận: ${Number(payrollRow?.net_salary || 0).toLocaleString('vi-VN')} VNĐ. Chi phí tiền lương công ty chi trả: ${Number((payrollRow?.net_salary || 0) + (payrollRow?.total_deduction || 0)).toLocaleString('vi-VN')} VNĐ.`
+      : `Bảng lương tháng ${monthYear} của ${employeeName} đã bị từ chối. Vui lòng kiểm tra lại thông tin lương.`;
+
+    return createPersonalNotification({
+      transaction,
+      employeeId,
+      title,
+      desc,
+      content,
+      notificationType: isApproved ? 'info' : 'warning'
+    });
+  }
+
+  const isLeave = type === 'leave';
+  const requestLabel = isLeave ? 'Đơn phép' : 'Đơn tăng ca';
+  const title = isApproved ? `${requestLabel} đã được duyệt` : `${requestLabel} bị từ chối`;
+  const desc = isApproved ? 'Yêu cầu của bạn đã được Giám đốc phê duyệt.' : 'Yêu cầu của bạn đã bị Giám đốc từ chối.';
+  const rangeLabel = isLeave
+    ? `${requestRow?.start_datetime || ''} - ${requestRow?.end_datetime || ''}`
+    : `${requestRow?.ot_date || ''} ${requestRow?.start_time || ''} - ${requestRow?.end_time || ''}`;
+  const content = isApproved
+    ? `${requestLabel} của ${employeeName} cho ${rangeLabel} đã được phê duyệt. Lý do: ${requestRow?.reason || 'Không có'}.`
+    : `${requestLabel} của ${employeeName} cho ${rangeLabel} đã bị từ chối. Lý do: ${requestRow?.reason || 'Không có'}.`;
+
+  return createPersonalNotification({
+    transaction,
+    employeeId,
+    title,
+    desc,
+    content,
+    notificationType: isApproved ? 'info' : 'warning'
+  });
+};
+
+const getPayrollApprovalRows = async (transaction = null) => db.query(
+  `
+  SELECT pr.id, pr.employee_id, pr.month_year, pr.status, pr.net_salary, pr.base_salary_snapshot, pr.total_work_days, pr.total_allowance, pr.total_deduction,
+         pr.created_at,
+         e.employee_code, e.full_name, d.id AS department_id, d.department_name, p.position_name
+  FROM payroll pr
+  JOIN employee e ON pr.employee_id = e.id
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+  WHERE pr.status = 'pending_approval'
+  ORDER BY pr.created_at DESC
+  `,
+  { type: QueryTypes.SELECT, transaction }
+);
+
+const getLeaveApprovalRows = async (transaction = null) => db.query(
+  `
+  SELECT lr.id, lr.employee_id, lr.leave_type, lr.start_datetime, lr.end_datetime, lr.reason, lr.status,
+         e.employee_code, e.full_name, d.department_name, p.position_name
+  FROM leave_request lr
+  JOIN employee e ON lr.employee_id = e.id
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+  WHERE lr.status = 'pending'
+    AND EXISTS (
+      SELECT 1 FROM employee appr
+      JOIN position ap ON appr.position_id = ap.id
+      WHERE appr.id = lr.approver_id AND ap.level = 'director'
+    )
+  ORDER BY lr.created_at DESC
+  `,
+  { type: QueryTypes.SELECT, transaction }
+);
+
+const getOvertimeApprovalRows = async (transaction = null) => db.query(
+  `
+  SELECT ot.id, ot.employee_id, ot.ot_date, ot.start_time, ot.end_time, ot.reason, ot.status,
+         e.employee_code, e.full_name, d.department_name, p.position_name
+  FROM overtime_request ot
+  JOIN employee e ON ot.employee_id = e.id
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+  WHERE ot.status = 'pending'
+    AND EXISTS (
+      SELECT 1 FROM employee appr
+      JOIN position ap ON appr.position_id = ap.id
+      WHERE appr.id = ot.approver_id AND ap.level = 'director'
+    )
+  ORDER BY ot.created_at DESC
+  `,
+  { type: QueryTypes.SELECT, transaction }
+);
+
+const processDirectorApproval = async ({ transaction, type, id, action }) => {
+  const isApproved = action === 'approve';
+
+  if (type === 'payroll') {
+    const rows = await db.query(
+      `SELECT pr.*, e.full_name, e.employee_code FROM payroll pr JOIN employee e ON pr.employee_id = e.id WHERE pr.id = :id LIMIT 1`,
+      { replacements: { id }, type: QueryTypes.SELECT, transaction }
+    );
+    const payroll = rows[0];
+    if (!payroll) throw new Error('Không tìm thấy bảng lương.');
+
+    await db.query(`UPDATE payroll SET status = :status WHERE id = :id`, {
+      replacements: { status: isApproved ? 'approved' : 'draft', id },
+      transaction
+    });
+
+    await createApprovalNotification({
+      transaction,
+      type,
+      employeeId: payroll.employee_id,
+      employeeName: payroll.full_name,
+      monthYear: payroll.month_year,
+      payrollRow: payroll,
+      isApproved
+    });
+
+    return;
+  }
+
+  const tableName = type === 'leave' ? 'leave_request' : type === 'overtime' ? 'overtime_request' : null;
+  if (!tableName) throw new Error('Loại yêu cầu không hợp lệ.');
+
+  const rows = await db.query(
+    `SELECT req.*, e.full_name, e.employee_code FROM ${tableName} req JOIN employee e ON req.employee_id = e.id WHERE req.id = :id LIMIT 1`,
+    { replacements: { id }, type: QueryTypes.SELECT, transaction }
+  );
+  const request = rows[0];
+  if (!request) throw new Error('Không tìm thấy yêu cầu.');
+
+  await db.query(`UPDATE ${tableName} SET status = :status WHERE id = :id`, {
+    replacements: { status: isApproved ? 'approved' : 'rejected', id },
+    transaction
+  });
+
+  await createApprovalNotification({
+    transaction,
+    type,
+    employeeId: request.employee_id,
+    employeeName: request.full_name,
+    requestRow: request,
+    isApproved
+  });
+};
+
+const getDirectorApprovalsOverview = async (req, res) => {
+  try {
+    const tab = String(req.query?.tab || 'payroll');
+    const q = String(req.query?.q || '').trim().toLowerCase();
+    const departmentId = String(req.query?.departmentId || '').trim();
+    const escalationReason = String(req.query?.escalationReason || 'all').trim();
+
+    const [payrollRows, leaveRows, overtimeRows, departments] = await Promise.all([
+      getPayrollApprovalRows(),
+      getLeaveApprovalRows(),
+      getOvertimeApprovalRows(),
+      db.query(
+        `SELECT id, department_name FROM department ORDER BY department_name`,
+        { type: QueryTypes.SELECT }
+      )
+    ]);
+
+    const payrollItems = payrollRows.map((row) => ({
+      id: row.id,
+      type: 'payroll',
+      request_type: 'payroll',
+      code: `BL-${String(row.month_year || '').replace('-', '')}-${row.employee_code}`,
+      title: 'Bảng lương',
+      employee_id: row.employee_id,
+      employeeId: row.employee_id,
+      employee_code: row.employee_code,
+      employeeCode: row.employee_code,
+      employee_name: row.full_name,
+      employeeName: row.full_name,
+      department_id: row.department_id,
+      departmentId: row.department_id,
+      department_name: row.department_name,
+      departmentName: row.department_name,
+      position_name: row.position_name,
+      positionName: row.position_name,
+      month_year: row.month_year,
+      timeLabel: row.month_year,
+      net_salary: row.net_salary,
+      amount: Number(row.net_salary || 0),
+      base_salary_snapshot: row.base_salary_snapshot,
+      baseSalarySnapshot: Number(row.base_salary_snapshot || 0),
+      total_work_days: row.total_work_days,
+      totalWorkDays: Number(row.total_work_days || 0),
+      total_allowance: row.total_allowance,
+      totalAllowance: Number(row.total_allowance || 0),
+      allowance: Number(row.total_allowance || 0),
+      total_deduction: row.total_deduction,
+      totalDeduction: Number(row.total_deduction || 0),
+      deduction: Number(row.total_deduction || 0),
+      meta_label: `Kỳ lương ${row.month_year}`,
+      meta_sub: `Thực nhận ${Number(row.net_salary || 0).toLocaleString('vi-VN')} đ`,
+      created_at: row.created_at,
+      createdAt: row.created_at,
+      subtitle: `Thực nhận ${Number(row.net_salary || 0).toLocaleString('vi-VN')} đ`,
+      status: row.status,
+      detail: {
+        baseSalarySnapshot: Number(row.base_salary_snapshot || 0),
+        totalWorkDays: Number(row.total_work_days || 0),
+        totalAllowance: Number(row.total_allowance || 0),
+        totalDeduction: Number(row.total_deduction || 0),
+        netSalary: Number(row.net_salary || 0),
+        incomeAfterInsurance: Number(row.net_salary || 0)
+      }
+    }));
+
+    const leaveItems = leaveRows.map((row) => ({
+      id: row.id,
+      type: 'leave',
+      request_type: 'leave',
+      code: `LD-${String(row.id).padStart(5, '0')}`,
+      title: 'Đơn phép',
+      employee_id: row.employee_id,
+      employee_code: row.employee_code,
+      employee_name: row.full_name,
+      department_id: null,
+      department_name: row.department_name,
+      position_name: row.position_name,
+      range_label: `${row.start_datetime} - ${row.end_datetime}`,
+      reason: row.reason || '',
+      meta_label: `${row.start_datetime} - ${row.end_datetime}`,
+      meta_sub: row.reason || 'Không có lý do',
+      status: row.status
+    }));
+
+    const overtimeItems = overtimeRows.map((row) => ({
+      id: row.id,
+      type: 'overtime',
+      request_type: 'overtime',
+      code: `OT-${String(row.id).padStart(5, '0')}`,
+      title: 'Đơn tăng ca',
+      employee_id: row.employee_id,
+      employee_code: row.employee_code,
+      employee_name: row.full_name,
+      department_id: null,
+      department_name: row.department_name,
+      position_name: row.position_name,
+      range_label: `${row.ot_date} ${row.start_time} - ${row.end_time}`,
+      reason: row.reason || '',
+      meta_label: `${row.ot_date} ${row.start_time} - ${row.end_time}`,
+      meta_sub: row.reason || 'Không có lý do',
+      status: row.status
+    }));
+
+    const allItems = [...payrollItems, ...leaveItems, ...overtimeItems];
+    const filteredItems = allItems.filter((item) => {
+      if (tab === 'payroll' && item.type !== 'payroll') return false;
+      if (tab === 'leave' && item.type === 'payroll') return false;
+      if (departmentId && String(item.department_id || '') !== departmentId) return false;
+      if (q) {
+        const haystack = [
+          item.code,
+          item.employee_code,
+          item.employee_name,
+          item.department_name,
+          item.position_name,
+          item.reason,
+          item.month_year,
+          item.range_label,
+          item.meta_label,
+          item.meta_sub
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (tab === 'leave' && escalationReason !== 'all') {
+        const reasonText = `${item.reason || ''} ${item.meta_label || ''}`.toLowerCase();
+        if (!reasonText.includes(escalationReason.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        items: filteredItems,
+        stats: {
+          payrollPendingCount: payrollItems.length,
+          leavePendingCount: leaveItems.length + overtimeItems.length
+        },
+        options: {
+          departments: departments || [],
+          escalationReasons: [
+            { value: 'all', label: 'Tất cả lý do' }
+          ]
+        }
+      }
+    });
+  } catch (error) {
+    console.error('getDirectorApprovalsOverview error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateDirectorApprovalStatus = async (req, res) => {
+  const tx = await db.transaction();
+  try {
+    const { type, id } = req.params;
+    const action = String(req.body?.action || '').toLowerCase();
+    if (!['approve', 'reject'].includes(action)) {
+      await tx.rollback();
+      return res.status(400).json({ success: false, message: 'Hành động không hợp lệ.' });
+    }
+
+    await processDirectorApproval({ transaction: tx, type, id, action });
+    await tx.commit();
+    return res.json({ success: true, message: action === 'approve' ? 'Đã duyệt yêu cầu.' : 'Đã từ chối yêu cầu.' });
+  } catch (error) {
+    if (tx && !tx.finished) await tx.rollback();
+    console.error('updateDirectorApprovalStatus error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const bulkApproveDirectorApprovals = async (req, res) => {
+  const tx = await db.transaction();
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) {
+      await tx.rollback();
+      return res.status(400).json({ success: false, message: 'Chưa có mục nào được chọn.' });
+    }
+
+    let processed = 0;
+    for (const item of items) {
+      if (!item?.id || !item?.type) continue;
+      await processDirectorApproval({ transaction: tx, type: item.type, id: item.id, action: 'approve' });
+      processed += 1;
+    }
+
+    await tx.commit();
+    return res.json({ success: true, message: `Đã duyệt ${processed} mục.` });
+  } catch (error) {
+    if (tx && !tx.finished) await tx.rollback();
+    console.error('bulkApproveDirectorApprovals error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // ================= EXPORT =================
 module.exports = {
   getSummary,
@@ -1365,5 +1751,8 @@ module.exports = {
   createContract,
   updateContract,
   getFormOptions,
-  getDashboardOverview
+  getDashboardOverview,
+  getDirectorApprovalsOverview,
+  updateDirectorApprovalStatus,
+  bulkApproveDirectorApprovals
 };

@@ -13,7 +13,10 @@ const fmtPayrollDec2 = (val) => {
   if (val == null || val === '') return '—';
   const n = Number(val);
   if (!Number.isFinite(n)) return String(val);
-  return (Math.round(n * 100) / 100).toFixed(2);
+  return new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.round(n * 100) / 100);
 };
 
 /** Khớp system_config DEFAULT_WORK_HOURS trong DB — đủ/ngày để hiển thị "Đủ công" vs "Thiếu giờ". */
@@ -596,7 +599,7 @@ const PayrollDetailModal = ({ data, payrollMonthYear, onClose, onAttendanceSaved
                     <tr>
                       <td className="py-5 px-4 tabular-nums">{fmt(data.actual_salary)}</td>
                       <td className="py-5 px-4 tabular-nums">{fmtPayrollDec2(data.total_work_days)}</td>
-                      <td className="py-5 px-4 tabular-nums">{data.overtime > 0 ? fmt(data.overtime) : '0'}</td>
+                      <td className="py-5 px-4 tabular-nums">{fmtPayrollDec2(data.overtime)}</td>
                       <td className="py-5 px-4 tabular-nums">{data.discipline > 0 ? fmt(data.discipline) : '0'}</td>
                       <td className="py-5 px-4 bg-gray-50/50 font-bold tabular-nums">{fmt(data.reward)}</td>
                       <td className="py-5 px-4 tabular-nums">{fmt(data.compInsurance?.total)}</td>
