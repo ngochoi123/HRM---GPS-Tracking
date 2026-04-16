@@ -3,29 +3,55 @@ const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
+const LATE_TOLERANCE = 5;
+const MAX_LATE = 120;
+
 const getShiftForDate = (dateObj) => {
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
+
   const morningStart = 7 * 60 + 30;
   const morningEnd = 11 * 60 + 30;
+
   const afternoonStart = 13 * 60;
   const afternoonEnd = 17 * 60;
 
-  if (minutes >= morningStart && minutes <= morningEnd) return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
-  if (minutes >= afternoonStart && minutes <= afternoonEnd) return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
+  // Ca sáng
+  if (minutes >= morningStart && minutes <= morningEnd) {
+    return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
+  }
+
+  // Ca chiều
+  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
+    return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
+  }
+
   return null;
 };
 
 const getAttendanceStatusForCheckIn = (dateObj) => {
   const shift = getShiftForDate(dateObj);
-  if (!shift) return null;
+  if (!shift) return 'absent';
+
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-  return minutes <= shift.startMinutes ? 'on_time' : 'late';
+
+  if (minutes > shift.startMinutes + MAX_LATE) {
+    return 'absent';
+  }
+
+  return minutes <= shift.startMinutes + LATE_TOLERANCE
+    ? 'on_time'
+    : 'late';
 };
 
 const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
-  const shiftEndMinutes = 17 * 60;
+  const shift = getShiftForDate(checkInDateObj);
+  if (!shift) return null;
+
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
-  return checkOutMinutes < shiftEndMinutes ? 'early_leave' : 'on_time';
+
+  return checkOutMinutes < shift.endMinutes
+    ? 'early_leave'
+    : 'on_time';
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -78,27 +104,54 @@ const normalizeWorkLocation = (row) => {
 };
 
 async function fetchWorkLocations(employeeId) {
-  const locationResult = await db.query(
-    `
-      SELECT
-        w.id AS work_location_id,
-        w.location_name,
-        w.latitude,
-        w.longitude,
-        w.radius_meters,
-        b.id AS branch_id,
-        b.branch_code,
-        b.branch_name,
-        b.allowed_ips
-      FROM employee e
-      LEFT JOIN position p ON e.position_id = p.id
-      LEFT JOIN department d ON p.department_id = d.id
-      LEFT JOIN branch b ON d.branch_id = b.id
-      LEFT JOIN work_location w ON w.branch_id = b.id
-      WHERE e.id = $1
-    `,
-    { bind: [employeeId], type: QueryTypes.SELECT }
-  );
+  const sql = `
+WITH emp_info AS (
+  SELECT e.id as emp_id, d.id as dept_id, b.id as branch_id, b.branch_code, b.branch_name, b.allowed_ips
+  FROM employee e
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+  LEFT JOIN branch b ON d.branch_id = b.id
+  WHERE e.id = $1
+),
+active_assignments AS (
+  SELECT work_location_id,
+         CASE 
+           WHEN employee_id IS NOT NULL THEN 1
+           WHEN department_id IS NOT NULL THEN 2
+           WHEN branch_id IS NOT NULL THEN 3
+         END as priority
+  FROM location_assignment
+  WHERE (is_temporary = false OR end_date >= CURRENT_DATE OR end_date IS NULL)
+    AND (
+      employee_id = (SELECT emp_id FROM emp_info) OR
+      department_id = (SELECT dept_id FROM emp_info) OR
+      branch_id = (SELECT branch_id FROM emp_info)
+    )
+),
+best_assignment AS (
+  SELECT work_location_id 
+  FROM active_assignments
+  ORDER BY priority ASC
+  LIMIT 1
+)
+SELECT
+  w.id AS work_location_id,
+  w.location_name,
+  w.latitude,
+  w.longitude,
+  w.radius_meters,
+  i.branch_id,
+  i.branch_code,
+  i.branch_name,
+  i.allowed_ips
+FROM emp_info i
+JOIN work_location w ON (
+  (EXISTS (SELECT 1 FROM best_assignment) AND w.id = (SELECT work_location_id FROM best_assignment))
+  OR
+  (NOT EXISTS (SELECT 1 FROM best_assignment) AND w.branch_id = i.branch_id)
+);
+  `;
+  const locationResult = await db.query(sql, { bind: [employeeId], type: QueryTypes.SELECT });
   return locationResult.map(normalizeWorkLocation).filter(Boolean);
 }
 
