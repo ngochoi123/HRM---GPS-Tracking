@@ -1,98 +1,219 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from "react-router-dom";
+﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { attendanceService } from '../../../services/attendanceService';
+
+const progressColors = {
+  red: '#ef4444',
+  orange: '#f97316',
+  blue: '#3b82f6',
+  emerald: '#10b981',
+  violet: '#8b5cf6'
+};
+
+const formatMinutes = (minutes) => {
+  if (!minutes) return '0m';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m`;
+};
+
+const formatMonth = (monthStr) => {
+  const [year, month] = monthStr.split('-');
+  return `Tháng ${month}/${year}`;
+};
+
+const shiftMonth = (monthStr, delta) => {
+  const [year, month] = monthStr.split('-').map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatTrend = (changePct, fallback) => {
+  const value = Number(changePct || 0);
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value}% ${fallback}`;
+};
+
+const getTrendStyle = (tone) => {
+  if (tone === 'alarming') {
+    return {
+      color: '#ef4444',
+      background: '#fef2f2'
+    };
+  }
+
+  if (tone === 'stable') {
+    return {
+      color: '#059669',
+      background: '#ecfdf5'
+    };
+  }
+
+  return {
+    color: '#0ea5e9',
+    background: '#eff6ff'
+  };
+};
+
+const buildReminderDraft = (emp) => {
+  const reminderType = emp.actionType === 'warning' ? 'Cảnh báo' : 'Bình thường';
+  const reminderTitle =
+    emp.actionType === 'warning'
+      ? `Cảnh báo chuyên cần: ${emp.name}`
+      : `Nhắc nhở chấm công: ${emp.name}`;
+
+  return {
+    source: 'attendance-stats',
+    employeeId: emp.id,
+    employeeCode: emp.employeeCode,
+    employeeName: emp.name,
+    departmentId: emp.departmentId ? String(emp.departmentId) : '',
+    departmentName: emp.dept,
+    target: 'Cá nhân',
+    type: reminderType,
+    title: reminderTitle,
+    content: `
+      <p>Chào ${emp.name},</p>
+      <p>Hệ thống ghi nhận trong tháng này bạn có vi phạm về giờ giấc chấm công.</p>
+      <ul>
+        <li>Mã nhân viên: ${emp.employeeCode || 'Chưa cập nhật'}</li>
+        <li>Phòng ban: ${emp.dept || 'Chưa xác định'}</li>
+        <li>Số lần đi trễ: ${emp.lateCount}</li>
+        <li>Tổng thời gian đi trễ: ${formatMinutes(emp.totalLateMinutes)}</li>
+      </ul>
+      <p>Vui lòng kiểm tra lại lịch làm việc và chủ động cải thiện trong các ngày tới.</p>
+    `
+  };
+};
 
 const AttendanceStats = () => {
   const navigate = useNavigate();
-  const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const displayMonth = `Tháng ${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [data, setData] = useState(null);
-  const deptColors = {
-    'Ban Giám Đốc': '#ef4444',
-    'Phòng Công nghệ Thông tin': '#3b82f6',
-    'Phòng Nhân sự': '#10b981',
-    'Khác': '#6b7280'
-  };
-  useEffect(() => {
-    axios.get(`http://localhost:5000/api/manager/attendance-stats?month=${month}`)
-  .then(res => {
-    console.log("API DATA FULL:", JSON.stringify(res.data, null, 2)); // 👈 SỬA Ở ĐÂY
-    setData(res.data);
-  })
-      .catch(err => console.error("API ERROR:", err));
-  }, [month]);
+  const [error, setError] = useState('');
 
-  // format phút → "xh ym"
-  const formatMinutes = (minutes) => {
-    if (!minutes) return '0m';
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return `${h}h ${m}m`;
+  const handleRemind = (emp) => {
+    navigate('/QuanLy/notifications', {
+      state: {
+        prefillNotification: buildReminderDraft(emp)
+      }
+    });
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAttendanceStats = async () => {
+      try {
+        setError('');
+        setData(null);
+        const response = await attendanceService.getManagerAttendanceStats(selectedMonth);
+        if (!isMounted) return;
+        if (response?.month && response.month !== selectedMonth) {
+          setSelectedMonth(response.month);
+        }
+        setData(response);
+      } catch (err) {
+        console.error('API ERROR:', err);
+        if (!isMounted) return;
+        setError('Không tải được thống kê chấm công.');
+      }
+    };
+
+    loadAttendanceStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMonth]);
+
   if (!data) {
-    return <div style={{ padding: 20 }}>Đang tải dữ liệu...</div>;
+    return <div style={{ padding: 20 }}>{error || 'Đang tải dữ liệu...'}</div>;
   }
+
   return (
     <div style={container}>
       <div style={wrapper}>
-
-        {/* HEADER */}
         <div style={header}>
           <div>
-            <h2 style={title}>📊 Thống kê Chấm công & Chuyên cần</h2>
+            <h2 style={title}>Thống kê Chấm công & Chuyên cần</h2>
             <p style={subtitle}>
               Theo dõi tình hình tuân thủ giờ giấc của nhân viên
             </p>
           </div>
 
-          <div style={dateBox}>Tháng 04/2026</div>
+          <div style={dateBox}>
+            <button
+              type="button"
+              style={monthNavButton}
+              onClick={() => setSelectedMonth((prev) => shiftMonth(prev, -1))}
+              aria-label="Tháng trước"
+            >
+              ‹
+            </button>
+            <div style={monthValue}>{formatMonth(selectedMonth)}</div>
+            <button
+              type="button"
+              style={monthNavButton}
+              onClick={() => setSelectedMonth((prev) => shiftMonth(prev, 1))}
+              aria-label="Tháng sau"
+            >
+              ›
+            </button>
+          </div>
         </div>
 
-        {/* CARDS */}
         <div style={cardRow}>
           <div style={cardMain}>
-            <p style={{ opacity: 0.9 }}>Tổng giờ công thực tế</p>
-            <h2 style={{ fontSize: 28, margin: '8px 0' }}>
-              {data?.totalHours || 0} giờ
+            <p style={cardMainTitle}>Tổng giờ công thực tế</p>
+            <h2 style={cardMainValue}>
+              {data?.summary?.totalWorkHours?.value || 0} giờ
             </h2>
-            <span style={badgeGreen}>Dữ liệu realtime</span>
+            <span style={cardMainBadge}>
+              {formatTrend(data?.summary?.totalWorkHours?.changePct, 'so với tháng trước')}
+            </span>
           </div>
 
           <StatCard
             title="Đi trễ / Về sớm"
-            value={`${data?.lateCount || 0} lượt`}
-            note="Cần theo dõi"
-            color="#dc2626"
-            bg="#fee2e2"
+            value={`${data?.summary?.lateEarly?.value || 0} lượt`}
+            note={formatTrend(data?.summary?.lateEarly?.changePct, '(Đáng báo động)')}
+            icon="◔"
+            tone={data?.summary?.lateEarly?.tone}
+          />
+
+          <StatCard
+            title="Nghỉ phép / Vắng mặt"
+            value={`${data?.summary?.leaveAbsence?.value || 0} ngày`}
+            note={formatTrend(data?.summary?.leaveAbsence?.changePct, '(Ổn định)')}
+            icon="☷"
+            tone={data?.summary?.leaveAbsence?.tone}
           />
 
           <StatCard
             title="Làm thêm giờ (OT)"
-            value={`${data?.otHours || 0} giờ`}
-            note="Tăng năng suất"
-            color="#9333ea"
-            bg="#f3e8ff"
+            value={`${data?.summary?.overtime?.value || 0} giờ`}
+            note={formatTrend(data?.summary?.overtime?.changePct, 'so với tháng trước')}
+            icon="◌"
+            tone="stable"
           />
         </div>
 
-        {/* PROGRESS */}
         <div style={box}>
           <h4 style={boxTitle}>Tỷ lệ đi trễ theo phòng ban</h4>
 
-          {Array.isArray(data?.lateByDept) && data.lateByDept.map((d, i) => (
-  <Progress
-    key={i}
-    label={d.label}   // ✅ FIX
-    percent={d.percent}
-    color={deptColors[d.label] || '#6b7280'}
-  />
-))}
+          {Array.isArray(data?.departmentLateness) && data.departmentLateness.map((d, i) => (
+            <Progress
+              key={i}
+              label={d.department}
+              percent={d.percentage}
+              color={progressColors[d.color] || d.color || '#6b7280'}
+            />
+          ))}
         </div>
 
-        {/* DANH SÁCH CẢNH BÁO */}
         <div style={box}>
-          <h4 style={boxTitle}>⚠ Nhân viên cần chú ý</h4>
+          <h4 style={boxTitle}>Nhân viên cần chú ý</h4>
 
           <table style={table}>
             <thead>
@@ -106,50 +227,46 @@ const AttendanceStats = () => {
             </thead>
 
             <tbody>
-  {!Array.isArray(data?.violators) || data.violators.length === 0 ? (
-    <tr>
-      <td colSpan="5" style={{ textAlign: 'center', padding: 20 }}>
-        Không có dữ liệu vi phạm 🎉
-      </td>
-    </tr>
-  ) : (
-    data.violators.map((item, index) => (
-      <tr key={index} style={row}>
-        <td style={nameCell}>
-          <div style={avatar}>
-            {item.name?.charAt(0)}
-          </div>
-          <span>{item.name}</span>
-        </td>
+              {!Array.isArray(data?.attentionEmployees) || data.attentionEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: 'center', padding: 20 }}>
+                    Không có dữ liệu vi phạm
+                  </td>
+                </tr>
+              ) : (
+                data.attentionEmployees.map((item, index) => (
+                  <tr key={index} style={row}>
+                    <td style={nameCell}>
+                      <div style={avatar}>
+                        {item.name?.charAt(0)}
+                      </div>
+                      <span>{item.name}</span>
+                    </td>
 
-        <td>{item.dept}</td>
+                    <td>{item.dept}</td>
 
-        <td>
-          <span style={badgeRed}>
-            {item.lateCount} lần
-          </span>
-        </td>
+                    <td>
+                      <span style={badgeRed}>
+                        {item.lateCount} lần
+                      </span>
+                    </td>
 
-        <td>{item.lateTime}</td>
+                    <td>{formatMinutes(item.totalLateMinutes)}</td>
 
-        <td>
-          <button
-            style={btnSmall}
-            onClick={() => navigate("/notifications", {
-              state: { employee: item }
-            })}
-          >
-            Nhắc nhở
-          </button>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
+                    <td>
+                      <button
+                        style={btnSmall}
+                        onClick={() => handleRemind(item)}
+                      >
+                        Nhắc nhở
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
           </table>
-
         </div>
-
       </div>
     </div>
   );
@@ -157,26 +274,29 @@ const AttendanceStats = () => {
 
 export default AttendanceStats;
 
-//
-// COMPONENTS
-//
+const StatCard = ({ title, value, note, icon, tone }) => {
+  const trendStyle = getTrendStyle(tone);
 
-const StatCard = ({ title, value, note, color, bg }) => (
-  <div style={card}>
-    <p style={cardTitle}>{title}</p>
-    <h3 style={cardValue}>{value}</h3>
+  return (
+    <div style={card}>
+      <div style={cardTop}>
+        <p style={cardTitle}>{title}</p>
+        <span style={cardIcon}>{icon}</span>
+      </div>
+      <h3 style={cardValue}>{value}</h3>
 
-    <span style={{
-      backgroundColor: bg,
-      color: color,
-      padding: '4px 10px',
-      borderRadius: '8px',
-      fontSize: '12px'
-    }}>
-      {note}
-    </span>
-  </div>
-);
+      <span
+        style={{
+          ...cardNote,
+          color: trendStyle.color,
+          background: trendStyle.background
+        }}
+      >
+        {note}
+      </span>
+    </div>
+  );
+};
 
 const Progress = ({ label, percent, color }) => (
   <div style={{ marginTop: 14 }}>
@@ -198,10 +318,6 @@ const Progress = ({ label, percent, color }) => (
   </div>
 );
 
-//
-// STYLE
-//
-
 const container = {
   padding: '24px',
   background: '#eef2f7',
@@ -219,7 +335,9 @@ const header = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginBottom: '20px'
+  marginBottom: '20px',
+  gap: '16px',
+  flexWrap: 'wrap'
 };
 
 const title = {
@@ -234,14 +352,40 @@ const subtitle = {
 
 const dateBox = {
   background: '#f1f5f9',
-  padding: '6px 14px',
+  padding: '8px',
+  borderRadius: '14px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px'
+};
+
+const monthNavButton = {
+  width: '34px',
+  height: '34px',
   borderRadius: '10px',
-  fontSize: '13px'
+  border: 'none',
+  background: '#ffffff',
+  color: '#0f172a',
+  cursor: 'pointer',
+  fontSize: '22px',
+  lineHeight: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)'
+};
+
+const monthValue = {
+  minWidth: '150px',
+  textAlign: 'center',
+  fontSize: '14px',
+  fontWeight: 700,
+  color: '#0f172a'
 };
 
 const cardRow = {
   display: 'grid',
-  gridTemplateColumns: '1.5fr 1fr 1fr',
+  gridTemplateColumns: '1.25fr 1fr 1fr 1fr',
   gap: '16px'
 };
 
@@ -249,13 +393,45 @@ const cardMain = {
   background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
   color: '#fff',
   padding: '20px',
-  borderRadius: '16px'
+  borderRadius: '16px',
+  boxShadow: '0 12px 24px rgba(14, 165, 233, 0.22)'
+};
+
+const cardMainTitle = {
+  fontSize: '13px',
+  opacity: 0.9
+};
+
+const cardMainValue = {
+  fontSize: '38px',
+  fontWeight: 800,
+  margin: '8px 0 14px'
+};
+
+const cardMainBadge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '6px 10px',
+  borderRadius: '999px',
+  background: 'rgba(255,255,255,0.18)',
+  color: '#ecfeff',
+  fontSize: '12px',
+  fontWeight: 600
 };
 
 const card = {
-  background: '#f8fafc',
+  background: '#ffffff',
   padding: '16px',
-  borderRadius: '16px'
+  borderRadius: '16px',
+  border: '1px solid #e5e7eb',
+  boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)'
+};
+
+const cardTop = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '12px'
 };
 
 const cardTitle = {
@@ -263,17 +439,30 @@ const cardTitle = {
   color: '#64748b'
 };
 
-const cardValue = {
-  fontSize: '22px',
-  fontWeight: 600,
-  margin: '6px 0'
+const cardIcon = {
+  width: '30px',
+  height: '30px',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#f8fafc',
+  color: '#f59e0b',
+  fontSize: '15px'
 };
 
-const badgeGreen = {
-  background: '#dcfce7',
-  color: '#16a34a',
-  padding: '4px 10px',
-  borderRadius: '8px',
+const cardValue = {
+  fontSize: '34px',
+  fontWeight: 700,
+  margin: '12px 0 16px',
+  color: '#1f2937'
+};
+
+const cardNote = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '6px 10px',
+  borderRadius: '999px',
   fontSize: '12px'
 };
 
@@ -351,5 +540,5 @@ const btnSmall = {
   borderRadius: '8px',
   fontSize: '12px',
   cursor: 'pointer',
-  whiteSpace: 'nowrap' // 👈 QUAN TRỌNG (không xuống dòng)
+  whiteSpace: 'nowrap'
 };

@@ -38,6 +38,7 @@ router.get('/dashboard/absent', managementController.getAbsentEmployees);
 router.get('/stats/changes-summary', managementController.getChangesSummary);
 router.get('/stats/changes-list', managementController.getChangesList);
 router.get('/stats/tenure', managementController.getTenureStats);
+router.get('/stats/attendance', managementController.getAttendanceStats);
 router.get('/attendance-stats', managementController.getAttendanceStats);
 
 // --- ROUTE QUYẾT ĐỊNH (CÓ UPLOAD FILE) ---

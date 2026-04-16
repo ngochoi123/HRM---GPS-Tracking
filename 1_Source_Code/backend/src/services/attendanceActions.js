@@ -3,29 +3,55 @@ const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
+const LATE_TOLERANCE = 5;
+const MAX_LATE = 120;
+
 const getShiftForDate = (dateObj) => {
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
+
   const morningStart = 7 * 60 + 30;
   const morningEnd = 11 * 60 + 30;
+
   const afternoonStart = 13 * 60;
   const afternoonEnd = 17 * 60;
 
-  if (minutes >= morningStart && minutes <= morningEnd) return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
-  if (minutes >= afternoonStart && minutes <= afternoonEnd) return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
+  // Ca sáng
+  if (minutes >= morningStart && minutes <= morningEnd) {
+    return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
+  }
+
+  // Ca chiều
+  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
+    return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
+  }
+
   return null;
 };
 
 const getAttendanceStatusForCheckIn = (dateObj) => {
   const shift = getShiftForDate(dateObj);
-  if (!shift) return null;
+  if (!shift) return 'absent';
+
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-  return minutes <= shift.startMinutes ? 'on_time' : 'late';
+
+  if (minutes > shift.startMinutes + MAX_LATE) {
+    return 'absent';
+  }
+
+  return minutes <= shift.startMinutes + LATE_TOLERANCE
+    ? 'on_time'
+    : 'late';
 };
 
 const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
-  const shiftEndMinutes = 17 * 60;
+  const shift = getShiftForDate(checkInDateObj);
+  if (!shift) return null;
+
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
-  return checkOutMinutes < shiftEndMinutes ? 'early_leave' : 'on_time';
+
+  return checkOutMinutes < shift.endMinutes
+    ? 'early_leave'
+    : 'on_time';
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));

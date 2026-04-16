@@ -1,4 +1,4 @@
-import axiosClient from '../api/axiosClient';
+﻿import axiosClient from '../api/axiosClient';
 
 // Service cho các API chấm công (attendance) dùng chung
 export const attendanceService = {
@@ -24,5 +24,9 @@ export const attendanceService = {
   checkOut: (employeeId, payload) => {
     return axiosClient.post(`/employee/attendance/checkout/${employeeId}`, payload);
   },
-};
 
+  getManagerAttendanceStats: (month) => {
+    const config = month ? { params: { month } } : undefined;
+    return axiosClient.get('/manager/stats/attendance', config);
+  },
+};
