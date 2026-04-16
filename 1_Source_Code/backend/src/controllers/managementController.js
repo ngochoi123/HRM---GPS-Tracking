@@ -21,36 +21,34 @@ const getEmployees = async (req, res) => {
       ORDER BY e.created_at DESC;
     `;
 
-    // 2. Thá»±c thi query báº±ng Sequelize
+    
     const employees = await db.query(query, {
       type: db.QueryTypes.SELECT
     });
 
-    // 3. Format láº¡i data cho chuáº©n vá»›i Frontend cáº§n
     const formattedData = employees.map(emp => {
-      let statusText = 'KhÃ´ng xÃ¡c Ä‘á»‹nh';
-      if (emp.status === 'active') statusText = 'Äang lÃ m viá»‡c';
-      else if (emp.status === 'on_leave') statusText = 'Nghá»‰ phÃ©p/Thai sáº£n';
-      else if (emp.status === 'inactive') statusText = 'ÄÃ£ nghá»‰ viá»‡c';
+      let statusText = 'Không xác định';
+      if (emp.status === 'active') statusText = 'Đang làm việc';
+      else if (emp.status === 'on_leave') statusText = 'Nghỉ phép/Thai sản';
+      else if (emp.status === 'inactive') statusText = 'Đã nghỉ việc';
 
       return {
         id: emp.id,
-        code: emp.code || 'ChÆ°a cáº­p nháº­t',
+        code: emp.code || 'Chưa cập nhật',
         name: emp.name,
-        email: emp.email || 'ChÆ°a cáº­p nháº­t',
-        position: emp.position || 'ChÆ°a phÃ¢n bá»•',
-        department: emp.department || 'ChÆ°a phÃ¢n bá»•',
+        email: emp.email || 'Chưa cập nhật',
+        position: emp.position || 'Chưa phân bổ',
+        department: emp.department || 'Chưa phân bổ',
         status: emp.status,
         statusText: statusText
       };
     });
 
-    // 4. Tráº£ káº¿t quáº£ vá» cho Frontend
     res.status(200).json(formattedData);
 
   } catch (error) {
-    console.error('Lá»—i API getEmployees:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi láº¥y danh sÃ¡ch nhÃ¢n viÃªn' });
+    console.error('Lấy API getEmployees:', error);
+    res.status(500).json({ success: false, message: 'Lấy Server khi lấy danh sách nhân viên' });
   }
 };
 
@@ -58,7 +56,6 @@ const getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Query JOIN 4 báº£ng: employee, position, department, user_account
     const query = `
       SELECT 
         e.*, 
@@ -81,23 +78,23 @@ const getEmployeeById = async (req, res) => {
     });
 
     if (result.length === 0) {
-      return res.status(404).json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y nhÃ¢n viÃªn' });
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
     }
 
     // Format láº¡i tráº¡ng thÃ¡i
     const emp = result[0];
-    let statusText = 'KhÃ´ng xÃ¡c Ä‘á»‹nh';
-    if (emp.status === 'active') statusText = 'Äang lÃ m viá»‡c';
-    else if (emp.status === 'on_leave') statusText = 'Nghá»‰ phÃ©p/Thai sáº£n';
-    else if (emp.status === 'inactive') statusText = 'ÄÃ£ nghá»‰ viá»‡c';
+    let statusText = 'Không xác định';
+    if (emp.status === 'active') statusText = 'Đang làm việc';
+    else if (emp.status === 'on_leave') statusText = 'Nghỉ phép/Thai sản';
+    else if (emp.status === 'inactive') statusText = 'Đã nghỉ việc';
     
     emp.statusText = statusText;
 
     res.status(200).json(emp);
 
   } catch (error) {
-    console.error('Lá»—i API getEmployeeById:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server' });
+    console.error('Lấy API getEmployeeById:', error);
+    res.status(500).json({ success: false, message: 'Lấy Server' });
   }
 };
 
@@ -105,7 +102,6 @@ const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Láº¥y FULL dá»¯ liá»‡u tá»« form Frontend gá»­i lÃªn (LÆ°u Ã½: FE Ä‘ang gá»­i lÃªn lÃ  current_address)
     const { 
       full_name, phone_number, personal_email, current_address, 
       identity_card_number, date_of_birth, gender, 
@@ -113,7 +109,6 @@ const updateEmployee = async (req, res) => {
       work_email, position_id, department_id, join_date, direct_manager_id
     } = req.body;
 
-    // CÃ¢u lá»‡nh Update SQL (Sá»­ dá»¥ng Ä‘Ãºng cá»™t address cá»§a DB)
     const updateQuery = `
       UPDATE employee
       SET full_name = :full_name,
@@ -141,7 +136,6 @@ const updateEmployee = async (req, res) => {
         phone_number: phone_number || null, 
         personal_email: personal_email || null, 
         
-        // ðŸ‘‰ CHá»ˆNH Láº I CHá»– NÃ€Y: GÃ¡n giÃ¡ trá»‹ tá»« current_address (FE) vÃ o cá»™t address (DB)
         address: current_address || null,  
         
         identity_card_number: identity_card_number || null, 
@@ -158,14 +152,13 @@ const updateEmployee = async (req, res) => {
       type: db.QueryTypes.UPDATE
     });
 
-    res.status(200).json({ success: true, message: 'Cáº­p nháº­t há»“ sÆ¡ thÃ nh cÃ´ng!' });
+    res.status(200).json({ success: true, message: 'Cập nhật hồ sơ thành công!' });
 
   } catch (error) {
     console.error('Lá»—i API updateEmployee:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi cáº­p nháº­t' });
+    res.status(500).json({ success: false, message: 'Lấy Server khi cập nhật' });
   }
 };
-// API láº¥y danh sÃ¡ch PhÃ²ng ban, Chá»©c vá»¥ vÃ  Quáº£n lÃ½ Ä‘á»ƒ Ä‘Æ°a vÃ o Combobox
 const getFormOptions = async (req, res) => {
   try {
     // 1. Láº¥y danh sÃ¡ch PhÃ²ng ban
@@ -174,13 +167,11 @@ const getFormOptions = async (req, res) => {
       { type: db.QueryTypes.SELECT }
     );
 
-    // 2. Láº¥y danh sÃ¡ch Chá»©c vá»¥
     const positions = await db.query(
       "SELECT id, position_name, department_id FROM position ORDER BY position_name", 
       { type: db.QueryTypes.SELECT }
     );
 
-    // 3. Láº¥y danh sÃ¡ch NhÃ¢n viÃªn (JOIN position Ä‘á»ƒ biáº¿t há» thuá»™c PhÃ²ng ban nÃ o)
     const managers = await db.query(
       `SELECT e.id, e.full_name, p.department_id 
        FROM employee e
@@ -193,7 +184,7 @@ const getFormOptions = async (req, res) => {
     res.status(200).json({ departments, positions, managers });
   } catch (error) {
     console.error('Lá»—i API getFormOptions:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi táº£i dá»¯ liá»‡u form' });
+    res.status(500).json({ success: false, message: 'Lỗi Server khi tạo dữ liệu form' });
   }
 };
 const createEmployee = async (req, res) => {
@@ -288,21 +279,21 @@ if (send_email === true || send_email === 'true') {
           password
         );
         
-        console.log(`ÄÃ£ gá»­i email cáº¥p tÃ i khoáº£n tá»›i: ${targetEmail}`);
+        console.log(`Đã gửi email cấp tài khoản tới: ${targetEmail}`);
         
-        return res.status(201).json({ success: true, message: 'ThÃªm nhÃ¢n viÃªn vÃ  gá»­i email cáº¥p tÃ i khoáº£n thÃ nh cÃ´ng!' });
+        return res.status(201).json({ success: true, message: 'Thêm nhân viên và gửi email cấp tài khoản thành công!' });
       } catch (emailError) {
-        console.error('Lá»—i gá»­i email:', emailError);
+        console.error('Lỗi gửi email:', emailError);
         // Tráº£ vá» 201 vÃ¬ DB Ä‘Ã£ ghi thÃ nh cÃ´ng, chá»‰ bÃ¡o lá»—i pháº§n mail
         return res.status(201).json({ 
           success: true, 
-          message: 'ÄÃ£ thÃªm nhÃ¢n viÃªn thÃ nh cÃ´ng, nhÆ°ng cáº¥u hÃ¬nh gá»­i Email Ä‘ang bá»‹ lá»—i. Vui lÃ²ng cáº¥p láº¡i pass sau.' 
+          message: 'Đã thêm nhân viên thành công, nhưng cấu hình gửi Email đang bị lỗi. Vui lòng cấp lại pass sau.' 
         });
       }
     }
 
     // Náº¿u khÃ´ng tick Ã´ gá»­i mail
-    return res.status(201).json({ success: true, message: 'ThÃªm nhÃ¢n viÃªn vÃ  cáº¥p tÃ i khoáº£n thÃ nh cÃ´ng!' });
+    return res.status(201).json({ success: true, message: 'Thêm nhân viên và cấp tài khoản thành công!' });
 
   } catch (error) {
     // Chá»‰ Rollback khi lá»—i CÆ  Sá»ž Dá»® LIá»†U
@@ -314,9 +305,9 @@ if (send_email === true || send_email === 'true') {
     
     console.error('Lá»—i API createEmployee:', error);
     if (error.original && error.original.code === '23505') {
-      return res.status(400).json({ success: false, message: 'Email/Username nÃ y Ä‘Ã£ tá»“n táº¡i trong há»‡ thá»‘ng!' });
+      return res.status(400).json({ success: false, message: 'Email/Username này đã tồn tại trong hệ thống!' });
     }
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi thÃªm nhÃ¢n viÃªn' });
+    res.status(500).json({ success: false, message: 'Lỗi Server khi thêm nhân viên' });
   }
 };
 const deleteEmployee = async (req, res) => {
@@ -333,7 +324,7 @@ const deleteEmployee = async (req, res) => {
 
     if (emp.length === 0) {
       await t.rollback();
-      return res.status(404).json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y nhÃ¢n viÃªn' });
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
     }
 
     // Bá» tham chiáº¿u tá»›i nhÃ¢n viÃªn (trÃ¡nh RESTRICT khi xÃ³a)
@@ -387,20 +378,20 @@ const deleteEmployee = async (req, res) => {
     });
 
     await t.commit();
-    res.status(200).json({ success: true, message: 'XÃ³a nhÃ¢n viÃªn thÃ nh cÃ´ng' });
+    res.status(200).json({ success: true, message: 'Xóa nhân viên thành công' });
   } catch (error) {
     await t.rollback();
-    console.error('Lá»—i API deleteEmployee:', error);
+    console.error('Lỗi API deleteEmployee:', error);
     const pgCode = error.original?.code || error.parent?.code;
     const msg = String(error.original?.message || error.message || '');
     if (pgCode === '23503' || msg.includes('foreign key') || msg.includes('violates foreign key')) {
       return res.status(409).json({
         success: false,
         message:
-          'KhÃ´ng thá»ƒ xÃ³a nhÃ¢n viÃªn vÃ¬ váº«n cÃ²n dá»¯ liá»‡u liÃªn quan trong há»‡ thá»‘ng. Vui lÃ²ng thá»­ láº¡i hoáº·c liÃªn há»‡ quáº£n trá»‹.'
+          'Không thể xóa nhân viên vì vẫn còn dữ liệu liên quan trong hệ thống. Vui lòng thử lại hoặc liên hệ quản trị.'
       });
     }
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi xÃ³a nhÃ¢n viÃªn' });
+    res.status(500).json({ success: false, message: 'Lỗi Server khi xóa nhân viên' });
   }
 };
 
@@ -426,8 +417,8 @@ const query = `
 
     res.status(200).json(employees);
   } catch (error) {
-    console.error('Lá»—i API getPresentEmployees:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi táº£i dá»¯ liá»‡u hiá»‡n diá»‡n' });
+    console.error('Lỗi API getPresentEmployees:', error);
+    res.status(500).json({ success: false, message: 'Lỗi Server khi tải dữ liệu hiện diện' });
   }
 };
 
@@ -459,7 +450,7 @@ const query = `
     res.status(200).json(employees);
   } catch (error) {
     console.error('Lá»—i API getAbsentEmployees:', error);
-    res.status(500).json({ success: false, message: 'Lá»—i Server khi táº£i dá»¯ liá»‡u váº¯ng máº·t' });
+    res.status(500).json({ success: false, message: 'Lỗi Server khi tải dữ liệu vắng mặt' });
   }
 };
 const getChangesSummary = async (req, res) => {
@@ -494,8 +485,8 @@ const getChangesSummary = async (req, res) => {
     res.status(200).json(result[0]);
 
   } catch (error) {
-    console.error('Lá»—i getChangesSummary:', error);
-    res.status(500).json({ message: 'Lá»—i server' });
+    console.error('Lỗi getChangesSummary:', error);
+    res.status(500).json({ message: 'Lỗi server' });
   }
 };
 const getChangesList = async (req, res) => {
@@ -555,7 +546,7 @@ const getChangesList = async (req, res) => {
 
   } catch (error) {
     console.error('Lá»—i getChangesList:', error);
-    res.status(500).json({ message: 'Lá»—i server' });
+    res.status(500).json({ message: 'Lỗi server' });
   }
 };
 const getTenureStats = async (req, res) => {
@@ -578,7 +569,6 @@ const getTenureStats = async (req, res) => {
       type: db.QueryTypes.SELECT
     });
 
-    // ðŸ‘‰ format láº¡i cho frontend dá»… dÃ¹ng
     const data = {
       fresher: 0,
       junior: 0,
@@ -593,7 +583,6 @@ const getTenureStats = async (req, res) => {
       total += Number(item.count);
     });
 
-    // ðŸ‘‰ convert sang %
     const percentData = {
       fresher: total ? Math.round((data.fresher / total) * 100) : 0,
       junior: total ? Math.round((data.junior / total) * 100) : 0,
@@ -604,16 +593,14 @@ const getTenureStats = async (req, res) => {
     res.status(200).json(percentData);
 
   } catch (error) {
-    console.error('Lá»—i getTenureStats:', error);
-    res.status(500).json({ message: 'Lá»—i server' });
+    console.error('Lỗi getTenureStats:', error);
+    res.status(500).json({ message: 'Lỗi server' });
   }
 };
-//phÃª duyá»‡t
 const getApprovalRequests = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // ðŸ”µ LEAVE REQUEST
     const leaveQuery = `
       SELECT 
     lr.id,
@@ -643,7 +630,6 @@ const getApprovalRequests = async (req, res) => {
   AND lr.status = 'pending'
     `;
 
-    // ðŸŸ  OVERTIME REQUEST
     const otQuery = `
       SELECT 
     ot.id,
@@ -683,7 +669,6 @@ const getApprovalRequests = async (req, res) => {
       replacements: { id }
     });
 
-    // ðŸ”¥ Gá»™p láº¡i
     const combined = [...leaveRows, ...otRows].sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at)
     );
@@ -702,12 +687,11 @@ const updateApprovalStatus = async (req, res) => {
     const { status } = req.body; // approved | rejected
 
     if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Tráº¡ng thÃ¡i khÃ´ng há»£p lá»‡' });
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
     let query = '';
 
-    // ðŸŸ¢ ÄÆ¡n nghá»‰ phÃ©p
     if (type === 'leave') {
       query = `
         UPDATE leave_request
@@ -718,7 +702,6 @@ const updateApprovalStatus = async (req, res) => {
       `;
     }
 
-    // ðŸŸ  ÄÆ¡n tÄƒng ca
     else if (type === 'overtime') {
       query = `
         UPDATE overtime_request
@@ -730,7 +713,7 @@ const updateApprovalStatus = async (req, res) => {
     }
 
     else {
-      return res.status(400).json({ message: 'Type khÃ´ng há»£p lá»‡' });
+      return res.status(400).json({ message: 'Type không hợp lệ' });
     }
 
     const [result] = await db.query(query, {
@@ -1044,28 +1027,28 @@ const getAttendanceStats = async (req, res) => {
         totalWorkHours: {
           value: Math.round(Number(att.work_hours_cur || 0) * 10) / 10,
           changePct: pct(att.work_hours_cur, att.work_hours_prev),
-          label: 'Tá»•ng giá» cÃ´ng thá»±c táº¿',
-          unit: 'giá»',
+          label: 'Tổng giờ công thực tế',
+          unit: 'giờ',
         },
         lateEarly: {
           value: Number(att.late_early_cur || 0),
           changePct: pct(att.late_early_cur, att.late_early_prev),
-          label: 'Äi trá»… / Vá» sá»›m',
-          unit: 'lÆ°á»£t',
+          label: 'Đi trễ / Về sớm',
+          unit: 'lượt',
           tone: Number(att.late_early_cur || 0) > Number(att.late_early_prev || 0) ? 'alarming' : 'neutral',
         },
         leaveAbsence: {
           value: Number(leaveCur),
           changePct: pct(leaveCur, leavePrev),
-          label: 'Nghá»‰ phÃ©p / Váº¯ng máº·t',
-          unit: 'ngÃ y',
+          label: 'Nghỉ phép / Thai sản',
+          unit: 'ngày',
           tone: leaveCur <= leavePrev ? 'stable' : 'neutral',
         },
         overtime: {
           value: Math.round(Number(otCur) * 10) / 10,
           changePct: pct(otCur, otPrev),
-          label: 'LÃ m thÃªm giá» (OT)',
-          unit: 'giá»',
+          label: 'Làm thêm giờ (OT)',
+          unit: 'giờ',
         },
       },
       departmentLateness: departmentChart,
