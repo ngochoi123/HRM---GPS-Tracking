@@ -3,12 +3,12 @@
 export const notificationService = {
   getNotifications: async () => {
     const response = await axiosClient.get('/notifications');
-    return Array.isArray(response.data) ? response.data : [];
+    return Array.isArray(response) ? response : [];
   },
 
   getMyBell: async (userId) => {
     const response = await axiosClient.get(`/notifications/my-bell/${userId}`);
-    return Array.isArray(response.data) ? response.data : [];
+    return Array.isArray(response) ? response : [];
   },
 
   markAllAsRead: (userId) => {
@@ -21,7 +21,7 @@ export const notificationService = {
 
   getNotificationDetail: async (notificationId) => {
     const response = await axiosClient.get(`/notifications/${notificationId}/detail`);
-    return response.data || {};
+    return response || {};
   },
 
   createNotification: (payload) => {

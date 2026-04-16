@@ -697,18 +697,22 @@ const getApprovalRequests = async (req, res) => {
 };
 
 const updateApprovalStatus = async (req, res) => {
+  const tx = await db.transaction();
   try {
     const { type, id } = req.params;
     const { status } = req.body; // approved | rejected
 
     if (!['approved', 'rejected'].includes(status)) {
+      await tx.rollback();
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
     let query = '';
+    let requestLabel = '';
 
     // 🟢 Đơn nghỉ phép
     if (type === 'leave') {
+      requestLabel = 'Đơn nghỉ phép';
       query = `
         UPDATE leave_request
         SET status = :status,
@@ -720,6 +724,7 @@ const updateApprovalStatus = async (req, res) => {
 
     // 🟠 Đơn tăng ca
     else if (type === 'overtime') {
+      requestLabel = 'Đơn tăng ca';
       query = `
         UPDATE overtime_request
         SET status = :status,
@@ -730,19 +735,102 @@ const updateApprovalStatus = async (req, res) => {
     }
 
     else {
+      await tx.rollback();
       return res.status(400).json({ message: 'Type không hợp lệ' });
     }
 
     const [result] = await db.query(query, {
-      replacements: { id, status }
+      replacements: { id, status },
+      transaction: tx,
     });
+
+    const updatedRow = result?.[0];
+    if (!updatedRow?.employee_id) {
+      await tx.commit();
+      return res.json({
+        message: 'Cập nhật thành công',
+        data: updatedRow,
+      });
+    }
+
+    const [emp] = await db.query(
+      `SELECT id, full_name, employee_code FROM employee WHERE id = :id LIMIT 1`,
+      { replacements: { id: updatedRow.employee_id }, type: db.QueryTypes.SELECT, transaction: tx }
+    );
+
+    let timeLabel = '';
+    if (type === 'leave') {
+      timeLabel = `${updatedRow?.start_datetime || ''} - ${updatedRow?.end_datetime || ''}`;
+    } else {
+      const startTime = String(updatedRow?.start_time || '').slice(0, 5);
+      const endTime = String(updatedRow?.end_time || '').slice(0, 5);
+      timeLabel = `${updatedRow?.ot_date || ''} ${startTime} - ${endTime}`.trim();
+    }
+
+    const isApproved = status === 'approved';
+    const title = isApproved ? `${requestLabel} đã được duyệt` : `${requestLabel} bị từ chối`;
+    const desc = isApproved
+      ? 'Yêu cầu của bạn đã được Quản lý phê duyệt.'
+      : 'Yêu cầu của bạn đã bị Quản lý từ chối.';
+    const employeeName = emp?.full_name || 'Nhân viên';
+    const content = isApproved
+      ? `
+        <p><strong style="color:#065f46">${requestLabel} của bạn đã được chấp thuận.</strong></p>
+        <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
+          <p style="margin:0;"><strong>Thời gian:</strong> ${timeLabel || 'Chưa cập nhật'}</p>
+          <p style="margin:8px 0 0;"><strong>Người duyệt:</strong> Quản lý trực tiếp</p>
+        </div>
+        <p style="margin-top:8px;">Vui lòng theo dõi lịch làm việc để thực hiện đúng theo nội dung đã duyệt.</p>
+      `
+      : `
+        <p><strong style="color:#b91c1c">${requestLabel} của bạn đã bị từ chối.</strong></p>
+        <div style="margin:10px 0;padding:10px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;">
+          <p style="margin:0;"><strong>Thời gian:</strong> ${timeLabel || 'Chưa cập nhật'}</p>
+          <p style="margin:8px 0 0;"><strong>Người duyệt:</strong> Quản lý trực tiếp</p>
+        </div>
+        <p style="margin-top:8px;">Bạn có thể trao đổi lại với quản lý hoặc tạo yêu cầu mới nếu cần điều chỉnh.</p>
+      `;
+
+    const [notiRows] = await db.query(
+      `
+      INSERT INTO notification (title, content, notification_type, target, "desc", status, sender_id, target_employee_id, created_at)
+      VALUES (:title, :content, :type, 'Cá nhân', :desc, 'Đã gửi', :senderId, :employeeId, NOW())
+      RETURNING id
+      `,
+      {
+        replacements: {
+          title,
+          content,
+          type: isApproved ? 'info' : 'warning',
+          desc,
+          senderId: updatedRow.approver_id || null,
+          employeeId: updatedRow.employee_id,
+        },
+        type: db.QueryTypes.SELECT,
+        transaction: tx,
+      }
+    );
+
+    const notificationId = notiRows?.[0]?.id;
+    if (notificationId) {
+      await db.query(
+        `INSERT INTO notification_recipient (notification_id, employee_id) VALUES (:notificationId, :employeeId)`,
+        {
+          replacements: { notificationId, employeeId: updatedRow.employee_id },
+          transaction: tx,
+        }
+      );
+    }
+
+    await tx.commit();
 
     res.json({
       message: 'Cập nhật thành công',
-      data: result[0]
+      data: updatedRow
     });
 
   } catch (error) {
+    if (tx && !tx.finished) await tx.rollback();
     console.error("❌ updateApprovalStatus:", error);
     res.status(500).json({ message: "Lỗi server" });
   }

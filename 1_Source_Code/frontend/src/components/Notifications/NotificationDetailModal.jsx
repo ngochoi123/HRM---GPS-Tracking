@@ -60,6 +60,7 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
   const contentHtml = current?.content ?? notification.content ?? "";
   const target = current?.target ?? notification.target ?? "—";
   const notifType = current?.notification_type ?? notification.notification_type;
+  const isWarningType = isWarningNotificationType(notifType);
 
   const createdRaw = current?.created_at ?? notification.created_at;
   const created = createdRaw ? new Date(createdRaw) : null;
@@ -271,14 +272,28 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
                 </div>
 
                 <div className="shrink-0 px-5 sm:px-8 pb-8">
-                  <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col">
-                    <div className="shrink-0 px-5 sm:px-6 pt-4 pb-2 border-b border-slate-100/90">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                  <div
+                    className={`rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col ${
+                      isWarningType
+                        ? "border-red-200/90 bg-red-50/40"
+                        : "border-emerald-200/80 bg-emerald-50/35"
+                    }`}
+                  >
+                    <div
+                      className={`shrink-0 px-5 sm:px-6 pt-4 pb-2 border-b ${
+                        isWarningType ? "border-red-200/80" : "border-emerald-200/70"
+                      }`}
+                    >
+                      <span
+                        className={`text-[11px] font-bold uppercase tracking-[0.14em] ${
+                          isWarningType ? "text-red-500" : "text-emerald-600"
+                        }`}
+                      >
                         Nội dung
                       </span>
                     </div>
                     <div
-                      className="px-5 sm:px-6 py-5 text-slate-800 leading-[1.75] text-base sm:text-lg overflow-x-hidden break-words max-w-full [&_a]:text-teal-600 [&_a]:underline [&_a]:break-all [&_a]:break-words [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-sm [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-3"
+                      className="px-5 sm:px-6 py-5 text-slate-800 leading-[1.75] text-base sm:text-lg overflow-x-hidden break-words max-w-full [&_a]:text-teal-600 [&_a]:underline [&_a]:break-all [&_a]:break-words [&_img]:max-w-full [&_img]:rounded-lg [&_img]:shadow-sm [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-3 [&_strong]:font-extrabold"
                       dangerouslySetInnerHTML={{ __html: contentHtml || desc || "" }}
                     />
                   </div>
