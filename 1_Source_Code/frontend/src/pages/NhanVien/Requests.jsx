@@ -45,6 +45,7 @@ const Requests = () => {
 
   const [selectedRequest, setSelectedRequest] = useState(null);
 const [showModal, setShowModal] = useState(false);
+const [selectedFile, setSelectedFile] = useState(null);
 
 // Hàm mở modal khi click vào dòng
 const handleRowClick = (request) => {
@@ -66,7 +67,9 @@ const handleCancel = () => {
   if (fileRef.current) {
     fileRef.current.value = "";
   }
+  setSelectedFile(null);
 };
+
 
 // Hàm đóng modal
 const closeModal = () => {
@@ -237,9 +240,30 @@ const calculateTotalDays = (start, end) => {
 
   const submitRequest = async () => {
   if (!approverId) {
-    alert("Chọn người kiểm duyệt!");
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng chọn người kiểm duyệt!");
+    setTimeout(() => setNotification(""), 3000);
     return;
   }
+  if (!form.startDate || !form.endDate) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng chọn ngày bắt đầu và kết thúc!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+
+  if (!form.reason.trim()) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng nhập lý do!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+  if (new Date(form.endDate) < new Date(form.startDate)) {
+  setShowConfirmSubmit(false);
+  setNotification("Ngày kết thúc phải sau ngày bắt đầu!");
+  setTimeout(() => setNotification(""), 3000);
+  return;
+}
 
   const payload = new FormData();
   payload.append("userId", user.id);
@@ -294,7 +318,7 @@ const handleCancelConfirm = () => {
   setApproverId("");
 
   if (fileRef.current) fileRef.current.value = "";
-
+  setSelectedFile(null);
   setShowConfirmCancel(false);
 };
 
@@ -501,15 +525,57 @@ const diffTime = end - start;
 
             <div className="input-group" style={{ marginTop: "20px" }}>
               <label>Đính kèm tài liệu</label>
+
               <label htmlFor="file-upload" className="file-uploader">
-                <IoCloudUploadOutline className="file-icon" />
-                <div className="file-text">
-                  <span className="file-bold">Nhấn để chọn file</span>
-                </div>
-                <div className="file-note">
-                  PNG, JPG, PDF, Word (Max 10MB)
-                </div>
-                <input ref={fileRef} id="file-upload" type="file" hidden />
+                {!selectedFile ? (
+                  <>
+                    <IoCloudUploadOutline className="file-icon" />
+
+                    <div className="file-text">
+                      <span className="file-bold">Nhấn để chọn file</span>
+                    </div>
+
+                    <div className="file-note">
+                      PNG, JPG, PDF, Word (Max 10MB)
+                    </div>
+                  </>
+                ) : (
+                  <div className="file-preview">
+                    <div className="file-left">
+                      📎
+                    </div>
+
+                    <div className="file-info">
+                      <span className="file-name">{selectedFile.name}</span>
+                      <span className="file-size">
+                        {(selectedFile.size / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="file-remove"
+                      onClick={(e) => {
+                        e.preventDefault(); // ❗ tránh trigger label
+                        setSelectedFile(null);
+                        if (fileRef.current) fileRef.current.value = "";
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  ref={fileRef}
+                  id="file-upload"
+                  type="file"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) setSelectedFile(file);
+                  }}
+                />
               </label>
             </div>
           </div>

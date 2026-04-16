@@ -34,6 +34,11 @@ router.post('/overtime-request', employeeController.createOvertimeRequest);
 
 router.get('/approvers/:id', employeeController.getApprovers);
 
+router.post('/attendance-explanation-request',upload.single('file'),employeeController.createExplanationRequest);
+
+router.get('/attendance-explanation-request/:id',employeeController.getMyExplanationRequests);
+
+
 
 
 // Chấm công (Attendance + GPS)

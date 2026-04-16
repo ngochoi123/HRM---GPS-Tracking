@@ -692,3 +692,136 @@ exports.getMyOvertimeRequests = async (req, res) => {
   }
 };
 
+//tạo đơn giải trình
+exports.createExplanationRequest = async (req, res) => {
+  try {
+    const {
+      userId,
+      attendance_date,
+      explanation_type,
+      proposed_check_in,
+      proposed_check_out,
+      reason,
+      approverId
+    } = req.body;
+
+    const file = req.file;
+
+    // ===== VALIDATE =====
+    if (!userId || !attendance_date || !explanation_type) {
+      return res.status(400).json({ message: "Thiếu dữ liệu bắt buộc" });
+    }
+
+    // enum đúng theo DB
+    const validTypes = [
+      "forgot_checkin",
+      "forgot_checkout",
+      "system_error",
+      "late_arrival",
+      "early_leave"
+    ];
+
+    if (!validTypes.includes(explanation_type)) {
+      return res.status(400).json({ message: "Loại giải trình không hợp lệ" });
+    }
+
+    if (!approverId) {
+      return res.status(400).json({ message: "Chưa chọn người duyệt" });
+    }
+
+    // validate theo từng loại
+    if (explanation_type === "forgot_checkin" && !proposed_check_in) {
+      return res.status(400).json({ message: "Thiếu giờ check-in" });
+    }
+
+    if (explanation_type === "forgot_checkout" && !proposed_check_out) {
+      return res.status(400).json({ message: "Thiếu giờ check-out" });
+    }
+
+    const filePath = file ? file.filename : null;
+
+    // ===== INSERT =====
+    const result = await db.query(
+      `
+      INSERT INTO attendance_explanation_request (
+        employee_id,
+        attendance_date,
+        explanation_type,
+        proposed_check_in,
+        proposed_check_out,
+        reason,
+        approver_id,
+        attachment_url
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *
+      `,
+      {
+        bind: [
+          userId,
+          attendance_date,
+          explanation_type,
+          proposed_check_in || null,
+          proposed_check_out || null,
+          reason || null,
+          approverId,
+          filePath
+        ],
+        type: QueryTypes.INSERT
+      }
+    );
+
+    return res.status(201).json({
+      message: "Tạo đơn giải trình thành công",
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error("createExplanationRequest error:", error);
+    return res.status(500).json({
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+//lấy đơn giải trình
+exports.getMyExplanationRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT 
+        aer.id,
+        aer.attendance_date,
+        aer.explanation_type,
+        aer.proposed_check_in,
+        aer.proposed_check_out,
+        aer.reason,
+        aer.attachment_url,
+        aer.status,
+        aer.created_at,
+        e.full_name AS approver_name
+      FROM attendance_explanation_request aer
+      LEFT JOIN employee e ON aer.approver_id = e.id
+      WHERE aer.employee_id = $1
+      ORDER BY aer.created_at DESC
+      `,
+      {
+        bind: [id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    return res.json(result);
+
+  } catch (error) {
+    console.error("getMyExplanationRequests error:", error);
+    return res.status(500).json({
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+

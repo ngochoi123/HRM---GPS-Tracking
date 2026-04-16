@@ -15,8 +15,93 @@ import { LuClock2 } from "react-icons/lu";
 import { GoBlocked } from "react-icons/go";
 import './ae_request.css'
 const attendance_explanation_request = () => {
+
+    const fileRef = React.useRef();
+
+const user = JSON.parse(localStorage.getItem("user") || "{}");
+const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+const [notification, setNotification] = useState("");
+
+const [form, setForm] = useState({
+  date: "",
+  type: "",
+  checkin: "",
+  checkout: "",
+  reason: "",
+});
+
+const [approverId, setApproverId] = useState("");
+const [approvers, setApprovers] = useState([]);
+useEffect(() => {
+  if (!user?.id) return;
+
+  employeeService
+    .getApprovers(user.id)
+    .then((res) => setApprovers(res?.data || res || []))
+    .catch(console.error);
+}, [user?.id]);
+const handleSubmit = async () => {
+  if (!approverId) {
+    setShowConfirmSubmit(false);
+    setNotification("Chọn người kiểm duyệt!");
+    return;
+  }
+
+  const formData = new FormData();
+
+  formData.append("userId", user.id);
+  formData.append("attendance_date", form.date);
+  formData.append("explanation_type", form.type);
+  formData.append("proposed_check_in", form.checkin);
+  formData.append("proposed_check_out", form.checkout);
+  formData.append("reason", form.reason);
+  formData.append("approverId", approverId);
+
+  if (fileRef.current?.files[0]) {
+    formData.append("attachment", fileRef.current.files[0]);
+  }
+
+  try {
+    await employeeService.createExplanationRequest(formData);
+
+    setNotification("Gửi giải trình thành công!");
+    setShowConfirmSubmit(false);
+
+    handleResetForm(); 
+
+    setTimeout(() => {
+      setNotification("");
+    }, 3000);
+
+  } catch (err) {
+    console.error(err.response?.data || err);
+    setNotification("Gửi thất bại!");
+  }
+};
+const handleResetForm = () => {
+  setForm({
+    date: "",
+    type: "",
+    checkin: "",
+    checkout: "",
+    reason: "",
+  });
+
+  setApproverId("");
+
+  if (fileRef.current) fileRef.current.value = "";
+  setSelectedFile(null);
+
+  setShowConfirmCancel(false);
+};
     return(
         <div className="request-container">
+            {notification && (
+            <div className="toast">
+                {notification}
+            </div>
+            )}
             <div className="request-left">
                 <div className="request-left-header">
                     <div className="header-left">
@@ -42,6 +127,10 @@ const attendance_explanation_request = () => {
                                 <input
                                     type="date"
                                     className="input-option"
+                                    value={form.date}
+                                    onChange={(e) =>
+                                        setForm({ ...form, date: e.target.value })
+                                    }
 
                                 />
                             </div>
@@ -49,14 +138,18 @@ const attendance_explanation_request = () => {
                                 <label>Loại giải trình</label>
                                 <select
                                     className="input-option"
-                                
-                                >
-                                    <option value="">-- Chọn loại giải trình --</option>
-                                    <option value="FORGOT_CHECKIN">Quên chấm công vào</option>
-                                    <option value="FORGOT_CHECKOUT">Quên chấm công ra</option>
-                                    <option value="SYSTEM_ERROR">Lỗi hệ thống</option>
-                                    <option value="LATE">Đi muộn</option>
-                                    <option value="EARLY_LEAVE">Về sớm</option>
+                                    value={form.type}
+                                    onChange={(e) =>
+                                        setForm({ ...form, type: e.target.value })
+                                    }
+                                    >
+                                    <option value="">Chọn loại giải trình </option>
+
+                                    <option value="forgot_checkin">Quên chấm công vào</option>
+                                    <option value="forgot_checkout">Quên chấm công ra</option>
+                                    <option value="system_error">Lỗi hệ thống</option>
+                                    <option value="late_arrival">Đi muộn</option>
+                                    <option value="early_leave">Về sớm</option>
                                 </select>
                             </div>
                             
@@ -67,15 +160,18 @@ const attendance_explanation_request = () => {
                             </div>
                             <div className="info-section-bottom-ae-request-right">
                                 <select
-                                    className="input-option"
-                                    
+                                className="input-option"
+                                value={approverId}
+                                onChange={(e) => setApproverId(e.target.value)}
                                 >
-                                    <option value="">-- Người kiểm duyệt --</option>
-                                    <option value="FORGOT_CHECKIN">Lỉnh</option>
-                                    <option value="FORGOT_CHECKOUT">Lỉnh</option>
-                                    <option value="SYSTEM_ERROR">Lỉnh đẹp trai</option>
-                                    <option value="LATE">Lỉnh Trần</option>
-                                    
+                                <option value="" disabled hidden>
+                                Chọn người kiểm duyệt
+                                </option>
+                                {approvers.map((appr) => (
+                                <option key={appr.id} value={appr.id}>
+                                    {appr.full_name} ({appr.position_name})
+                                </option>
+                                ))}
                                 </select>
                             </div>
                         </div>
@@ -90,7 +186,10 @@ const attendance_explanation_request = () => {
                                 <input
                                     type="time"
                                     className="input-option"
-
+                                    value={form.checkin}
+                                    onChange={(e) =>
+                                        setForm({ ...form, checkin: e.target.value })
+                                    }
                                 />
                             </div>
                             <div className="input-group">
@@ -98,7 +197,10 @@ const attendance_explanation_request = () => {
                                 <input
                                     type="time"
                                     className="input-option"
-
+                                    value={form.checkout}
+                                    onChange={(e) =>
+                                        setForm({ ...form, checkout: e.target.value })
+                                    }
                                 />
                             </div>
                         </div>
@@ -114,7 +216,10 @@ const attendance_explanation_request = () => {
                             <label>Lý do cụ thể</label>
                             <textarea
                                 className="input-option-1"
-                                
+                                value={form.reason}
+                                onChange={(e) =>
+                                    setForm({ ...form, reason: e.target.value })
+                                }
                                 placeholder="Giải trình lý do cụ thể..."
 
                             />
@@ -138,7 +243,7 @@ const attendance_explanation_request = () => {
                 </div>
 
                 <div className="acction-footer">
-                    <button className="btn-request" style={{background:"red"}} >
+                    <button className="btn-request" style={{background:"red"}} onClick={() => setShowConfirmSubmit(true)} >
                         <BsSend /> Gửi
                     </button>
                 </div>
@@ -159,6 +264,44 @@ const attendance_explanation_request = () => {
                     </div>
                 </div>
             </div>
+
+            {showConfirmSubmit && (
+  <div className="modal-overlay" onClick={() => setShowConfirmSubmit(false)}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3 style={{fontWeight:"bold",fontSize:"18px"}}>Xác nhận gửi đơn</h3>
+      <p>Bạn có chắc muốn gửi đơn giải trình không?</p>
+
+      <div className="confirm-actions">
+        <button className="btn-confirm" onClick={handleSubmit} style={{background:"red"}}>
+          Đồng ý
+        </button>
+        <button className="btn-cancel" onClick={() => setShowConfirmSubmit(false)}>
+          Hủy
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showConfirmCancel && (
+  <div className="modal-overlay" onClick={() => setShowConfirmCancel(false)}>
+    <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <h3 style={{fontWeight:"bold",fontSize:"18px"}}>Xác nhận hủy</h3>
+      <p>Dữ liệu sẽ bị xóa toàn bộ</p>
+
+      <div className="confirm-actions">
+        <button className="btn-danger" onClick={handleResetForm}>
+          Xóa dữ liệu
+        </button>
+
+        <button className="btn-cancel" onClick={() => setShowConfirmCancel(false)}>
+          Quay lại
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
         </div>
 
 

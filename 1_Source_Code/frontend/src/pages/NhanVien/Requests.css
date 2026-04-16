@@ -185,6 +185,78 @@
   cursor: pointer;
   transition: 0.2s;
 }
+/* Khi đã upload file */
+.file-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: all 0.25s ease;
+}
+
+/* Hover nhẹ cho đẹp */
+.file-preview:hover {
+  border-color: #00AE0C;
+  box-shadow: 0 4px 10px rgba(0, 174, 12, 0.15);
+}
+
+/* Icon bên trái */
+.file-left {
+  font-size: 20px;
+  margin-right: 10px;
+}
+
+/* Info file */
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+/* Tên file */
+.file-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Size file */
+.file-size {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+/* Nút xoá */
+.file-remove {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 16px;
+  cursor: pointer;
+
+  padding: 4px 6px;
+  border-radius: 6px;
+
+  transition: all 0.2s ease;
+}
+
+.file-remove:hover {
+  background: #fee2e2;
+  transform: scale(1.1);
+}
 
 .file-uploader:hover {
   border-color: #00AE0C;

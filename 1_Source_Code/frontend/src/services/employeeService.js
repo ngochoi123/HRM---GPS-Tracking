@@ -43,5 +43,24 @@ export const employeeService = {
   getApprovers: (employeeId) => {
     return axiosClient.get(`/employee/approvers/${employeeId}`);
   },
+
+  createExplanationRequest: (formData) => {
+  return axiosClient.post(
+    '/employee/attendance-explanation-request',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }
+  );
+},
+
+getExplanationRequests: (employeeId) => {
+  return axiosClient.get(
+    `/employee/attendance-explanation-request/${employeeId}`
+  );
+},
+
+
 };
+
 

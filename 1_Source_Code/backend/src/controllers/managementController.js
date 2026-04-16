@@ -630,7 +630,8 @@ const getApprovalRequests = async (req, res) => {
     lr.end_datetime,
     lr.reason,
     lr.status,
-    lr.created_at
+    lr.created_at,
+    lr.attachment
 
   FROM leave_request lr
   JOIN employee e ON lr.employee_id = e.id
@@ -674,6 +675,34 @@ const getApprovalRequests = async (req, res) => {
   WHERE ot.approver_id = :id
   AND ot.status = 'pending'
     `;
+    const explanationQuery = `
+  SELECT 
+    aer.id,
+    aer.employee_id,
+    e.full_name AS employee_name,
+    approver.full_name AS approver_name,
+
+    p.position_name,
+    d.department_name,
+
+    'explanation' AS type,
+    aer.explanation_type AS explanation_type,
+    aer.proposed_check_in AS start_time_ex,
+    aer.proposed_check_out AS end_time_ex,
+    aer.reason,
+    aer.status,
+    aer.created_at,
+    aer.attachment_url AS attachment
+
+  FROM attendance_explanation_request aer
+  JOIN employee e ON aer.employee_id = e.id
+  LEFT JOIN employee approver ON aer.approver_id = approver.id
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+
+  WHERE aer.approver_id = :id
+  AND aer.status = 'pending'
+`;
 
     const [leaveRows] = await db.query(leaveQuery, {
       replacements: { id }
@@ -682,9 +711,12 @@ const getApprovalRequests = async (req, res) => {
     const [otRows] = await db.query(otQuery, {
       replacements: { id }
     });
+    const [explanationRows] = await db.query(explanationQuery, {
+      replacements: { id }
+    });
 
-    // 🔥 Gộp lại
-    const combined = [...leaveRows, ...otRows].sort(
+    
+    const combined = [...leaveRows, ...otRows,...explanationRows].sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at)
     );
 
@@ -728,6 +760,15 @@ const updateApprovalStatus = async (req, res) => {
         RETURNING *;
       `;
     }
+    else if (type === 'explanation') {
+      query = `
+        UPDATE attendance_explanation_request
+        SET status = :status,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = :id
+        RETURNING *;
+      `;
+    }
 
     else {
       return res.status(400).json({ message: 'Type không hợp lệ' });
@@ -764,6 +805,19 @@ const getApprovalHistory = async (req, res) => {
       JOIN employee e ON lr.employee_id = e.id
       WHERE lr.approver_id = :id
       AND lr.status = 'approved'
+      UNION ALL
+
+      SELECT 
+        aer.id,
+        aer.employee_id,
+        e.full_name AS employee_name,
+        'explanation' AS type,
+        aer.status,
+        aer.updated_at
+      FROM attendance_explanation_request aer
+      JOIN employee e ON aer.employee_id = e.id
+      WHERE aer.approver_id = :id
+      AND aer.status = 'approved'
 
       UNION ALL
 
