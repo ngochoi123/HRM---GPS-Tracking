@@ -1,7 +1,7 @@
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
-const { normalizeWorkLocation, checkInEmployee, checkOutEmployee } = require('../services/attendanceActions');
+const { normalizeWorkLocation, checkInEmployee, checkOutEmployee, fetchWorkLocations } = require('../services/attendanceActions');
 const { getClientIp, parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
 
@@ -34,32 +34,10 @@ exports.getAttendanceSummary = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1) Lấy work_location (ĐÃ SỬA LẠI JOIN)
-    const locationResult = await db.query(
-      `
-        SELECT
-          w.id AS work_location_id,
-          w.location_name,
-          w.latitude,
-          w.longitude,
-          w.radius_meters,
-          b.id AS branch_id,
-          b.branch_code,
-          b.branch_name,
-          b.allowed_ips
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
-        WHERE e.id = $1
-      `,
-      { bind: [id], type: QueryTypes.SELECT }
-    );
-
-    const workLocations = locationResult.map(normalizeWorkLocation).filter(Boolean);
+    // 1) Lấy work_location từ attendanceActions (hỗ trợ location_assignment)
+    const workLocations = await fetchWorkLocations(id);
     const workLocation = workLocations[0] || null;
-    const allowedParsed = parseAllowedIps(locationResult[0]?.allowed_ips);
+    const allowedParsed = workLocation?.allowed_ips || [];
     const clientIp = getClientIp(req);
     const wifiIpRequired = allowedParsed.length > 0;
     const clientIpAllowed = wifiIpRequired ? isIpAllowed(clientIp, allowedParsed) : null;
@@ -377,13 +355,10 @@ exports.changePassword = async (req, res) => {
 exports.getManagerZoneAttendance = async (req, res) => { 
   try {
     const { id } = req.params;
-    const managerLocationResult = await db.query(
-      `SELECT w.id AS work_location_id, w.location_name, w.latitude, w.longitude, w.radius_meters, b.id AS branch_id, b.branch_code, b.branch_name FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN branch b ON d.branch_id = b.id LEFT JOIN work_location w ON w.branch_id = b.id WHERE e.id = $1 LIMIT 1`,
-      { bind: [id], type: QueryTypes.SELECT }
-    );
-    if (!managerLocationResult[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý.' });
+    const managerLocations = await fetchWorkLocations(id);
+    if (!managerLocations || managerLocations.length === 0) return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý hoặc chưa được phân công khu vực.' });
 
-    const workLocation = normalizeWorkLocation(managerLocationResult[0]);
+    const workLocation = managerLocations[0];
 
     const teamAttendanceResult = await db.query(
       `SELECT e.id AS employee_id, e.employee_code, e.full_name, d.department_name, p.position_name, a.check_in_time, a.check_out_time, a.status, a.check_in_latitude, a.check_in_longitude, a.check_out_latitude, a.check_out_longitude, COALESCE(a.check_out_latitude, a.check_in_latitude) AS live_latitude, COALESCE(a.check_out_longitude, a.check_in_longitude) AS live_longitude FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN attendance a ON a.employee_id = e.id AND a.attendance_date = CURRENT_DATE WHERE d.branch_id = $1 AND a.check_in_time IS NOT NULL ORDER BY a.check_in_time DESC`,

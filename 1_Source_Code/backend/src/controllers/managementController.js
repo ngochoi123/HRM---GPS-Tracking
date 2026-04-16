@@ -1059,6 +1059,138 @@ const getAttendanceStats = async (req, res) => {
     res.status(500).json({ message: 'Lá»—i server khi táº£i thá»‘ng kÃª cháº¥m cÃ´ng' });
   }
 };
+const getPayrollOverview = async (req, res) => {
+  try {
+    const { month, year } = req.query; // e.g. 08, 2023
+    let monthYear = `${String(month).padStart(2, '0')}-${year}`;
+
+    const query = `
+          SELECT 
+            COALESCE(SUM(net_salary), 0) AS total_net_salary,
+            -- Thêm dòng này để tính chính xác Tổng Quỹ Lương (Gross):
+            COALESCE(SUM(net_salary + total_deduction), 0) AS total_gross_salary, 
+            COALESCE(SUM(net_salary - total_allowance + total_deduction), 0) AS total_base_salary,
+            COALESCE(SUM(total_allowance), 0) AS total_allowance,
+            COALESCE(SUM(total_deduction), 0) AS total_deduction
+          FROM payroll
+          WHERE month_year = :monthYear
+        `;
+
+    const result = await db.query(query, {
+      replacements: { monthYear },
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(result[0]);
+  } catch (error) {
+    console.error('Lỗi getPayrollOverview:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
+const getDepartmentPayrollBreakdown = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    let monthYear = `${String(month).padStart(2, '0')}-${year}`;
+
+    const query = `
+      SELECT 
+        d.id AS department_id,
+        d.department_name,
+        COUNT(e.id) AS headcount,
+        COALESCE(SUM(p.net_salary - p.total_allowance + p.total_deduction), 0) AS total_base_salary,
+        COALESCE(SUM(p.total_allowance), 0) AS total_allowance,
+        COALESCE(SUM(p.total_deduction), 0) AS total_deduction,
+        -- Cột Tổng chi phí của bảng xếp hạng phòng ban:
+        COALESCE(SUM(p.net_salary + p.total_deduction), 0) AS total_gross_salary,
+        COALESCE(SUM(p.net_salary), 0) AS total_net_salary
+      FROM payroll p
+      JOIN employee e ON p.employee_id = e.id
+      LEFT JOIN position pos ON e.position_id = pos.id
+      LEFT JOIN department d ON pos.department_id = d.id
+      WHERE p.month_year = :monthYear
+      GROUP BY d.id, d.department_name
+      ORDER BY total_net_salary DESC
+    `;
+
+    const result = await db.query(query, {
+      replacements: { monthYear },
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Lỗi getDepartmentPayrollBreakdown:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
+const getEmployeesByDepartmentPayroll = async (req, res) => {
+  try {
+    const { departmentId } = req.params;
+    const { month, year } = req.query;
+    let monthYear = `${String(month).padStart(2, '0')}-${year}`;
+
+    const query = `
+      SELECT 
+        p.id AS payroll_id,
+        e.employee_code,
+        e.full_name AS employee_name,
+        (p.net_salary - p.total_allowance + p.total_deduction) AS base_salary_snapshot,
+        p.total_allowance,
+        p.total_deduction,
+        p.net_salary,
+        p.status
+      FROM payroll p
+      JOIN employee e ON p.employee_id = e.id
+      LEFT JOIN position pos ON e.position_id = pos.id
+      WHERE pos.department_id = :departmentId
+        AND p.month_year = :monthYear
+      ORDER BY e.full_name ASC
+    `;
+
+    const result = await db.query(query, {
+      replacements: { departmentId, monthYear },
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Lỗi getEmployeesByDepartmentPayroll:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
+const quickApprovePayroll = async (req, res) => {
+  try {
+    const { payrollIds } = req.body;
+    if (!payrollIds || !payrollIds.length) {
+      return res.status(400).json({ message: 'Không có bảng lương nào được chọn' });
+    }
+
+    const query = `
+      UPDATE payroll
+      SET status = 'approved'
+      WHERE id IN (:payrollIds) AND status != 'approved'
+      RETURNING id, status
+    `;
+
+    const result = await db.query(query, {
+      replacements: { payrollIds },
+      type: db.QueryTypes.UPDATE
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Đã duyệt thành công ${result[1]} bảng lương`, 
+      updatedCount: result[1] 
+    });
+  } catch (error) {
+    console.error('Lỗi quickApprovePayroll:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};
+
 module.exports = {
   getEmployees,
   getEmployeeById,
@@ -1075,6 +1207,10 @@ module.exports = {
   updateApprovalStatus,
   getApprovalHistory,
   getAttendanceStats,
+  getPayrollOverview,
+  getDepartmentPayrollBreakdown,
+  getEmployeesByDepartmentPayroll,
+  quickApprovePayroll
 };
 
 

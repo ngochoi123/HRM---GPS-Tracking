@@ -24,6 +24,7 @@ const upload = multer({ storage: storage });
 
 const managementController = require('../controllers/managementController');
 const decisionController = require('../controllers/decisionController');
+const contractController = require('../controllers/contractController');
 
 // --- CÁC ROUTE CỦA BẠN ---
 router.get('/form-options', managementController.getFormOptions);
@@ -38,15 +39,29 @@ router.get('/stats/changes-summary', managementController.getChangesSummary);
 router.get('/stats/changes-list', managementController.getChangesList);
 router.get('/stats/tenure', managementController.getTenureStats);
 router.get('/stats/attendance', managementController.getAttendanceStats);
+router.get('/attendance-stats', managementController.getAttendanceStats);
+
 // --- ROUTE QUYẾT ĐỊNH (CÓ UPLOAD FILE) ---
-// GET /decisions/dashboard phải khai báo trước GET /decisions/:id
 router.get('/decisions/dashboard', decisionController.getDecisionDashboard);
 router.get('/decisions/:id', decisionController.getDecisionById);
 router.post('/decisions', upload.single('attachment'), decisionController.createDecision);
 router.put('/decisions/:id', upload.single('attachment'), decisionController.updateDecision);
+
 // Phê duyệt đơn
 router.get('/approval-requests/:id', managementController.getApprovalRequests);
 router.put('/approval/:type/:id', managementController.updateApprovalStatus);
 router.get('/approval-history/:id', managementController.getApprovalHistory);
+
+// --- ROUTE PAYROLL STATISTICS ---
+router.get('/payroll/statistics/overview', managementController.getPayrollOverview);
+router.get('/payroll/statistics/departments', managementController.getDepartmentPayrollBreakdown);
+router.get('/payroll/statistics/departments/:departmentId/employees', managementController.getEmployeesByDepartmentPayroll);
+router.put('/payroll/statistics/quick-approve', managementController.quickApprovePayroll);
+
+// --- ROUTE CONTRACT STATISTICS ---
+router.get('/contracts/overview', contractController.getContractOverview);
+router.get('/contracts/breakdown', contractController.getContractTypeBreakdown);
+router.get('/contracts/expiring', contractController.getExpiringContracts);
+router.post('/contracts/renew/:id', contractController.renewContract);
 
 module.exports = router;

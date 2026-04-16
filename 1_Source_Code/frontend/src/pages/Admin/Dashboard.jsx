@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     const fetchBranches = async () => {
       try {
         const res = await adminLocationService.getBranches();
-        const payload = res.data || res; // Sửa lỗi bóc tách dữ liệu Axios
+        const payload = res.success !== undefined ? res : res.data; // Xử lý nếu Axios đã unwrap
         if (payload?.success) setBranches(payload.data);
       } catch (error) {
         console.error("Lỗi lấy danh sách chi nhánh:", error);
@@ -52,8 +52,8 @@ export default function AdminDashboard() {
           adminLocationService.getWorkLocationsByBranch(selectedBranch)
         ]);
         
-        const deptPayload = deptRes.data || deptRes;
-        const locPayload = locRes.data || locRes;
+        const deptPayload = deptRes.success !== undefined ? deptRes : deptRes.data;
+        const locPayload = locRes.success !== undefined ? locRes : locRes.data;
 
         if (deptPayload?.success) setDepartments(deptPayload.data);
         if (locPayload?.success) setWorkLocations(locPayload.data);
@@ -73,7 +73,7 @@ export default function AdminDashboard() {
       setIsFetching(true);
       try {
         const res = await adminLocationService.getEmployeesByDepartment(selectedDepartment);
-        const payload = res.data || res;
+        const payload = res.success !== undefined ? res : res.data;
         if (payload?.success) setEmployees(payload.data);
       } catch (error) {
         console.error("Lỗi lấy danh sách nhân viên:", error);
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
     setIsLoading(true);
     try {
       const res = await adminLocationService.createLocationAssignment(payloadParams);
-      const payload = res.data || res;
+      const payload = res.success !== undefined ? res : res.data;
       
       if (payload?.success) {
         setIsSuccess(true);

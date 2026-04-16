@@ -104,27 +104,54 @@ const normalizeWorkLocation = (row) => {
 };
 
 async function fetchWorkLocations(employeeId) {
-  const locationResult = await db.query(
-    `
-      SELECT
-        w.id AS work_location_id,
-        w.location_name,
-        w.latitude,
-        w.longitude,
-        w.radius_meters,
-        b.id AS branch_id,
-        b.branch_code,
-        b.branch_name,
-        b.allowed_ips
-      FROM employee e
-      LEFT JOIN position p ON e.position_id = p.id
-      LEFT JOIN department d ON p.department_id = d.id
-      LEFT JOIN branch b ON d.branch_id = b.id
-      LEFT JOIN work_location w ON w.branch_id = b.id
-      WHERE e.id = $1
-    `,
-    { bind: [employeeId], type: QueryTypes.SELECT }
-  );
+  const sql = `
+WITH emp_info AS (
+  SELECT e.id as emp_id, d.id as dept_id, b.id as branch_id, b.branch_code, b.branch_name, b.allowed_ips
+  FROM employee e
+  LEFT JOIN position p ON e.position_id = p.id
+  LEFT JOIN department d ON p.department_id = d.id
+  LEFT JOIN branch b ON d.branch_id = b.id
+  WHERE e.id = $1
+),
+active_assignments AS (
+  SELECT work_location_id,
+         CASE 
+           WHEN employee_id IS NOT NULL THEN 1
+           WHEN department_id IS NOT NULL THEN 2
+           WHEN branch_id IS NOT NULL THEN 3
+         END as priority
+  FROM location_assignment
+  WHERE (is_temporary = false OR end_date >= CURRENT_DATE OR end_date IS NULL)
+    AND (
+      employee_id = (SELECT emp_id FROM emp_info) OR
+      department_id = (SELECT dept_id FROM emp_info) OR
+      branch_id = (SELECT branch_id FROM emp_info)
+    )
+),
+best_assignment AS (
+  SELECT work_location_id 
+  FROM active_assignments
+  ORDER BY priority ASC
+  LIMIT 1
+)
+SELECT
+  w.id AS work_location_id,
+  w.location_name,
+  w.latitude,
+  w.longitude,
+  w.radius_meters,
+  i.branch_id,
+  i.branch_code,
+  i.branch_name,
+  i.allowed_ips
+FROM emp_info i
+JOIN work_location w ON (
+  (EXISTS (SELECT 1 FROM best_assignment) AND w.id = (SELECT work_location_id FROM best_assignment))
+  OR
+  (NOT EXISTS (SELECT 1 FROM best_assignment) AND w.branch_id = i.branch_id)
+);
+  `;
+  const locationResult = await db.query(sql, { bind: [employeeId], type: QueryTypes.SELECT });
   return locationResult.map(normalizeWorkLocation).filter(Boolean);
 }
 
