@@ -20,7 +20,7 @@ const initialFilters = {
   tab: 'payroll',
   q: '',
   departmentId: '',
-  escalationReason: 'all'
+  requestType: 'all'
 };
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN', {
@@ -102,6 +102,63 @@ const getRequestMetaSub = (item) => {
   return `${item.durationDays} ngày`;
 };
 
+const getRequestSummaryTitle = (item) => {
+  if (item?.type === 'overtime') return 'Ca tăng ca';
+  if (item?.type === 'leave') return 'Thời gian nghỉ';
+  return 'Thông tin lương';
+};
+
+const getReasonPreview = (text, wordLimit = 10, charLimit = 60) => {
+  const normalizedText = String(text || '').trim();
+  if (!normalizedText) return 'Không có lý do';
+
+  const words = normalizedText.split(/\s+/);
+  if (words.length === 1) {
+    return normalizedText.length > charLimit
+      ? `${normalizedText.slice(0, charLimit).trim()}...`
+      : normalizedText;
+  }
+
+  if (words.length <= wordLimit) {
+    const previewText = normalizedText.length > charLimit
+      ? normalizedText.slice(0, charLimit).trim()
+      : normalizedText;
+    return previewText !== normalizedText ? `${previewText}...` : previewText;
+  }
+
+  const previewByWords = words.slice(0, wordLimit).join(' ');
+  const previewText = previewByWords.length > charLimit
+    ? previewByWords.slice(0, charLimit).trim()
+    : previewByWords;
+
+  return `${previewText}...`;
+};
+
+const getTableTimeMain = (item) => {
+  if (item?.type === 'overtime') return item.otDateLabel || item.timeLabel;
+  return item.timeLabel;
+};
+
+const getTableTimeSub = (item) => {
+  if (item?.type === 'leave') {
+    return `Tổng cộng: ${item.durationDays} ngày`;
+  }
+
+  if (item?.type === 'overtime') {
+    const timeRange = item.timeRangeLabel || item.timeLabel || 'Không có thông tin';
+    return (
+      <>
+        <span className="time-sub-line">{timeRange}</span>
+        <span className="time-sub-line">Tổng cộng: {item.durationLabel || 'Không có thông tin'}</span>
+      </>
+    );
+  }
+
+  return item.createdAt
+    ? `Tạo lúc: ${dateTimeFormatter.format(new Date(item.createdAt))}`
+    : 'Chưa có thời gian tạo';
+};
+
 const getPayrollPreviewMetrics = (item) => {
   const detail = item?.detail || {};
   const baseSalarySnapshot = Number(detail.baseSalarySnapshot ?? item?.baseSalarySnapshot ?? 0);
@@ -157,7 +214,7 @@ export default function ApprovalsDirector() {
   const [filters, setFilters] = useState(initialFilters);
   const [meta, setMeta] = useState({
     stats: { payrollPendingCount: 0, leavePendingCount: 0 },
-    options: { departments: [], escalationReasons: [] }
+    options: { departments: [], requestTypes: [] }
   });
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -175,7 +232,7 @@ export default function ApprovalsDirector() {
         tab: nextFilters.tab,
         q: nextFilters.q,
         departmentId: nextFilters.departmentId || undefined,
-        escalationReason: nextFilters.escalationReason
+        requestType: nextFilters.requestType
       });
 
       const payload = response?.success ? response : response?.data ?? response;
@@ -199,7 +256,7 @@ export default function ApprovalsDirector() {
   useEffect(() => {
     fetchApprovals(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.tab, filters.departmentId, filters.escalationReason]);
+  }, [filters.tab, filters.departmentId, filters.requestType]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -360,13 +417,13 @@ export default function ApprovalsDirector() {
 
           <label className={`filter-input select ${isLeaveTab ? '' : 'disabled'}`}>
             <select
-              value={filters.escalationReason}
-              onChange={(event) => updateFilter('escalationReason', event.target.value)}
+              value={filters.requestType}
+              onChange={(event) => updateFilter('requestType', event.target.value)}
               disabled={!isLeaveTab}
             >
-              {(meta.options.escalationReasons || []).map((reason) => (
-                <option key={reason.value} value={reason.value}>
-                  {reason.label}
+              {(meta.options.requestTypes || []).map((requestType) => (
+                <option key={requestType.value} value={requestType.value}>
+                  {requestType.label}
                 </option>
               ))}
             </select>
@@ -434,24 +491,15 @@ export default function ApprovalsDirector() {
                       </td>
 
                       <td>
-                        <div className="time-main">{item.timeLabel}</div>
-                        <div className="time-sub">
-                          {item.type === 'leave'
-                            ? `Tổng cộng: ${item.durationDays} ngày`
-                            : item.type === 'overtime'
-                              ? `Tổng cộng: ${item.durationLabel || 'Không có thông tin'}`
-                            : item.createdAt
-                              ? `Tạo lúc: ${dateTimeFormatter.format(new Date(item.createdAt))}`
-                              : 'Chưa có thời gian tạo'}
-                        </div>
+                        <div className="time-main">{getTableTimeMain(item)}</div>
+                        <div className="time-sub">{getTableTimeSub(item)}</div>
                       </td>
 
                       <td>
                         {item.type !== 'payroll' ? (
                           <>
                             <div className={`approval-pill ${item.type}`}>{requestTypeLabel(item)}</div>
-                            <div className="reason-badge">{item.escalationReasonLabel}</div>
-                            <div className="reason-sub clamp-2">{item.subtitle}</div>
+                            <div className="reason-sub">{getReasonPreview(item.subtitle)}</div>
                           </>
                         ) : (
                           <>
@@ -533,7 +581,7 @@ export default function ApprovalsDirector() {
                 {previewItem.positionName ? ` • ${previewItem.positionName}` : ''}
               </p>
 
-              <div className="preview-grid">
+              <div className={`preview-grid ${previewItem.type === 'overtime' ? 'single' : ''}`}>
                 <div className="preview-card">
                   <div className="preview-card-label">
                     <UserRound size={16} />
@@ -545,14 +593,16 @@ export default function ApprovalsDirector() {
                   </div>
                 </div>
 
-                <div className="preview-card">
-                  <div className="preview-card-label">
-                    {previewItem.type === 'payroll' ? <Banknote size={16} /> : <CalendarRange size={16} />}
-                    {getRequestMetaLabel(previewItem)}
+                {previewItem.type !== 'overtime' && (
+                  <div className="preview-card">
+                    <div className="preview-card-label">
+                      {previewItem.type === 'payroll' ? <Banknote size={16} /> : <CalendarRange size={16} />}
+                      {getRequestMetaLabel(previewItem)}
+                    </div>
+                    <div className="preview-card-value">{previewItem.timeLabel}</div>
+                    <div className="preview-card-sub">{getRequestMetaSub(previewItem)}</div>
                   </div>
-                  <div className="preview-card-value">{previewItem.timeLabel}</div>
-                  <div className="preview-card-sub">{getRequestMetaSub(previewItem)}</div>
-                </div>
+                )}
               </div>
 
               <div className="preview-section">
@@ -639,15 +689,11 @@ export default function ApprovalsDirector() {
                         <strong>{requestTypeLabel(previewItem)}</strong>
                       </div>
                       <div className="preview-request-card">
-                        <span>Lý do vượt cấp</span>
-                        <strong>{previewItem.escalationReasonLabel}</strong>
-                      </div>
-                      <div className="preview-request-card">
                         <span>Quản lý trực tiếp</span>
                         <strong>{previewItem.directManagerName || 'Chưa có thông tin'}</strong>
                       </div>
                       <div className="preview-request-card">
-                        <span>{previewItem.type === 'overtime' ? 'Thời lượng tăng ca' : 'Tổng thời gian nghỉ'}</span>
+                        <span>{previewItem.type === 'overtime' ? 'Tổng thời lượng' : 'Tổng thời gian nghỉ'}</span>
                         <strong>
                           {previewItem.type === 'overtime'
                             ? previewItem.durationLabel || 'Không có thông tin'
@@ -655,8 +701,35 @@ export default function ApprovalsDirector() {
                         </strong>
                       </div>
                     </div>
-                    <div className="preview-request-note">
-                      <span>Nội dung đơn</span>
+                    {previewItem.type === 'overtime' ? (
+                      <div className="preview-request-schedule">
+                        <span className="preview-request-schedule-title">Ca tăng ca</span>
+                        <div className="preview-request-schedule-grid">
+                          <div className="preview-request-card focus">
+                            <span>Ngày tăng ca</span>
+                            <strong>{previewItem.otDateLabel || 'Không có thông tin'}</strong>
+                          </div>
+                          <div className="preview-request-card focus">
+                            <span>Khung giờ tăng ca</span>
+                            <strong>{previewItem.timeRangeLabel || previewItem.timeLabel || 'Không có thông tin'}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="preview-request-grid">
+                        <div className="preview-request-card">
+                          <span>Bắt đầu</span>
+                          <strong>{previewItem.startDateLabel || 'Không có thông tin'}</strong>
+                        </div>
+                        <div className="preview-request-card">
+                          <span>Kết thúc</span>
+                          <strong>{previewItem.endDateLabel || 'Không có thông tin'}</strong>
+                        </div>
+                      </div>
+                    )}
+                    <div className="preview-request-note spotlight">
+                      <span>{getRequestSummaryTitle(previewItem)}</span>
+                      <h5>Nội dung đơn</h5>
                       <p>{previewItem.detail.reason || 'Không có nội dung bổ sung'}</p>
                     </div>
                   </div>
