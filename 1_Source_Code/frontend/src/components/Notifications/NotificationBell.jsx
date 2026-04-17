@@ -109,6 +109,16 @@ export default function NotificationBell() {
     return () => window.cancelAnimationFrame(id);
   }, [isOpen, isExpanded]);
 
+  useEffect(() => {
+    const handleOpenBell = () => {
+      setIsOpen(true);
+      setIsExpanded(true);
+    };
+
+    window.addEventListener("openNotificationBell", handleOpenBell);
+    return () => window.removeEventListener("openNotificationBell", handleOpenBell);
+  }, []);
+
   const markAllAsRead = async () => {
     try {
       setNotifications(safeNotifications.map((item) => ({ ...item, is_read: true })));
@@ -190,7 +200,7 @@ export default function NotificationBell() {
     isExpanded || !hasMoreThanPreview ? safeNotifications : safeNotifications.slice(0, previewLimit);
 
   return (
-    <div className="relative inline-block font-sans antialiased subpixel-antialiased" ref={dropdownRef}>
+    <div className="relative inline-block font-sans antialiased" ref={dropdownRef}>
       <button
         type="button"
         aria-expanded={isOpen}
@@ -292,7 +302,7 @@ export default function NotificationBell() {
                                 />
                               )}
                             </div>
-                            <p className="mt-1.5 break-words line-clamp-2 text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
+                            <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
                               {stripHtml(noti.content || noti.desc || "")}
                             </p>
                             <p className="mt-2 text-xs tabular-nums text-slate-400">
@@ -345,7 +355,13 @@ export default function NotificationBell() {
         </div>
       )}
 
-      <NotificationDetailModal isOpen={!!selectedNoti} onClose={() => setSelectedNoti(null)} notification={selectedNoti} />
+      <NotificationDetailModal
+        isOpen={!!selectedNoti}
+        onClose={() => setSelectedNoti(null)}
+        notification={selectedNoti}
+        viewContext="bell"
+        currentUserId={myUserId}
+      />
     </div>
   );
 }

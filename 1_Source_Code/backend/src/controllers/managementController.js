@@ -384,16 +384,22 @@ const getPresentEmployees = async (req, res) => {
   try {
 const query = `
       SELECT 
+        e.id AS employee_id,
         e.full_name, 
         e.phone_number, 
         a.check_in_time, 
+        a.check_out_time,
+        a.status AS attendance_status,
         a.check_in_latitude, 
         a.check_in_longitude, 
         wl.location_name
       FROM employee e
       JOIN attendance a ON e.id = a.employee_id
       LEFT JOIN work_location wl ON a.work_location_id = wl.id
-      WHERE a.attendance_date = CURRENT_DATE
+      WHERE e.status = 'active'
+        AND a.attendance_date = CURRENT_DATE
+        AND a.check_in_time IS NOT NULL
+      ORDER BY a.check_in_time ASC
     `;
 
     const employees = await db.query(query, {
@@ -411,20 +417,33 @@ const getAbsentEmployees = async (req, res) => {
   try {
 const query = `
       SELECT 
+        e.id AS employee_id,
         e.full_name, 
         e.phone_number, 
-        lr.status AS leave_status
+        lr.status AS leave_status,
+        d.id AS department_id,
+        d.department_name
       FROM employee e
-      LEFT JOIN leave_request lr 
-        ON e.id = lr.employee_id 
-        AND CURRENT_DATE >= DATE(lr.start_datetime) 
-        AND CURRENT_DATE <= DATE(lr.end_datetime)
+      LEFT JOIN "position" p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      LEFT JOIN LATERAL (
+        SELECT leave_request.status
+        FROM leave_request
+        WHERE leave_request.employee_id = e.id
+          AND leave_request.status = 'approved'
+          AND CURRENT_DATE >= DATE(leave_request.start_datetime)
+          AND CURRENT_DATE <= DATE(leave_request.end_datetime)
+        ORDER BY leave_request.created_at DESC
+        LIMIT 1
+      ) lr ON TRUE
       WHERE e.status = 'active' 
         AND e.id NOT IN (
           SELECT employee_id 
           FROM attendance
           WHERE attendance_date = CURRENT_DATE
+            AND check_in_time IS NOT NULL
         )
+      ORDER BY e.full_name ASC
     `;
 
     const employees = await db.query(query, {

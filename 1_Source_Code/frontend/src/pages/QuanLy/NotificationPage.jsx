@@ -998,7 +998,12 @@ export default function NotificationPage() {
         </div>
       )}
 
-      <NotificationDetailModal isOpen={!!viewItem} onClose={()=>setViewItem(null)} notification={viewItem} />
+      <NotificationDetailModal
+        isOpen={!!viewItem}
+        onClose={() => setViewItem(null)}
+        notification={viewItem}
+        viewContext="manager"
+      />
     </div>
   );
 }

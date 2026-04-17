@@ -1,64 +1,131 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
-import { employeeService } from '../../services/employeeService';
+import { attendanceService } from '../../services/attendanceService';
+import { notificationService } from '../../services/notificationService';
 
-//  STATUS
-const getWorkStatus = (checkInTime, checkOutTime) => {
-  const now = new Date();
+const SHIFT_START_HOUR = 7;
+const SHIFT_START_MINUTE = 30;
+const SHIFT_END_HOUR = 17;
+const SHIFT_END_MINUTE = 0;
+const LUNCH_START_HOUR = 11;
+const LUNCH_START_MINUTE = 30;
+const LUNCH_END_HOUR = 13;
+const LUNCH_END_MINUTE = 0;
+const STANDARD_DAY_HOURS = 8;
 
-  const shifts = [
-    { name: 'morning', start: 7, end: 11 },
-    { name: 'afternoon', start: 13, end: 17 }
-  ];
+const createTimeToday = (hour, minute) => {
+  const value = new Date();
+  value.setHours(hour, minute, 0, 0);
+  return value;
+};
 
-  const currentShift = shifts.find(shift => {
-    const start = new Date();
-    start.setHours(shift.start, 0, 0);
+const getRemainingWorkMinutes = (currentTime) => {
+  const now = currentTime instanceof Date ? currentTime : new Date();
+  const shiftStart = createTimeToday(SHIFT_START_HOUR, SHIFT_START_MINUTE);
+  const lunchStart = createTimeToday(LUNCH_START_HOUR, LUNCH_START_MINUTE);
+  const lunchEnd = createTimeToday(LUNCH_END_HOUR, LUNCH_END_MINUTE);
+  const shiftEnd = createTimeToday(SHIFT_END_HOUR, SHIFT_END_MINUTE);
 
-    const end = new Date();
-    end.setHours(shift.end, 0, 0);
-
-    return now >= start && now <= end;
-  });
-
-  if (!currentShift) {
-    return { text: 'Hết ca làm', type: 'done', canCheckIn: false };
+  if (now >= shiftEnd) return 0;
+  if (now < shiftStart) return STANDARD_DAY_HOURS * 60;
+  if (now < lunchStart) {
+    return Math.round((lunchStart - now) / 60000) + Math.round((shiftEnd - lunchEnd) / 60000);
   }
+  if (now < lunchEnd) {
+    return Math.round((shiftEnd - lunchEnd) / 60000);
+  }
+  return Math.max(0, Math.round((shiftEnd - now) / 60000));
+};
 
-  const start = new Date();
-  start.setHours(currentShift.start, 0, 0);
+const formatMinutesAsHours = (minutes) => {
+  const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  return `${hours}h ${mins}m`;
+};
 
-  const end = new Date();
-  end.setHours(currentShift.end, 0, 0);
+const formatWorkDays = (value) => {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number)) return '0';
+  return number.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+};
+
+const formatNotificationTime = (value, currentTime = new Date()) => {
+  if (!value) return 'Hệ thống';
+
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) return 'Hệ thống';
+
+  const now = currentTime instanceof Date ? currentTime : new Date();
+  const diffMinutes = Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / 60000));
+  if (diffMinutes < 1) return 'Vừa xong';
+  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} ngày trước`;
+
+  return createdAt.toLocaleDateString('vi-VN');
+};
+
+const getNotificationDotClass = (notificationType, isRead) => {
+  if (!isRead) return 'green';
+  return notificationType === 'warning' ? 'orange' : 'gray';
+};
+
+const getWorkStatus = (checkInTime, checkOutTime, currentTime) => {
+  const now = currentTime instanceof Date ? currentTime : new Date();
+  const shiftStart = createTimeToday(SHIFT_START_HOUR, SHIFT_START_MINUTE);
+  const shiftEnd = createTimeToday(SHIFT_END_HOUR, SHIFT_END_MINUTE);
+  const lunchStart = createTimeToday(LUNCH_START_HOUR, LUNCH_START_MINUTE);
+  const lunchEnd = createTimeToday(LUNCH_END_HOUR, LUNCH_END_MINUTE);
 
   if (!checkInTime) {
-    const diff = Math.floor((now - start) / 60000);
-
-    if (diff < 0) {
+    if (now < shiftStart) {
+      const diff = Math.floor((shiftStart - now) / 60000);
       return {
-        text: `Còn ${Math.abs(diff)} phút để vào ca`,
+        text: `Còn ${diff} phút để vào ca`,
         type: 'success',
         canCheckIn: true
       };
-    } else {
-      return {
-        text: `Bạn đã đi trễ ${diff} phút`,
-        type: 'danger',
-        canCheckIn: true
-      };
     }
+
+    if (now >= shiftEnd) {
+      return { text: 'Hết ca làm', type: 'done', canCheckIn: false };
+    }
+
+    const lateMinutes = Math.floor((now - shiftStart) / 60000);
+    return {
+      text: `Bạn đã đi trễ ${lateMinutes} phút`,
+      type: 'danger',
+      canCheckIn: true
+    };
   }
 
   if (checkInTime && !checkOutTime) {
-    const diff = Math.floor((end - now) / 60000);
+    if (now >= shiftEnd) {
+      const overtimeMinutes = Math.abs(Math.floor((shiftEnd - now) / 60000));
+      return {
+        text: `Quá giờ ${overtimeMinutes} phút`,
+        type: 'danger',
+        canCheckIn: false
+      };
+    }
+
+    if (now >= lunchStart && now < lunchEnd) {
+      return {
+        text: 'Đang trong giờ nghỉ trưa',
+        type: 'warning',
+        canCheckIn: false
+      };
+    }
 
     return {
-      text:
-        diff > 0
-          ? `Còn ${diff} phút để checkout`
-          : `Quá giờ ${Math.abs(diff)} phút`,
-      type: diff > 0 ? 'warning' : 'danger',
+      text: `Còn ${getRemainingWorkMinutes(now)} phút để checkout`,
+      type: 'warning',
       canCheckIn: false
     };
   }
@@ -70,63 +137,24 @@ const getWorkStatus = (checkInTime, checkOutTime) => {
   };
 };
 
-//  TIME REMAINING
-const getTimeRemaining = (checkInTime, checkOutTime) => {
-  const now = new Date();
+const getTimeRemaining = (checkInTime, checkOutTime, currentTime) => {
+  const now = currentTime instanceof Date ? currentTime : new Date();
+  const shiftStart = createTimeToday(SHIFT_START_HOUR, SHIFT_START_MINUTE);
+  const shiftEnd = createTimeToday(SHIFT_END_HOUR, SHIFT_END_MINUTE);
 
-  const shifts = [
-    { name: 'morning', start: 7, end: 11 },
-    { name: 'afternoon', start: 13, end: 17 }
-  ];
-
-  let currentShift = shifts.find(shift => {
-    const start = new Date();
-    start.setHours(shift.start, 0, 0);
-
-    const end = new Date();
-    end.setHours(shift.end, 0, 0);
-
-    return now >= start && now <= end;
-  });
-
-  // nếu chưa tới ca → lấy ca tiếp theo
-  if (!currentShift) {
-    currentShift = shifts.find(shift => {
-      const start = new Date();
-      start.setHours(shift.start, 0, 0);
-      return now < start;
-    });
-  }
-
-  if (!currentShift) return 'Hết ca';
-
-  const start = new Date();
-  start.setHours(currentShift.start, 0, 0);
-
-  const end = new Date();
-  end.setHours(currentShift.end, 0, 0);
-
-  // ❌ chưa check-in
   if (!checkInTime) {
-    if (now < start) {
-      const diff = Math.floor((start - now) / 60000);
-      return `Còn ${diff} phút`;
-    } else {
-      const diff = Math.floor((now - start) / 60000);
-      return `Chưa vào ca`;
+    if (now < shiftStart) {
+      return `Còn ${Math.floor((shiftStart - now) / 60000)} phút`;
     }
+    if (now >= shiftEnd) {
+      return 'Hết ca';
+    }
+    return 'Chưa vào ca';
   }
 
-  // ✅ đã check-in
   if (checkInTime && !checkOutTime) {
-    const diff = Math.floor((end - now) / 60000);
-
-    if (diff <= 0) return 'Hết giờ';
-
-    const h = Math.floor(diff / 60);
-    const m = diff % 60;
-
-    return `${h}h ${m}m`;
+    if (now >= shiftEnd) return 'Hết giờ';
+    return formatMinutesAsHours(getRemainingWorkMinutes(now));
   }
 
   return 'Đã xong';
@@ -138,13 +166,26 @@ const Dashboard = () => {
     name: '',
     stats: {},
   });
-
   const [attendance, setAttendance] = useState({
     checkIn: null,
     checkOut: null
   });
-
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [notifications, setNotifications] = useState([]);
+
+  const user = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const employeeId = useMemo(() => {
+    if (!user) return null;
+    return user.employee_id || user.id || null;
+  }, [user]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -155,38 +196,83 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!user || !user.id) return;
+    if (!employeeId) return;
 
-    employeeService
-      .getDashboard(user.id)
-      .then(result => {
-        if (!result.employee) return;
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+
+    Promise.all([
+      attendanceService.getSummary(employeeId),
+      attendanceService.getHistory(employeeId, { month, year })
+    ])
+      .then(([summaryResult, historyResult]) => {
+        const attendanceToday = summaryResult?.data?.attendanceToday || {};
+        const historyRows = Array.isArray(historyResult?.data?.rows) ? historyResult.data.rows : [];
+        const historySummary = historyResult?.data?.summary || {};
+        const absentCount = historyRows.filter((row) => row?.status === 'absent').length;
 
         setData({
-          name: result.employee.full_name || '',
-          stats: result.stats || {}
+          name: user?.full_name || user?.name || '',
+          stats: {
+            present: historySummary.daysWorked || 0,
+            late: historySummary.lateOrEarlyCount || 0,
+            absent: absentCount
+          }
         });
 
         setAttendance({
-          checkIn: result.checkIn,
-          checkOut: result.checkOut
+          checkIn: attendanceToday.checkInTime || null,
+          checkOut: attendanceToday.checkOutTime || null
         });
       })
-      .catch(err => console.error(err));
+      .catch((err) => console.error(err));
+  }, [employeeId, user]);
 
-  }, []);
+  useEffect(() => {
+    if (!employeeId) return;
 
-  const workStatus = getWorkStatus(attendance.checkIn, attendance.checkOut);
+    let cancelled = false;
+
+    const loadNotifications = async () => {
+      try {
+        const list = await notificationService.getMyBell(employeeId);
+        if (!cancelled) {
+          setNotifications(Array.isArray(list) ? list : []);
+        }
+      } catch (error) {
+        if (!cancelled) console.error(error);
+      }
+    };
+
+    void loadNotifications();
+
+    const intervalId = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
+
+    const onCreated = () => {
+      void loadNotifications();
+    };
+
+    window.addEventListener('newNotificationCreated', onCreated);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('newNotificationCreated', onCreated);
+    };
+  }, [employeeId]);
+
+  const workStatus = getWorkStatus(attendance.checkIn, attendance.checkOut, currentTime);
+  const displayedNotifications = notifications.slice(0, 2);
 
   return (
     <div className="dashboard-wrapper">
       <div className="dashboard-content-box">
-
         <div className="left-section">
           <div className="checkin-card">
             <div className="checkin-info">
-
               <h4 className="date-text">
                 {currentTime.toLocaleDateString('vi-VN')}
               </h4>
@@ -211,16 +297,16 @@ const Dashboard = () => {
               <button
                 className="checkin-button"
                 disabled={!workStatus.canCheckIn}
-                onClick={() => navigate('/NhanVien/checkin',{
-  state: { employeeId: JSON.parse(localStorage.getItem('user')).id }
-})}
+                onClick={() => navigate('/NhanVien/checkin', {
+                  state: { employeeId }
+                })}
               >
                 ĐIỂM DANH VÀO
               </button>
 
               <p className="external-status-text">
                 Trạng thái:{' '}
-                <span >
+                <span>
                   {attendance.checkIn
                     ? attendance.checkOut
                       ? 'Đã checkout'
@@ -235,7 +321,7 @@ const Dashboard = () => {
             <div className="stat-card">
               <div className="stat-icon-wrapper success">✓</div>
               <p>Ngày công tháng</p>
-              <h3>{data.stats.present || 0}</h3>
+              <h3>{formatWorkDays(data.stats.present)}</h3>
             </div>
 
             <div className="stat-card">
@@ -258,7 +344,7 @@ const Dashboard = () => {
 
             <div className="info-item">
               <span className="time-label">Giờ vào ca</span>
-              <span className="time-value">07:00 AM</span>
+              <span className="time-value">07:30 AM</span>
             </div>
 
             <div className="info-item">
@@ -270,7 +356,7 @@ const Dashboard = () => {
               <div className="info-item remaining">
                 <span>Thời gian còn lại</span>
                 <span className="time-remaining-value">
-                  {getTimeRemaining(attendance.checkIn, attendance.checkOut)}
+                  {getTimeRemaining(attendance.checkIn, attendance.checkOut, currentTime)}
                 </span>
               </div>
             </div>
@@ -279,29 +365,41 @@ const Dashboard = () => {
           <div className="notification-card">
             <div className="notif-header">
               <h4>Thông báo</h4>
-              <a href="#" className="see-all">Xem tất cả</a>
+              <button
+                type="button"
+                className="see-all see-all-button"
+                onClick={() => window.dispatchEvent(new Event('openNotificationBell'))}
+              >
+                Xem tất cả
+              </button>
             </div>
 
             <ul className="notif-list">
-              <li>
-                <div className="notif-dot green"></div>
-                <div className="notif-content">
-                  <p>Duyệt đơn xin nghỉ phép</p>
-                  <span className="notif-time">10 phút trước</span>
-                </div>
-              </li>
+              {displayedNotifications.length > 0 ? (
+                displayedNotifications.map((notification) => {
+                  const dotClass = getNotificationDotClass(
+                    notification?.notification_type,
+                    Boolean(notification?.is_read)
+                  );
 
-              <li>
-                <div className="notif-dot orange"></div>
-                <div className="notif-content">
-                  <p>Bạn chưa check-in hôm nay</p>
-                  <span className="notif-time">Hệ thống</span>
-                </div>
-              </li>
+                  return (
+                    <li key={notification.id}>
+                      <div className={`notif-dot ${dotClass}`}></div>
+                      <div className="notif-content">
+                        <p>{notification.title || 'Thông báo hệ thống'}</p>
+                        <span className="notif-time">
+                          {formatNotificationTime(notification.created_at, currentTime)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })
+              ) : (
+                <li className="notif-empty">Chưa có thông báo</li>
+              )}
             </ul>
           </div>
         </div>
-
       </div>
     </div>
   );

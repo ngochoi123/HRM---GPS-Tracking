@@ -4,6 +4,7 @@ import { notificationService } from "../../services/notificationService";
 
 function statusBadgeClass(status) {
   if (status === "Đã gửi") return "bg-emerald-50 text-emerald-800 ring-emerald-200/80";
+  if (status === "Đã nhận") return "bg-sky-50 text-sky-800 ring-sky-200/80";
   if (status === "Nháp") return "bg-amber-50 text-amber-900 ring-amber-200/80";
   if (status === "Đã chỉnh sửa") return "bg-orange-50 text-orange-900 ring-orange-200/80";
   return "bg-slate-100 text-slate-700 ring-slate-200/80";
@@ -24,7 +25,13 @@ function isWarningNotificationType(type) {
   return value === "warning" || value.includes("cảnh");
 }
 
-export default function NotificationDetailModal({ isOpen, onClose, notification }) {
+export default function NotificationDetailModal({
+  isOpen,
+  onClose,
+  notification,
+  viewContext = "manager",
+  currentUserId = null,
+}) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +61,14 @@ export default function NotificationDetailModal({ isOpen, onClose, notification 
   if (!isOpen || !notification) return null;
 
   const current = detail?.notification;
-  const status = current?.status ?? notification.status ?? "—";
+  const rawStatus = current?.status ?? notification.status ?? "—";
+  const senderId = current?.sender_id ?? notification.sender_id ?? null;
+  const isSelfSentInBell =
+    viewContext === "bell" &&
+    senderId &&
+    currentUserId &&
+    String(senderId) === String(currentUserId);
+  const status = viewContext === "bell" && !isSelfSentInBell ? "Đã nhận" : rawStatus;
   const title = current?.title ?? notification.title;
   const desc = current?.desc ?? notification.desc;
   const contentHtml = current?.content ?? notification.content ?? "";

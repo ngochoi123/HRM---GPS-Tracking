@@ -510,7 +510,7 @@ getNotificationAdminDetail: async (req, res) => {
         const { userId } = req.params;
     
         const query = `
-          SELECT n.id, n.title, n."desc", n.content, n.target, n.status, n.notification_type, n.created_at, nr.is_read
+          SELECT n.id, n.title, n."desc", n.content, n.target, n.status, n.notification_type, n.created_at, n.sender_id, nr.is_read
           FROM notification n
           JOIN notification_recipient nr ON n.id = nr.notification_id
           WHERE nr.employee_id = :userId

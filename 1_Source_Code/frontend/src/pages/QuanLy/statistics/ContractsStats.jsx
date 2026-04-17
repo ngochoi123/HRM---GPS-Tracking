@@ -409,7 +409,7 @@ export default function ContractStatistics() {
                       onClick={() => openRenewModal(contract)}
                       className="border border-cyan-400 text-cyan-600 hover:bg-cyan-50 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
                     >
-                      Gia hạn / Kết thúc
+                      Gia hạn 
                     </button>
                   </td>
                 </tr>
