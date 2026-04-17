@@ -1,7 +1,15 @@
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
-const { normalizeWorkLocation, checkInEmployee, checkOutEmployee } = require('../services/attendanceActions');
+const {
+  normalizeWorkLocation,
+  checkInEmployee,
+  checkOutEmployee,
+  fetchWorkLocations,
+  calcStandardWorkHours,
+  getAttendanceStatusForCheckIn,
+  getAttendanceStatusForCheckOut,
+} = require('../services/attendanceActions');
 const { getClientIp, parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
 
@@ -34,32 +42,10 @@ exports.getAttendanceSummary = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1) Lấy work_location (ĐÃ SỬA LẠI JOIN)
-    const locationResult = await db.query(
-      `
-        SELECT
-          w.id AS work_location_id,
-          w.location_name,
-          w.latitude,
-          w.longitude,
-          w.radius_meters,
-          b.id AS branch_id,
-          b.branch_code,
-          b.branch_name,
-          b.allowed_ips
-        FROM employee e
-        LEFT JOIN position p ON e.position_id = p.id
-        LEFT JOIN department d ON p.department_id = d.id
-        LEFT JOIN branch b ON d.branch_id = b.id
-        LEFT JOIN work_location w ON w.branch_id = b.id
-        WHERE e.id = $1
-      `,
-      { bind: [id], type: QueryTypes.SELECT }
-    );
-
-    const workLocations = locationResult.map(normalizeWorkLocation).filter(Boolean);
+    // 1) Lấy work_location từ attendanceActions (hỗ trợ location_assignment)
+    const workLocations = await fetchWorkLocations(id);
     const workLocation = workLocations[0] || null;
-    const allowedParsed = parseAllowedIps(locationResult[0]?.allowed_ips);
+    const allowedParsed = workLocation?.allowed_ips || [];
     const clientIp = getClientIp(req);
     const wifiIpRequired = allowedParsed.length > 0;
     const clientIpAllowed = wifiIpRequired ? isIpAllowed(clientIp, allowedParsed) : null;
@@ -158,6 +144,27 @@ exports.getAttendanceHistory = async (req, res) => {
     const year = req.query?.year ? Number(req.query.year) : null;
 
     const hasMonthYear = Number.isFinite(month) && Number.isFinite(year) && month >= 1 && month <= 12 && year >= 1970;
+    const nowParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+    const currentYear = Number(nowParts.find((p) => p.type === 'year')?.value);
+    const currentMonth = Number(nowParts.find((p) => p.type === 'month')?.value);
+    const currentDay = Number(nowParts.find((p) => p.type === 'day')?.value);
+    const targetYear = hasMonthYear ? year : currentYear;
+    const targetMonth = hasMonthYear ? month : currentMonth;
+    const daysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const isFutureMonth =
+      targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth);
+    const lastDisplayDay =
+      targetYear === currentYear && targetMonth === currentMonth
+        ? currentDay
+        : isFutureMonth
+          ? 0
+          : daysInTargetMonth;
+
     const rows = await db.query(
       `
         SELECT
@@ -168,37 +175,119 @@ exports.getAttendanceHistory = async (req, res) => {
           total_work_hours
         FROM attendance
         WHERE employee_id = $1
-          AND ($2::int IS NULL OR EXTRACT(MONTH FROM attendance_date) = $2)
-          AND ($3::int IS NULL OR EXTRACT(YEAR FROM attendance_date) = $3)
+          AND EXTRACT(MONTH FROM attendance_date) = $2
+          AND EXTRACT(YEAR FROM attendance_date) = $3
         ORDER BY attendance_date DESC
       `,
-      { bind: [id, hasMonthYear ? month : null, hasMonthYear ? year : null], type: QueryTypes.SELECT }
+      { bind: [id, targetMonth, targetYear], type: QueryTypes.SELECT }
     );
 
-    const finalizedRows = rows.filter((r) => r.check_in_time != null && r.check_out_time != null);
-    const totalHours = finalizedRows.reduce((sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0), 0);
-    const daysWorked = rows.filter((r) => r.check_in_time != null).length;
-    const lateOrEarlyCount = finalizedRows.filter((r) => r.status === 'late' || r.status === 'early_leave').length;
+    const STANDARD_DAY_HOURS_CAP = 8;
+    const SHIFT_END_MINUTES = 17 * 60;
+    const pad2 = (value) => String(value).padStart(2, '0');
+    const congFromCappedHours = (cappedHours) => {
+      const ratio = Math.min(cappedHours / STANDARD_DAY_HOURS_CAP, 1);
+      return Math.round(ratio * 100) / 100;
+    };
+    const roundWorkDaysSum = (sum) => Math.round(sum * 100) / 100;
+    const getDateKey = (value) => {
+      if (!value) return null;
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    };
+    const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
+    const isSundayDate = (ymd) => {
+      const d = new Date(`${ymd}T00:00:00+07:00`);
+      return !Number.isNaN(d.getTime()) && d.getDay() === 0;
+    };
 
-    let workingDaysInMonth = null;
-    if (hasMonthYear) {
-      // Quy ước: 1 tháng nghỉ 4 ngày => số ngày công chuẩn tháng = số ngày trong tháng - 4
-      const mIndex = month - 1;
-      const last = new Date(year, mIndex + 1, 0);
-      const daysInMonth = last.getDate();
-      workingDaysInMonth = Math.max(0, daysInMonth - 4);
-    }
+    const rowMap = new Map(rows.map((row) => [getDateKey(row.attendance_date), row]));
+    const normalizedRows = Array.from({ length: lastDisplayDay }, (_, index) => {
+      const attendanceDate = `${targetYear}-${pad2(targetMonth)}-${pad2(index + 1)}`;
+      const isSunday = isSundayDate(attendanceDate);
+      const row = rowMap.get(attendanceDate) || null;
+      const checkInDt = row?.check_in_time ? new Date(row.check_in_time) : null;
+      const checkOutDt = row?.check_out_time ? new Date(row.check_out_time) : null;
+      const hasValidIn = checkInDt instanceof Date && !Number.isNaN(checkInDt.getTime());
+      const hasValidOut = checkOutDt instanceof Date && !Number.isNaN(checkOutDt.getTime());
 
+      if (!hasValidIn) {
+        return {
+          attendance_date: attendanceDate,
+          check_in_time: null,
+          check_out_time: null,
+          status: isSunday ? 'off_day' : 'absent',
+          status_text: isSunday ? 'Nghỉ Chủ nhật' : 'Vắng mặt',
+          is_late: false,
+          is_early_leave: false,
+          is_off_day: isSunday,
+          total_work_hours: 0,
+        };
+      }
+
+      const isLate = getAttendanceStatusForCheckIn(checkInDt) === 'late';
+      if (!hasValidOut) {
+        return {
+          attendance_date: attendanceDate,
+          check_in_time: row.check_in_time,
+          check_out_time: null,
+          status: isLate ? 'late' : 'on_time',
+          status_text: isLate ? 'Đi trễ' : 'Đang làm',
+          is_late: isLate,
+          is_early_leave: false,
+          is_off_day: false,
+          total_work_hours: 0,
+        };
+      }
+
+      const isEarlyLeave = getMinutesOfDay(checkOutDt) < SHIFT_END_MINUTES;
+      const totalWorkHours = calcStandardWorkHours(checkInDt, checkOutDt);
+
+      return {
+        attendance_date: attendanceDate,
+        check_in_time: row.check_in_time,
+        check_out_time: row.check_out_time,
+        status: isLate ? 'late' : isEarlyLeave ? 'early_leave' : 'on_time',
+        status_text: isLate && isEarlyLeave
+          ? 'Đi trễ / Về sớm'
+          : isLate
+            ? 'Đi trễ'
+            : isEarlyLeave
+              ? 'Về sớm'
+              : 'Đúng giờ',
+        is_late: isLate,
+        is_early_leave: isEarlyLeave,
+        is_off_day: false,
+        total_work_hours: totalWorkHours,
+      };
+    });
+
+    const totalHours = normalizedRows.reduce(
+      (sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0),
+      0
+    );
+
+    const daysWorked = roundWorkDaysSum(
+      normalizedRows.reduce((sum, r) => {
+        const h = r.total_work_hours != null ? Number(r.total_work_hours) : 0;
+        return sum + congFromCappedHours(h);
+      }, 0)
+    );
+
+    const workingDaysInMonth = normalizedRows.filter((r) => !r.is_off_day).length;
+    const lateOrEarlyCount = normalizedRows.filter((r) => r.is_late || r.is_early_leave).length;
     const compliancePercent =
-      workingDaysInMonth && workingDaysInMonth > 0 ? Math.round((daysWorked / workingDaysInMonth) * 100) : 0;
+      workingDaysInMonth > 0 ? Math.round((daysWorked / workingDaysInMonth) * 100) : 0;
 
     return res.status(200).json({
       success: true,
       data: {
-        rows,
+        rows: normalizedRows,
         summary: {
-          month: hasMonthYear ? month : null,
-          year: hasMonthYear ? year : null,
+          month: targetMonth,
+          year: targetYear,
           totalHours: Number(totalHours.toFixed(2)),
           daysWorked,
           workingDaysInMonth,
@@ -377,13 +466,10 @@ exports.changePassword = async (req, res) => {
 exports.getManagerZoneAttendance = async (req, res) => { 
   try {
     const { id } = req.params;
-    const managerLocationResult = await db.query(
-      `SELECT w.id AS work_location_id, w.location_name, w.latitude, w.longitude, w.radius_meters, b.id AS branch_id, b.branch_code, b.branch_name FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN branch b ON d.branch_id = b.id LEFT JOIN work_location w ON w.branch_id = b.id WHERE e.id = $1 LIMIT 1`,
-      { bind: [id], type: QueryTypes.SELECT }
-    );
-    if (!managerLocationResult[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý.' });
+    const managerLocations = await fetchWorkLocations(id);
+    if (!managerLocations || managerLocations.length === 0) return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin quản lý hoặc chưa được phân công khu vực.' });
 
-    const workLocation = normalizeWorkLocation(managerLocationResult[0]);
+    const workLocation = managerLocations[0];
 
     const teamAttendanceResult = await db.query(
       `SELECT e.id AS employee_id, e.employee_code, e.full_name, d.department_name, p.position_name, a.check_in_time, a.check_out_time, a.status, a.check_in_latitude, a.check_in_longitude, a.check_out_latitude, a.check_out_longitude, COALESCE(a.check_out_latitude, a.check_in_latitude) AS live_latitude, COALESCE(a.check_out_longitude, a.check_in_longitude) AS live_longitude FROM employee e LEFT JOIN position p ON e.position_id = p.id LEFT JOIN department d ON p.department_id = d.id LEFT JOIN attendance a ON a.employee_id = e.id AND a.attendance_date = CURRENT_DATE WHERE d.branch_id = $1 AND a.check_in_time IS NOT NULL ORDER BY a.check_in_time DESC`,

@@ -386,6 +386,14 @@ const resolveAttendanceRowUi = (row, payrollMonthYear) => {
       muted: true,
     };
   }
+  if (row.status === 'off_day') {
+    return {
+      label: 'Nghỉ Chủ nhật',
+      statusClass: 'text-slate-500 font-semibold',
+      rowClass: 'bg-slate-50/70',
+      muted: false,
+    };
+  }
   if (row.status === 'absent') {
     return {
       label: 'Vắng',
@@ -636,6 +644,7 @@ const PayrollDetailModal = ({ data, payrollMonthYear, onClose, onAttendanceSaved
                     {attendanceDetail.map((row, idx) => {
                       const ui = resolveAttendanceRowUi(row, payrollMonthYear);
                       const muted = ui.muted ? 'text-gray-400' : 'text-gray-900';
+                      const isEditDisabled = row.status === 'future' || row.status === 'off_day';
                       const timeCell =
                         'min-w-[5.75rem] py-4 px-5 text-[15px] font-semibold tabular-nums tracking-normal';
                       const numCell =
@@ -687,7 +696,7 @@ const PayrollDetailModal = ({ data, payrollMonthYear, onClose, onAttendanceSaved
                         <td className="py-4 px-5 text-right">
                           <button
                             type="button"
-                            disabled={row.status === 'future'}
+                            disabled={isEditDisabled}
                             onClick={() => setEditingDay(row)}
                             title={
                               row.status === 'future'
@@ -695,7 +704,7 @@ const PayrollDetailModal = ({ data, payrollMonthYear, onClose, onAttendanceSaved
                                 : 'Chỉnh sửa giờ chấm công'
                             }
                             className={`text-white text-xs font-semibold py-2 px-4 rounded-md shadow-sm transition-colors active:scale-[0.98] ${
-                              row.status === 'future'
+                              isEditDisabled
                                 ? 'bg-gray-300 cursor-not-allowed'
                                 : 'bg-[#f59e0b] hover:bg-[#d97706]'
                             }`}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { 
   Eye, Edit, X, Search, ChevronLeft, ChevronRight, 
   Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, 
@@ -63,7 +64,18 @@ function FieldErrorSlot({ message }) {
   );
 }
 
+function createEmptyForm() {
+  return {
+    title: "",
+    target: "Toàn công ty",
+    type: "Bình thường",
+    department_id: "",
+    employee_id: "",
+    content: "",
+  };
+}
 export default function NotificationPage() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -71,6 +83,7 @@ export default function NotificationPage() {
   const fileInputRef = useRef(null);
   const attachmentInputRef = useRef(null);
   const savedRange = useRef(null);
+  const handledPrefillKeyRef = useRef(null);
   /** Vùng cuộn của bảng — đổi trang thì kéo về đầu danh sách */
   const tableScrollRef = useRef(null); 
 
@@ -99,14 +112,7 @@ export default function NotificationPage() {
     left: false, center: false, right: false
   });
 
-  const [form, setForm] = useState({
-    title: "",
-    target: "Toàn công ty",
-    type: "Bình thường",
-    department_id: "",
-    employee_id: "",
-    content: "",
-  });
+  const [form, setForm] = useState(createEmptyForm);
 
   // --- HÀM KIỂM TRA TRẠNG THÁI ĐỊNH DẠNG TẠI CON TRỎ ---
   const updateToolbarStatus = () => {
@@ -314,7 +320,7 @@ export default function NotificationPage() {
 
   useEffect(() => {
     if (open && editorRef.current) {
-      editorRef.current.innerHTML = editItem ? editItem.content : "";
+      editorRef.current.innerHTML = form.content || (editItem ? editItem.content : "");
       try {
         document.execCommand("defaultParagraphSeparator", false, "p");
       } catch {
@@ -323,7 +329,44 @@ export default function NotificationPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       updateToolbarStatus();
     }
-  }, [open, editItem]);
+  }, [open, editItem, form.content]);
+
+  useEffect(() => {
+    const prefill = location.state?.prefillNotification;
+    if (!prefill) return;
+
+    const prefillKey = JSON.stringify({
+      employeeId: prefill.employeeId || "",
+      departmentId: prefill.departmentId || "",
+      departmentName: prefill.departmentName || "",
+      title: prefill.title || "",
+      source: prefill.source || "",
+    });
+
+    if (handledPrefillKeyRef.current === prefillKey) return;
+
+    const matchedDepartment = prefill.departmentId
+      ? departments.find((dept) => String(dept.id) === String(prefill.departmentId))
+      : departments.find(
+          (dept) =>
+            String(dept.department_name || "").trim().toLowerCase() ===
+            String(prefill.departmentName || "").trim().toLowerCase()
+        );
+
+    handledPrefillKeyRef.current = prefillKey;
+    setFormErrors({});
+    setEditItem(null);
+    setForm({
+      ...createEmptyForm(),
+      title: prefill.title || "",
+      target: prefill.target || "Cá nhân",
+      type: prefill.type || "Bình thường",
+      department_id: matchedDepartment ? String(matchedDepartment.id) : String(prefill.departmentId || ""),
+      employee_id: String(prefill.employeeId || ""),
+      content: prefill.content || "",
+    });
+    setOpen(true);
+  }, [departments, location.state]);
 
   const clearFormError = useCallback((key) => {
     setFormErrors((prev) => {
@@ -482,7 +525,7 @@ export default function NotificationPage() {
               <p className="text-sm text-gray-400 font-medium">Truyền thông nội bộ thời gian thực</p>
             </div>
           </div>
-          <button onClick={() => { setFormErrors({}); setEditItem(null); setForm({ title: "", target: "Toàn công ty", type: "Bình thường", department_id: "", employee_id: "", content: "" }); setOpen(true); }} className="bg-[#14b8a6] hover:bg-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-teal-100 transition-all flex items-center gap-2 active:scale-95">
+          <button onClick={() => { setFormErrors({}); setEditItem(null); setForm(createEmptyForm()); setOpen(true); }} className="bg-[#14b8a6] hover:bg-teal-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-teal-100 transition-all flex items-center gap-2 active:scale-95">
             <span>➕</span> Tạo thông báo
           </button>
         </div>

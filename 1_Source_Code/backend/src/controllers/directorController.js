@@ -1343,7 +1343,7 @@ const getDashboardOverview = async (req, res) => {
   }
 };
 
-const createPersonalNotification = async ({ transaction, employeeId, title, desc, content, notificationType = 'info' }) => {
+const createPersonalNotification = async ({ transaction, employeeId, senderId = null, title, desc, content, notificationType = 'info' }) => {
   const rows = await db.query(
     `
     INSERT INTO notification (
@@ -1353,14 +1353,15 @@ const createPersonalNotification = async ({ transaction, employeeId, title, desc
       target,
       "desc",
       status,
+      sender_id,
       target_employee_id,
       created_at
     )
-    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :employeeId, NOW())
+    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :senderId, :employeeId, NOW())
     RETURNING id
     `,
     {
-      replacements: { title, content, notificationType, desc: desc || '', employeeId },
+      replacements: { title, content, notificationType, desc: desc || '', senderId, employeeId },
       type: QueryTypes.SELECT,
       transaction
     }
@@ -1381,13 +1382,25 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
   if (type === 'payroll') {
     const title = isApproved ? `Bảng lương ${monthYear} đã được duyệt` : `Bảng lương ${monthYear} bị từ chối`;
     const desc = isApproved ? 'Giám đốc đã duyệt bảng lương của bạn.' : 'Giám đốc đã từ chối bảng lương của bạn.';
+    const netSalaryText = Number(payrollRow?.net_salary || 0).toLocaleString('vi-VN');
+    const deductionText = Number(payrollRow?.total_deduction || 0).toLocaleString('vi-VN');
     const content = isApproved
-      ? `Bảng lương tháng ${monthYear} của ${employeeName} đã được Giám đốc phê duyệt. Thực nhận: ${Number(payrollRow?.net_salary || 0).toLocaleString('vi-VN')} VNĐ. Chi phí tiền lương công ty chi trả: ${Number((payrollRow?.net_salary || 0) + (payrollRow?.total_deduction || 0)).toLocaleString('vi-VN')} VNĐ.`
-      : `Bảng lương tháng ${monthYear} của ${employeeName} đã bị từ chối. Vui lòng kiểm tra lại thông tin lương.`;
+      ? `
+        <p><strong style="color:#065f46">Bảng lương tháng ${monthYear} của bạn đã được Giám đốc duyệt.</strong></p>
+        <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
+          <p style="margin:0;"><strong>Thực nhận:</strong> ${netSalaryText} VNĐ</p>
+          <p style="margin:8px 0 0;"><strong>Tổng khấu trừ:</strong> ${deductionText} VNĐ</p>
+        </div>
+      `
+      : `
+        <p><strong style="color:#b91c1c">Bảng lương tháng ${monthYear} của bạn chưa được duyệt.</strong></p>
+        <p>Vui lòng kiểm tra lại thông tin bảng lương hoặc liên hệ bộ phận phụ trách để được hỗ trợ.</p>
+      `;
 
     return createPersonalNotification({
       transaction,
       employeeId,
+      senderId: null,
       title,
       desc,
       content,
@@ -1403,17 +1416,106 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
     ? `${requestRow?.start_datetime || ''} - ${requestRow?.end_datetime || ''}`
     : `${requestRow?.ot_date || ''} ${requestRow?.start_time || ''} - ${requestRow?.end_time || ''}`;
   const content = isApproved
-    ? `${requestLabel} của ${employeeName} cho ${rangeLabel} đã được phê duyệt. Lý do: ${requestRow?.reason || 'Không có'}.`
-    : `${requestLabel} của ${employeeName} cho ${rangeLabel} đã bị từ chối. Lý do: ${requestRow?.reason || 'Không có'}.`;
+    ? `
+      <p><strong style="color:#065f46">${requestLabel} của bạn đã được chấp thuận.</strong></p>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
+        <p style="margin:0;"><strong>Thời gian:</strong> ${rangeLabel}</p>
+      </div>
+      <p><strong>Lý do trong đơn:</strong> ${requestRow?.reason || 'Không có'}</p>
+    `
+    : `
+      <p><strong style="color:#b91c1c">${requestLabel} của bạn đã bị từ chối.</strong></p>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;">
+        <p style="margin:0;"><strong>Thời gian:</strong> ${rangeLabel}</p>
+      </div>
+      <p><strong>Lý do trong đơn:</strong> ${requestRow?.reason || 'Không có'}</p>
+    `;
 
   return createPersonalNotification({
     transaction,
     employeeId,
+    senderId: requestRow?.approver_id || null,
     title,
     desc,
     content,
     notificationType: isApproved ? 'info' : 'warning'
   });
+};
+
+const LEAVE_TYPE_LABELS = {
+  annual: 'Nghỉ phép năm',
+  sick: 'Nghỉ ốm',
+  unpaid: 'Nghỉ không lương',
+  ot: 'Nghỉ bù (OT)',
+  maternity: 'Nghỉ thai sản',
+  bereavement: 'Nghỉ tang'
+};
+
+const formatDateTimeVi = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Asia/Ho_Chi_Minh'
+  }).format(parsed);
+};
+
+const formatDateVi = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeZone: 'Asia/Ho_Chi_Minh'
+  }).format(parsed);
+};
+
+const normalizeTimeText = (value) => {
+  if (!value) return '';
+  return String(value).slice(0, 5);
+};
+
+const getOvertimeDurationMinutes = (startTime, endTime) => {
+  const startText = normalizeTimeText(startTime);
+  const endText = normalizeTimeText(endTime);
+  if (!startText || !endText) return 0;
+
+  const [startHour = 0, startMinute = 0] = startText.split(':').map(Number);
+  const [endHour = 0, endMinute = 0] = endText.split(':').map(Number);
+
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+    return 0;
+  }
+
+  let totalMinutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
+  if (totalMinutes < 0) totalMinutes += 24 * 60;
+
+  return totalMinutes;
+};
+
+const formatOvertimeDurationLabel = (startTime, endTime) => {
+  const totalMinutes = getOvertimeDurationMinutes(startTime, endTime);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours && minutes) return `${hours} giờ ${minutes} phút`;
+  if (hours) return `${hours} giờ`;
+  if (minutes) return `${minutes} phút`;
+  return '0 phút';
+};
+
+const getLeaveDurationDays = (startDateTime, endDateTime) => {
+  const start = new Date(startDateTime);
+  const end = new Date(endDateTime);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 0;
+  }
+
+  const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(Number(diffDays.toFixed(2)), 0);
 };
 
 const getPayrollApprovalRows = async (transaction = null) => db.query(
@@ -1434,11 +1536,13 @@ const getPayrollApprovalRows = async (transaction = null) => db.query(
 const getLeaveApprovalRows = async (transaction = null) => db.query(
   `
   SELECT lr.id, lr.employee_id, lr.leave_type, lr.start_datetime, lr.end_datetime, lr.reason, lr.status,
-         e.employee_code, e.full_name, d.department_name, p.position_name
+         lr.created_at, e.employee_code, e.full_name, d.id AS department_id, d.department_name, p.position_name,
+         dm.full_name AS direct_manager_name
   FROM leave_request lr
   JOIN employee e ON lr.employee_id = e.id
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
+  LEFT JOIN employee dm ON e.direct_manager_id = dm.id
   WHERE lr.status = 'pending'
     AND EXISTS (
       SELECT 1 FROM employee appr
@@ -1453,11 +1557,13 @@ const getLeaveApprovalRows = async (transaction = null) => db.query(
 const getOvertimeApprovalRows = async (transaction = null) => db.query(
   `
   SELECT ot.id, ot.employee_id, ot.ot_date, ot.start_time, ot.end_time, ot.reason, ot.status,
-         e.employee_code, e.full_name, d.department_name, p.position_name
+         ot.created_at, e.employee_code, e.full_name, d.id AS department_id, d.department_name, p.position_name,
+         dm.full_name AS direct_manager_name
   FROM overtime_request ot
   JOIN employee e ON ot.employee_id = e.id
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
+  LEFT JOIN employee dm ON e.direct_manager_id = dm.id
   WHERE ot.status = 'pending'
     AND EXISTS (
       SELECT 1 FROM employee appr
@@ -1528,7 +1634,7 @@ const getDirectorApprovalsOverview = async (req, res) => {
     const tab = String(req.query?.tab || 'payroll');
     const q = String(req.query?.q || '').trim().toLowerCase();
     const departmentId = String(req.query?.departmentId || '').trim();
-    const escalationReason = String(req.query?.escalationReason || 'all').trim();
+    const requestType = String(req.query?.requestType || req.query?.escalationReason || 'all').trim();
 
     const [payrollRows, leaveRows, overtimeRows, departments] = await Promise.all([
       getPayrollApprovalRows(),
@@ -1595,16 +1701,37 @@ const getDirectorApprovalsOverview = async (req, res) => {
       code: `LD-${String(row.id).padStart(5, '0')}`,
       title: 'Đơn phép',
       employee_id: row.employee_id,
+      employeeId: row.employee_id,
       employee_code: row.employee_code,
+      employeeCode: row.employee_code,
       employee_name: row.full_name,
-      department_id: null,
+      employeeName: row.full_name,
+      department_id: row.department_id,
+      departmentId: row.department_id,
       department_name: row.department_name,
+      departmentName: row.department_name,
       position_name: row.position_name,
-      range_label: `${row.start_datetime} - ${row.end_datetime}`,
+      positionName: row.position_name,
+      leave_type: row.leave_type,
+      leaveType: row.leave_type,
+      leaveTypeLabel: LEAVE_TYPE_LABELS[row.leave_type] || 'Đơn phép',
+      directManagerName: row.direct_manager_name,
+      startDateLabel: formatDateTimeVi(row.start_datetime),
+      endDateLabel: formatDateTimeVi(row.end_datetime),
+      range_label: `${formatDateTimeVi(row.start_datetime)} - ${formatDateTimeVi(row.end_datetime)}`,
       reason: row.reason || '',
-      meta_label: `${row.start_datetime} - ${row.end_datetime}`,
+      timeLabel: `${formatDateTimeVi(row.start_datetime)} - ${formatDateTimeVi(row.end_datetime)}`,
+      meta_label: `${formatDateTimeVi(row.start_datetime)} - ${formatDateTimeVi(row.end_datetime)}`,
       meta_sub: row.reason || 'Không có lý do',
-      status: row.status
+      subtitle: row.reason || 'Không có lý do',
+      created_at: row.created_at,
+      createdAt: row.created_at,
+      durationDays: getLeaveDurationDays(row.start_datetime, row.end_datetime),
+      escalationReasonLabel: 'Đơn phép',
+      status: row.status,
+      detail: {
+        reason: row.reason || ''
+      }
     }));
 
     const overtimeItems = overtimeRows.map((row) => ({
@@ -1614,16 +1741,36 @@ const getDirectorApprovalsOverview = async (req, res) => {
       code: `OT-${String(row.id).padStart(5, '0')}`,
       title: 'Đơn tăng ca',
       employee_id: row.employee_id,
+      employeeId: row.employee_id,
       employee_code: row.employee_code,
+      employeeCode: row.employee_code,
       employee_name: row.full_name,
-      department_id: null,
+      employeeName: row.full_name,
+      department_id: row.department_id,
+      departmentId: row.department_id,
       department_name: row.department_name,
+      departmentName: row.department_name,
       position_name: row.position_name,
-      range_label: `${row.ot_date} ${row.start_time} - ${row.end_time}`,
+      positionName: row.position_name,
+      directManagerName: row.direct_manager_name,
+      otDateLabel: formatDateVi(row.ot_date),
+      startTimeLabel: normalizeTimeText(row.start_time),
+      endTimeLabel: normalizeTimeText(row.end_time),
+      timeRangeLabel: `${normalizeTimeText(row.start_time)} - ${normalizeTimeText(row.end_time)}`,
+      range_label: `${formatDateVi(row.ot_date)} ${normalizeTimeText(row.start_time)} - ${normalizeTimeText(row.end_time)}`,
       reason: row.reason || '',
-      meta_label: `${row.ot_date} ${row.start_time} - ${row.end_time}`,
+      timeLabel: `${formatDateVi(row.ot_date)} ${normalizeTimeText(row.start_time)} - ${normalizeTimeText(row.end_time)}`,
+      meta_label: `${formatDateVi(row.ot_date)} ${normalizeTimeText(row.start_time)} - ${normalizeTimeText(row.end_time)}`,
       meta_sub: row.reason || 'Không có lý do',
-      status: row.status
+      subtitle: row.reason || 'Không có lý do',
+      created_at: row.created_at,
+      createdAt: row.created_at,
+      durationLabel: formatOvertimeDurationLabel(row.start_time, row.end_time),
+      escalationReasonLabel: 'Đơn tăng ca',
+      status: row.status,
+      detail: {
+        reason: row.reason || ''
+      }
     }));
 
     const allItems = [...payrollItems, ...leaveItems, ...overtimeItems];
@@ -1649,9 +1796,8 @@ const getDirectorApprovalsOverview = async (req, res) => {
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      if (tab === 'leave' && escalationReason !== 'all') {
-        const reasonText = `${item.reason || ''} ${item.meta_label || ''}`.toLowerCase();
-        if (!reasonText.includes(escalationReason.toLowerCase())) return false;
+      if (tab === 'leave' && requestType !== 'all' && item.type !== requestType) {
+        return false;
       }
       return true;
     });
@@ -1666,8 +1812,10 @@ const getDirectorApprovalsOverview = async (req, res) => {
         },
         options: {
           departments: departments || [],
-          escalationReasons: [
-            { value: 'all', label: 'Tất cả lý do' }
+          requestTypes: [
+            { value: 'all', label: 'Tất cả đơn' },
+            { value: 'leave', label: 'Đơn phép' },
+            { value: 'overtime', label: 'Đơn tăng ca' }
           ]
         }
       }

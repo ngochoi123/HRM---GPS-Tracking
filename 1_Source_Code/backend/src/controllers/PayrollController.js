@@ -27,7 +27,6 @@ const formatHours = (value) => {
 };
 
 const STANDARD_DAY_HOURS_CAP = 8;
-const STANDARD_MONTH_WORK_DAYS = 26;
 
 const capWorkHoursForPayroll = (raw) => {
     const n = parseFloat(raw);
@@ -73,6 +72,22 @@ const getDaysInMonth = (yearStr, monthStr) => {
         return 0;
     }
     return new Date(yearNum, monthNum, 0).getDate();
+};
+
+const isSundayYmdVN = (ymd) => {
+    if (!ymd) return false;
+    const d = new Date(`${ymd}T00:00:00+07:00`);
+    return !Number.isNaN(d.getTime()) && d.getDay() === 0;
+};
+
+const getWorkingDaysInMonth = (yearStr, monthStr) => {
+    const daysInMonth = getDaysInMonth(yearStr, monthStr);
+    let workingDays = 0;
+    for (let day = 1; day <= daysInMonth; day += 1) {
+        const ymd = ymdForCalendarDay(yearStr, monthStr, day);
+        if (!isSundayYmdVN(ymd)) workingDays += 1;
+    }
+    return workingDays;
 };
 
 const dayKeyFromPgDate = (value) => {
@@ -228,6 +243,7 @@ const calculatePayroll = async (req, res) => {
 
             const [month, year] = monthYear.split('-');
             const daysInMonth = getDaysInMonth(year, month);
+            const workingDaysInMonth = getWorkingDaysInMonth(year, month);
             const todayYmd = getTodayYmdHoChiMinh();
 
             const attendanceDetail = Array.from({ length: daysInMonth }, (_, index) => {
@@ -235,6 +251,7 @@ const calculatePayroll = async (req, res) => {
                 const row = attendanceByDay.get(day);
                 const rowYmd = ymdForCalendarDay(year, month, index + 1);
                 const isFuture = rowYmd > todayYmd;
+                const isSunday = isSundayYmdVN(rowYmd);
 
                 if (row) {
                     const rawHours = parseFloat(row.total_work_hours || 0);
@@ -265,7 +282,7 @@ const calculatePayroll = async (req, res) => {
                     hours: null,
                     cong: null,
                     ot: null,
-                    status: isFuture ? 'future' : 'absent',
+                    status: isFuture ? 'future' : isSunday ? 'off_day' : 'absent',
                 };
             });
 
@@ -293,12 +310,16 @@ const calculatePayroll = async (req, res) => {
             };
 
             const payableWorkDays = roundTo2((overtimeWorkDays * 2) + days);
-            const grossSalaryByAttendance = roundTo2((payableWorkDays * actualSalary) / STANDARD_MONTH_WORK_DAYS);
+            const grossSalaryByAttendance = workingDaysInMonth > 0
+                ? roundTo2((payableWorkDays * actualSalary) / workingDaysInMonth)
+                : 0;
             const incomeAfterIns = roundTo2(grossSalaryByAttendance - empInsurance.total - discipline + reward);
             const companyCost = roundTo2(grossSalaryByAttendance - discipline + reward + compInsurance.total);
 
             const netSalary = incomeAfterIns;
-            const totalAllowance = roundTo2(reward + (overtimeWorkDays * 2 * actualSalary) / STANDARD_MONTH_WORK_DAYS);
+            const totalAllowance = roundTo2(
+                reward + (workingDaysInMonth > 0 ? (overtimeWorkDays * 2 * actualSalary) / workingDaysInMonth : 0)
+            );
             const totalDeduction = empInsurance.total + discipline;
 
             const [payrollRow] = await db.query(
@@ -368,6 +389,7 @@ const calculatePayroll = async (req, res) => {
                 base_salary: base,
                 actual_salary: actualSalary,
                 total_work_days: days,
+                standard_work_days: workingDaysInMonth,
                 overtime: overtimeWorkDays,
                 discipline,
                 reward,

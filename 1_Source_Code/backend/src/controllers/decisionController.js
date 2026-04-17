@@ -272,18 +272,43 @@ const createDecision = async (req, res) => {
 
     // 3. Xử lý Push Notification
     if (String(notify_push) === 'true' && status !== 'draft') {
+      const amountNum = Number(amount) || 0;
+      const amountText = amountNum.toLocaleString('vi-VN');
       const notiTitle = decision_type === 'reward' ? `🎉 Quyết định Khen thưởng: ${decision_number}` : `⚠️ Quyết định Kỷ luật: ${decision_number}`;
-      const notiContent = `<p>Phòng Nhân sự vừa ban hành Quyết định đối với bạn.</p><ul><li>Hình thức: ${form}</li><li>Lý do: ${reason}</li></ul>`;
+      const notiContent =
+        decision_type === 'reward'
+          ? `
+            <p><strong style="color:#166534">Chúc mừng bạn!</strong> Phòng Nhân sự đã ban hành quyết định khen thưởng.</p>
+            <div style="margin:10px 0;padding:10px 12px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;">
+              <p style="margin:0;font-weight:700;color:#166534;">Số tiền thưởng: ${amountText} VNĐ</p>
+            </div>
+            <ul>
+              <li><strong>Hình thức:</strong> ${form}</li>
+              <li><strong>Lý do:</strong> ${reason}</li>
+            </ul>
+          `
+          : `
+            <p><strong style="color:#b91c1c">Thông báo kỷ luật</strong> từ Phòng Nhân sự.</p>
+            <div style="margin:10px 0;padding:10px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;">
+              <p style="margin:0;font-weight:700;color:#b91c1c;">Số tiền bị khấu trừ: ${amountText} VNĐ</p>
+            </div>
+            <ul>
+              <li><strong>Hình thức:</strong> ${form}</li>
+              <li><strong>Lý do:</strong> ${reason}</li>
+            </ul>
+          `;
 
       const notiInsert = await db.query(`
-        INSERT INTO notification (title, content, notification_type, target, "desc", status, target_employee_id, created_at)
-        VALUES (:title, :content, :type, 'Cá nhân', :desc, 'Đã gửi', :empId, NOW())
+        INSERT INTO notification (title, content, notification_type, target, "desc", status, sender_id, target_employee_id, created_at)
+        VALUES (:title, :content, :type, 'Cá nhân', :desc, 'Đã gửi', :senderId, :empId, NOW())
         RETURNING id;
       `, {
         replacements: {
           title: notiTitle, content: notiContent, 
           type: decision_type === 'reward' ? 'info' : 'warning',
-          desc: `Quyết định số ${decision_number}`, empId: employee_id
+          desc: `Quyết định số ${decision_number}`,
+          senderId: issuer_id,
+          empId: employee_id
         },
         type: db.QueryTypes.INSERT,
         transaction: t
