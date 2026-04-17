@@ -314,7 +314,12 @@ const handleApproveAll = async () => {
                   </span>
                   <span className="tag-status"><CiClock2 style={{ display: 'block' }} /> {moment(req.created_at).fromNow()}</span>
                 </div>
-                <h4 className="request-title">{req.reason || "Không có lý do chi tiết"}</h4>
+                <h4 className="request-title">  {req.reason
+                  ? req.reason.length > 30
+                    ? req.reason.slice(0, 30) + " ..."
+                    : req.reason
+                  : "Không có lý do chi tiết"}
+                </h4>
               
                 <p className="request-time">
                     <span className="time-label">Thời gian:</span>{" "}

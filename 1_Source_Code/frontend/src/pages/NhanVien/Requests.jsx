@@ -32,7 +32,7 @@ const Requests = () => {
   const [view, setView] = useState("create"); 
 // "create" | "history"
   const [recentRequests, setRecentRequests] = useState([]);
-  const [notification, setNotification] = useState("");
+  const [notification, setNotification] = useState({ message: "", type: "" });
   const [filterMonth, setFilterMonth] = useState(""); // yyyy-mm
 
   const [approvers, setApprovers] = useState([]); // danh sách người kiểm duyệt
@@ -239,29 +239,82 @@ const calculateTotalDays = (start, end) => {
   // ----------------- Submit -----------------
 
   const submitRequest = async () => {
+  if (!form.type && !approverId && !form.startDate &&!form.endDate && !form.reason.trim()) {
+    setShowConfirmSubmit(false);
+    setNotification({ message: "Vui lòng nhập thông tin!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+    return;
+  }
+  if (!form.type) {
+    setShowConfirmSubmit(false);
+    setNotification({ message: "Vui lòng chọn loại đơn!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+    return;
+  }
   if (!approverId) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng chọn người kiểm duyệt!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng chọn người kiểm duyệt!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
   if (!form.startDate || !form.endDate) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng chọn ngày bắt đầu và kết thúc!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng chọn ngày bắt đầu và ngày kết thúc!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
+  // ===== VALIDATE DATE =====
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const start = new Date(form.startDate);
+const end = new Date(form.endDate);
+
+// 1. Ngày bắt đầu phải > ngày hiện tại
+if (start <= today) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Ngày bắt đầu phải lớn hơn ngày hiện tại!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
+// 2. Ngày kết thúc phải > ngày bắt đầu
+if (end <= start) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Ngày kết thúc phải lớn hơn ngày bắt đầu!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
+// 3. Khoảng nghỉ không quá 30 ngày
+const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+
+if (diffDays > 30) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Thời gian nghỉ không được vượt quá 30 ngày!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
 
   if (!form.reason.trim()) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng nhập lý do!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng nhập lý do!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
   if (new Date(form.endDate) < new Date(form.startDate)) {
   setShowConfirmSubmit(false);
-  setNotification("Ngày kết thúc phải sau ngày bắt đầu!");
-  setTimeout(() => setNotification(""), 3000);
+  setNotification({ message: "Ngày kết thúc phải sau ngày bắt đầu!", type: "error" });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   return;
 }
 
@@ -281,8 +334,8 @@ const calculateTotalDays = (start, end) => {
     await employeeService.createLeaveRequest(payload);
 
     // 1. Hiển thị thông báo
-    setNotification("Gửi đơn thành công!");
-    
+    setNotification({message: "Gửi đơn thành công!",type: "success",});
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     // 2. Đóng modal xác nhận ngay lập tức
     setShowConfirmSubmit(false);
     
@@ -303,7 +356,8 @@ const calculateTotalDays = (start, end) => {
 
   } catch (err) {
     console.error(err);
-    setNotification("Lỗi tạo đơn!");
+    setNotification({message: "Lỗi gửi đơn!",type: "error",});
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
 };
 
@@ -356,13 +410,17 @@ const handleCancelConfirm = () => {
         // reset form
         handleCancel();
 
-        setNotification("Gửi đơn thành công!");
+        setNotification({
+          message: "Gửi đơn thành công!",
+          type: "success",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
         setShowConfirmSubmit(false);
 
       } catch (err) {
         console.error(err);
-        setNotification("Lỗi tạo đơn!");
-        setTimeout(() => setNotification(""), 3000);
+        setNotification({ message: "Lỗi tạo đơn!", type: "error" });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
       }
 };
 
@@ -383,10 +441,11 @@ const diffTime = end - start;
   return (
     <div className="request-container">
 
-      {notification && (
-      <div className="toast">
-        {notification}
-      </div>)}
+      {notification.message && (
+        <div className={`toast ${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
 
       {/* LEFT */}
       <div className="request-left">
@@ -467,6 +526,16 @@ const diffTime = end - start;
                 type="date"
                 className="input-option"
                 value={form.startDate}
+                min={(() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 1); // ngày mai
+                  return d.toISOString().split("T")[0];
+                })()}
+                max={(() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 30); // tối đa 30 ngày
+                  return d.toISOString().split("T")[0];
+                })()}
                 onChange={(e) =>
                   setForm({ ...form, startDate: e.target.value })
                 }
@@ -479,6 +548,18 @@ const diffTime = end - start;
                 type="date"
                 className="input-option"
                 value={form.endDate}
+                min={form.startDate || (() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 1);
+                  return d.toISOString().split("T")[0];
+                })()}
+                max={(() => {
+                  if (!form.startDate) return "";
+
+                  const d = new Date(form.startDate);
+                  d.setDate(d.getDate() + 30);
+                  return d.toISOString().split("T")[0];
+                })()}
                 onChange={(e) =>
                   setForm({ ...form, endDate: e.target.value })
                 }
@@ -647,7 +728,8 @@ const diffTime = end - start;
                 ) : (
                   filteredRequests.map((r) => (
                     <tr key={r.id} 
-                      onClick={() => handleRowClick(r)} 
+                      
+                      onClick={() => {console.log(r),handleRowClick(r)}} 
                       style={{ cursor: "pointer" }}
                     >
                       {/* Cột Ngày: Hiển thị ngày tạo đơn (created_at) */}
@@ -774,19 +856,30 @@ const diffTime = end - start;
                   />
                 </div>
 
-                {selectedRequest.attachment && (
-                  <div className="input-group" style={{ marginTop: "20px" }}>
-                    <label>File đính kèm</label>
+               {selectedRequest.attachment && (
+                <div className="input-group" style={{ marginTop: "20px" }}>
+                  <label>File đính kèm</label>
+
+                  <div className="file-preview">
+                    <div className="file-left">📎</div>
+
+                    <div className="file-info">
+                      <span className="file-name">
+                        {selectedRequest.attachment}
+                      </span>
+                    </div>
+
                     <a
-                      href={selectedRequest.attachment}
+                      href={`http://localhost:5000/uploads/${selectedRequest.attachment}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="file-link"
+                      className="file-view-btn"
                     >
-                      Xem file
+                      Xem
                     </a>
                   </div>
-                )}
+                </div>
+              )}
               </div>
             </div>
 

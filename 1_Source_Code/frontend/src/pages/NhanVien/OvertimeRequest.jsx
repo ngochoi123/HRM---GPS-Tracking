@@ -29,7 +29,7 @@ const [requests, setRequests] = useState([]);
 const [filterMonth, setFilterMonth] = useState("");
 const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 const [showConfirmCancel, setShowConfirmCancel] = useState(false);
-const [notification, setNotification] = useState("");
+const [notification, setNotification] = useState({ message: "", type: "" });
 
 
 
@@ -88,47 +88,140 @@ const filteredRequests = filterMonth
 
 const handleSubmit = async () => {
   // 1. Validate đầy đủ
-  if (!form.ot_date) {
+  if (!form.ot_date && !approverId && !form.start_time &&!form.end_time && !form.reason.trim()) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng chọn ngày tăng ca!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng nhập thông tin!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
+  if (!form.ot_date) {
+    setShowConfirmSubmit(false);
+    setNotification({ message: "Vui lòng chọn ngày tăng ca!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+    return;
+  }
+  const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const selectedDate = new Date(form.ot_date);
+selectedDate.setHours(0, 0, 0, 0);
+
+//  Rule 1: ngày phải > hôm nay
+if (selectedDate <= today) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Ngày tăng ca phải lớn hơn ngày hiện tại!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
+//  Rule 2: chỉ được chọn trong vòng 10 ngày tới
+const maxDate = new Date();
+maxDate.setDate(maxDate.getDate() + 10);
+maxDate.setHours(0, 0, 0, 0);
+
+if (selectedDate > maxDate) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Chỉ được đăng ký tăng ca trong vòng 10 ngày tới!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
     if (!approverId) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng chọn người kiểm duyệt!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng chọn người kiểm duyệt!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
 
   if (!form.start_time || !form.end_time) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng chọn thời gian bắt đầu và kết thúc!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng chọn thời gian bắt đầu và thời gian kết thúc!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
 
 
   if (!form.reason.trim()) {
     setShowConfirmSubmit(false);
-    setNotification("Vui lòng nhập nội dung công việc!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Vui lòng nhập nội dung công việc!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
 
-  // 2. Check logic thời gian
-  const [h1, m1] = form.start_time.split(":").map(Number);
-  const [h2, m2] = form.end_time.split(":").map(Number);
+ const [h1, m1] = form.start_time.split(":").map(Number);
+const [h2, m2] = form.end_time.split(":").map(Number);
 
-  const start = h1 * 60 + m1;
-  const end = h2 * 60 + m2;
+const start = h1 * 60 + m1;
+const end = h2 * 60 + m2;
 
-  if (end <= start) {
+const now = new Date();
+const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+//  Rule 1: nếu chọn ngày hôm nay thì start_time phải > hiện tại
+if (form.ot_date === new Date().toISOString().split("T")[0]) {
+  if (start <= currentMinutes) {
     setShowConfirmSubmit(false);
-    setNotification("Thời gian kết thúc phải lớn hơn thời gian bắt đầu!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({
+      message: "Giờ bắt đầu phải lớn hơn thời gian hiện tại!",
+      type: "error",
+    });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
+}
+if (end <= start) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Giờ kết thúc phải lớn hơn giờ bắt đầu!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+//  Rule 3: end <= 21:00
+const limitEnd = 21 * 60;
+if (end > limitEnd) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Giờ kết thúc không được vượt quá 21:00!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
+//  Rule 2: end phải > start ít nhất 2 tiếng
+if (end - start < 120) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Thời gian tăng ca phải tối thiểu 2 tiếng!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
+
+
+
+//  Rule 4: start phải trong khoảng 09:00 - 19:00
+const minStart = 9 * 60;
+const maxStart = 19 * 60;
+
+if (start < minStart || start > maxStart) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Giờ bắt đầu phải từ 09:00 đến 19:00!",
+    type: "error",
+  });
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
 
   try {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -161,14 +254,16 @@ const handleSubmit = async () => {
     setApproverId("");
 
     setShowConfirmSubmit(false);
-    setNotification("Gửi đơn tăng ca thành công!");
-
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({
+      message: "Gửi đơn thành công!",
+      type: "success",
+    });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
 
   } catch (err) {
     console.error(err);
-    setNotification("Lỗi gửi đơn!");
-    setTimeout(() => setNotification(""), 3000);
+    setNotification({ message: "Lỗi gửi đơn!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
 };
 
@@ -314,9 +409,9 @@ useEffect(() => {
   return (
     
     <div className="request-container">
-        {notification && (
-          <div className="toast">
-            {notification}
+        {notification.message && (
+          <div className={`toast ${notification.type}`}>
+            {notification.message}
           </div>
         )}
       <div className="request-left">
@@ -343,12 +438,18 @@ useEffect(() => {
                     <div className="input-group">
                         <label>Ngày tăng ca</label>
                         <input
-                            type="date"
-                            className="input-option"
-                            value={form.ot_date}
-                            onChange={(e) =>
-                                setForm({ ...form, ot_date: e.target.value })
-                            }
+                          type="date"
+                          className="input-option"
+                          value={form.ot_date}
+                          min={new Date().toISOString().split("T")[0]}
+                          max={(() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 10);
+                            return d.toISOString().split("T")[0];
+                          })()}
+                          onChange={(e) =>
+                            setForm({ ...form, ot_date: e.target.value })
+                          }
                         />
                     </div>
 
@@ -381,24 +482,28 @@ useEffect(() => {
                     <div className="input-group">
                         <label>Thời gian bắt đầu tăng ca</label>
                         <input
-                            type="time"
-                            className="input-option"
-                            value={form.start_time}
-                            onChange={(e) =>
-                                setForm({ ...form, start_time: e.target.value })
-                            }
+                          type="time"
+                          className="input-option"
+                          value={form.start_time}
+                          min="09:00"
+                          max="19:00"
+                          onChange={(e) =>
+                            setForm({ ...form, start_time: e.target.value })
+                          }
                         />
                     </div>
 
                     <div className="input-group">
                         <label>Thời gian kết thúc tăng ca</label>
                         <input
-                            type="time"
-                            className="input-option"
-                            value={form.end_time}
-                            onChange={(e) =>
-                                setForm({ ...form, end_time: e.target.value })
-                            }
+                          type="time"
+                          className="input-option"
+                          value={form.end_time}
+                          min={form.start_time || "09:00"} // luôn phải >= start_time
+                          max="21:00"
+                          onChange={(e) =>
+                            setForm({ ...form, end_time: e.target.value })
+                          }
                         />
                     </div>
                    

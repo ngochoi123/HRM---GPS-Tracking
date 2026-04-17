@@ -640,6 +640,7 @@ exports.getMyRequests = async (req, res) => {
         lr.reason,
         lr.status,
         lr.created_at,
+        lr.attachment,
         e.full_name AS approver_name
       FROM leave_request lr
       LEFT JOIN employee e ON lr.approver_id = e.id
