@@ -171,7 +171,16 @@ export const AttendanceUI = ({ props }: { props: any }) => {
             <Feather name="clock" size={20} color="#64748b" />
           </TouchableOpacity>
           <BellButton />
-          <TouchableOpacity style={styles.bellBtn} onPress={props.handleLogout}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => {
+            Alert.alert(
+              'Xác nhận',
+              'Bạn có chắc chắn muốn đăng xuất không?',
+              [
+                { text: 'Hủy', style: 'cancel' },
+                { text: 'Đăng xuất', style: 'destructive', onPress: props.handleLogout }
+              ]
+            );
+          }}>
             <Feather name="log-out" size={20} color="#64748b" />
           </TouchableOpacity>
         </View>

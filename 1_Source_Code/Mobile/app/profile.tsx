@@ -136,21 +136,33 @@ export default function ProfileScreen() {
     if (!regex.test(newPw)) {
       setPwMsg('Mật khẩu tối thiểu 6 ký tự, gồm chữ thường, chữ hoa và số!'); return;
     }
-    setPwLoading(true);
-    try {
-      await axios.post(
-        `${API_URL}/employee/change-password`,
-        { userId: employeeId, oldPassword: oldPw, newPassword: newPw },
-        { headers: { Authorization: `Bearer ${userToken}` } },
-      );
-      setPwMsg('Đổi mật khẩu thành công!');
-      setPwSuccess(true);
-      setTimeout(closePwModal, 2000);
-    } catch (e: any) {
-      setPwMsg(e?.response?.data?.message || 'Lỗi khi đổi mật khẩu');
-    } finally {
-      setPwLoading(false);
-    }
+    Alert.alert(
+      'Xác nhận',
+      'Bạn có chắc chắn muốn thay đổi mật khẩu không?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đồng ý',
+          onPress: async () => {
+            setPwLoading(true);
+            try {
+              await axios.post(
+                `${API_URL}/employee/change-password`,
+                { userId: employeeId, oldPassword: oldPw, newPassword: newPw },
+                { headers: { Authorization: `Bearer ${userToken}` } },
+              );
+              setPwMsg('Đổi mật khẩu thành công!');
+              setPwSuccess(true);
+              setTimeout(closePwModal, 2000);
+            } catch (e: any) {
+              setPwMsg(e?.response?.data?.message || 'Lỗi khi đổi mật khẩu');
+            } finally {
+              setPwLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
