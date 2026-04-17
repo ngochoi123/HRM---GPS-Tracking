@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { FaAngleRight } from "react-icons/fa";
 import { 
-  Home, Clock, FileText, Wallet, // Nhóm cá nhân
+  Home, Clock, FileText, Wallet, CreditCard,// Nhóm cá nhân
   Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
   Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon,
   FileSpreadsheet 
 } from 'lucide-react';
-
+const personalItems = [
+    { path: '/QuanLy/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
+    { path: '/QuanLy/CheckIn', icon: <Clock size={20} />, label: 'Chấm công' },
+    { path: '/NhanVien/payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
+    {
+      path: '/NhanVien/requests',
+      label: 'Đơn từ',
+      icon: <FileText size={20} />,
+      children: [
+        { path: '/NhanVien/requests/leave', label: 'Đơn nghỉ phép' },
+        { path: '/NhanVien/requests/overtime', label: 'Đơn tăng ca' },
+        { path: '/NhanVien/requests/ae_request', label: 'Đơn giải trình' }
+        
+      ]
+    },
+  ];
 const SidebarQuanLy = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -15,13 +31,26 @@ const SidebarQuanLy = () => {
 
   // ✅ THÊM STATE
   const [openStats, setOpenStats] = useState(false);
+  // 1. Thêm state để lưu lại URL trước đó
+  const [prevPath, setPrevPath] = useState(location.pathname);
 
-  const personalItems = [
-    { path: '/QuanLy/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
-    { path: '/QuanLy/CheckIn', icon: <Clock size={20} />, label: 'Chấm công' },
-    { path: '/QuanLy/my-requests', icon: <FileText size={20} />, label: 'Đơn từ của tôi' },
-    { path: '/QuanLy/my-salary', icon: <Wallet size={20} />, label: 'Lương & Giờ làm' },
-  ];
+  // 2. Khởi tạo state openMenu
+  const [openMenu, setOpenMenu] = useState(() => {
+    const index = personalItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    return index !== -1 ? index : null;
+  });
+
+  // 3. Cập nhật state trực tiếp khi URL thay đổi (Thay cho useEffect)
+  if (location.pathname !== prevPath) {
+    setPrevPath(location.pathname);
+    const index = personalItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    setOpenMenu(index !== -1 ? index : null);
+  }
+  
 
   const managementItems = [
     { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
@@ -53,15 +82,54 @@ const SidebarQuanLy = () => {
           <p style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 'bold', marginBottom: '16px', paddingLeft: '20px', textTransform: 'uppercase' }}>
             CÁ NHÂN
           </p>
-          {personalItems.map((item) => (
-            <Link 
-              key={item.path} 
-              to={item.path} 
-              className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
-            >
-              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
-            </Link>
-          ))}
+            {personalItems.map((item, index) => (
+  <div key={index}>
+    {/* NẾU CÓ MENU CON (Ví dụ: Đơn từ) */}
+    {item.children ? (
+      <div
+       className={`menu-item ${
+        location.pathname.startsWith(item.path) ||
+        item.children?.some(child => location.pathname.startsWith(child.path))
+          ? 'active'
+          : ''
+       }`}
+        onClick={() => setOpenMenu(openMenu === index ? null : index)}
+        style={{ cursor: 'pointer' }}
+      >
+        {item.icon}
+        <span style={{ marginLeft: "12px" }}>{item.label}</span>
+      </div>
+    ) : (
+      /* NẾU LÀ MENU BÌNH THƯỜNG */
+      <Link
+        to={item.path}
+        onClick={() => setOpenMenu(null)}
+        className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
+      >
+        {item.icon}
+        <span style={{ marginLeft: "12px" }}>{item.label}</span>
+      </Link>
+    )}
+
+    {/* RENDER CÁC MENU CON CỦA ĐƠN TỪ NẾU ĐƯỢC MỞ */}
+    {item.children && (
+      <div className={`submenu ${openMenu === index ? "open" : ""}`}>
+        {item.children.map((child) => (
+          <Link
+            key={child.path}
+            to={child.path}
+            className={`submenu-item ${
+              location.pathname.startsWith(child.path) ? "active" : ""
+            }`}
+          >
+            <FaAngleRight style={{ marginRight: "8px", fontSize: "12px" }} />
+            {child.label}
+          </Link>
+        ))}
+      </div>
+    )}
+  </div>
+))}
         </nav>
 
         {/* QUẢN LÝ */}

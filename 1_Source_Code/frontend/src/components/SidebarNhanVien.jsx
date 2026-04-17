@@ -1,27 +1,10 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState } from 'react';
 import './menu.css';   
 import { FaAngleRight } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, MapPin, CreditCard, FileText, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
 
-const SidebarNhanVien = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState(null);
-  useEffect(() => {
-  const index = menuItems.findIndex(item =>
-    item.children?.some(child => location.pathname.startsWith(child.path))
-  );
-
-  if (index !== -1) {
-    setOpenMenu(index);
-  }
-}, [location.pathname]);
-
-  // State quản lý hiển thị Modal
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-  const menuItems = [
+const menuItems = [
     { path: '/NhanVien/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/NhanVien/checkin', icon: <MapPin size={20} />, label: 'Chấm công' },
     { path: '/NhanVien/payroll', icon: <CreditCard size={20} />, label: 'Xem bảng lương' },
@@ -38,6 +21,33 @@ const SidebarNhanVien = () => {
     },
     // Đã xóa menu "Hồ sơ cá nhân" vì đã tích hợp trên Header dùng chung cho mọi Role
   ];
+const SidebarNhanVien = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // 1. Thêm state để lưu lại URL trước đó
+  const [prevPath, setPrevPath] = useState(location.pathname);
+
+  // 2. Khởi tạo state openMenu ngay từ lần render đầu tiên
+  const [openMenu, setOpenMenu] = useState(() => {
+    const index = menuItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    return index !== -1 ? index : null;
+  });
+
+  // 3. Cập nhật state trực tiếp khi URL thay đổi (Thay cho useEffect)
+  if (location.pathname !== prevPath) {
+    setPrevPath(location.pathname); // Cập nhật lại URL cũ
+    const index = menuItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    setOpenMenu(index !== -1 ? index : null);
+  }
+
+  // State quản lý hiển thị Modal
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  
 
   // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
   const handleLogoutClick = (e) => {
