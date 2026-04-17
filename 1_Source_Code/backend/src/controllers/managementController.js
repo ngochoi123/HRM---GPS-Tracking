@@ -698,19 +698,110 @@ const getApprovalRequests = async (req, res) => {
   }
 };
 
+const LEAVE_TYPE_LABELS = {
+  annual: 'Nghỉ phép năm',
+  sick: 'Nghỉ ốm',
+  unpaid: 'Nghỉ không lương',
+  ot: 'Nghỉ bù',
+  maternity: 'Nghỉ thai sản',
+  bereavement: 'Nghỉ việc riêng'
+};
+
+const formatDateTimeVi = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(parsed);
+};
+
+const createPersonalNotification = async ({ transaction, employeeId, title, desc, content, notificationType = 'info' }) => {
+  const rows = await db.query(
+    `
+    INSERT INTO notification (
+      title,
+      content,
+      notification_type,
+      target,
+      "desc",
+      status,
+      target_employee_id,
+      created_at
+    )
+    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :employeeId, NOW())
+    RETURNING id
+    `,
+    {
+      replacements: { title, content, notificationType, desc: desc || '', employeeId },
+      type: db.QueryTypes.SELECT,
+      transaction
+    }
+  );
+
+  const notificationId = rows?.[0]?.id;
+  if (!notificationId) {
+    throw new Error('Không thể tạo thông báo.');
+  }
+
+  await db.query(
+    `INSERT INTO notification_recipient (notification_id, employee_id) VALUES (:notificationId, :employeeId)`,
+    {
+      replacements: { notificationId, employeeId },
+      transaction
+    }
+  );
+};
+
+const createRequestApprovalNotification = async ({ transaction, type, requestRow, isApproved }) => {
+  if (!requestRow?.employee_id) return;
+
+  const isLeave = type === 'leave';
+  const requestLabel = isLeave
+    ? LEAVE_TYPE_LABELS[requestRow.leave_type] || 'Đơn nghỉ phép'
+    : 'Đơn tăng ca';
+
+  const title = isApproved ? `${requestLabel} đã được duyệt` : `${requestLabel} bị từ chối`;
+  const desc = isApproved
+    ? 'Yêu cầu của bạn đã được quản lý phê duyệt.'
+    : 'Yêu cầu của bạn đã bị quản lý từ chối.';
+
+  const timeLabel = isLeave
+    ? `${formatDateTimeVi(requestRow.start_datetime)} - ${formatDateTimeVi(requestRow.end_datetime)}`
+    : `${formatDateTimeVi(requestRow.ot_date)} ${requestRow.start_time || ''}-${requestRow.end_time || ''}`.trim();
+
+  const content = isApproved
+    ? `${requestLabel} của bạn cho thời gian ${timeLabel} đã được phê duyệt. Lý do: ${requestRow.reason || 'Không có'}.`
+    : `${requestLabel} của bạn cho thời gian ${timeLabel} đã bị từ chối. Lý do: ${requestRow.reason || 'Không có'}.`;
+
+  await createPersonalNotification({
+    transaction,
+    employeeId: requestRow.employee_id,
+    title,
+    desc,
+    content,
+    notificationType: isApproved ? 'info' : 'warning'
+  });
+};
+
 const updateApprovalStatus = async (req, res) => {
   const tx = await db.transaction();
   try {
     const { type, id } = req.params;
-    const { status } = req.body; // approved | rejected
+    const { status, approverId } = req.body; // approved | rejected
 
     if (!['approved', 'rejected'].includes(status)) {
       await tx.rollback();
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
+    if (!approverId) {
+      return res.status(400).json({ message: 'Thiếu thông tin người duyệt' });
+    }
+
     let query = '';
-    let requestLabel = '';
+    let detailQuery = '';
 
     if (type === 'leave') {
       requestLabel = 'Đơn nghỉ phép';
@@ -719,7 +810,15 @@ const updateApprovalStatus = async (req, res) => {
         SET status = :status,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
+          AND approver_id = :approver_id
+          AND status = 'pending'
         RETURNING *;
+      `;
+      detailQuery = `
+        SELECT id, employee_id, leave_type, start_datetime, end_datetime, reason
+        FROM leave_request
+        WHERE id = :id
+        LIMIT 1
       `;
     }
 
@@ -730,7 +829,15 @@ const updateApprovalStatus = async (req, res) => {
         SET status = :status,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
+          AND approver_id = :approver_id
+          AND status = 'pending'
         RETURNING *;
+      `;
+      detailQuery = `
+        SELECT id, employee_id, ot_date, start_time, end_time, reason
+        FROM overtime_request
+        WHERE id = :id
+        LIMIT 1
       `;
     }
     else if (type === 'explanation') {
@@ -748,95 +855,50 @@ const updateApprovalStatus = async (req, res) => {
       return res.status(400).json({ message: 'Type không hợp lệ' });
     }
 
-    const [result] = await db.query(query, {
-      replacements: { id, status },
-      transaction: tx,
-    });
+    const transaction = await db.transaction();
 
-    const updatedRow = result?.[0];
-    if (!updatedRow?.employee_id) {
-      await tx.commit();
-      return res.json({
-        message: 'Cập nhật thành công',
-        data: updatedRow,
-      });
-    }
-
-    const [emp] = await db.query(
-      `SELECT id, full_name, employee_code FROM employee WHERE id = :id LIMIT 1`,
-      { replacements: { id: updatedRow.employee_id }, type: db.QueryTypes.SELECT, transaction: tx }
-    );
-
-    let timeLabel = '';
-    if (type === 'leave') {
-      timeLabel = `${updatedRow?.start_datetime || ''} - ${updatedRow?.end_datetime || ''}`;
-    } else {
-      const startTime = String(updatedRow?.start_time || '').slice(0, 5);
-      const endTime = String(updatedRow?.end_time || '').slice(0, 5);
-      timeLabel = `${updatedRow?.ot_date || ''} ${startTime} - ${endTime}`.trim();
-    }
-
-    const isApproved = status === 'approved';
-    const title = isApproved ? `${requestLabel} đã được duyệt` : `${requestLabel} bị từ chối`;
-    const desc = isApproved
-      ? 'Yêu cầu của bạn đã được Quản lý phê duyệt.'
-      : 'Yêu cầu của bạn đã bị Quản lý từ chối.';
-    const employeeName = emp?.full_name || 'Nhân viên';
-    const content = isApproved
-      ? `
-        <p><strong style="color:#065f46">${requestLabel} của bạn đã được chấp thuận.</strong></p>
-        <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
-          <p style="margin:0;"><strong>Thời gian:</strong> ${timeLabel || 'Chưa cập nhật'}</p>
-          <p style="margin:8px 0 0;"><strong>Người duyệt:</strong> Quản lý trực tiếp</p>
-        </div>
-        <p style="margin-top:8px;">Vui lòng theo dõi lịch làm việc để thực hiện đúng theo nội dung đã duyệt.</p>
-      `
-      : `
-        <p><strong style="color:#b91c1c">${requestLabel} của bạn đã bị từ chối.</strong></p>
-        <div style="margin:10px 0;padding:10px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;">
-          <p style="margin:0;"><strong>Thời gian:</strong> ${timeLabel || 'Chưa cập nhật'}</p>
-          <p style="margin:8px 0 0;"><strong>Người duyệt:</strong> Quản lý trực tiếp</p>
-        </div>
-        <p style="margin-top:8px;">Bạn có thể trao đổi lại với quản lý hoặc tạo yêu cầu mới nếu cần điều chỉnh.</p>
-      `;
-
-    const [notiRows] = await db.query(
-      `
-      INSERT INTO notification (title, content, notification_type, target, "desc", status, sender_id, target_employee_id, created_at)
-      VALUES (:title, :content, :type, 'Cá nhân', :desc, 'Đã gửi', :senderId, :employeeId, NOW())
-      RETURNING id
-      `,
-      {
-        replacements: {
-          title,
-          content,
-          type: isApproved ? 'info' : 'warning',
-          desc,
-          senderId: updatedRow.approver_id || null,
-          employeeId: updatedRow.employee_id,
-        },
+    try {
+      const detailRows = await db.query(detailQuery, {
+        replacements: { id },
         type: db.QueryTypes.SELECT,
-        transaction: tx,
+        transaction
+      });
+
+      const requestRow = detailRows?.[0];
+      if (!requestRow) {
+        await transaction.rollback();
+        return res.status(404).json({ message: 'Không tìm thấy đơn cần xử lý' });
       }
-    );
 
-    const notificationId = notiRows?.[0]?.id;
-    if (notificationId) {
-      await db.query(
-        `INSERT INTO notification_recipient (notification_id, employee_id) VALUES (:notificationId, :employeeId)`,
-        {
-          replacements: { notificationId, employeeId: updatedRow.employee_id },
-          transaction: tx,
-        }
-      );
+      const [result] = await db.query(query, {
+        replacements: { id, status, approver_id: approverId },
+        transaction
+      });
+
+      if (!result?.[0]) {
+        await transaction.rollback();
+        return res.status(403).json({
+          message: 'Bạn không có quyền xử lý đơn này hoặc đơn đã được cập nhật trước đó'
+        });
+      }
+
+      await createRequestApprovalNotification({
+        transaction,
+        type,
+        requestRow,
+        isApproved: status === 'approved'
+      });
+
+      await transaction.commit();
+
+      res.json({
+        message: 'Cập nhật thành công',
+        data: result[0]
+      });
+    } catch (innerError) {
+      await transaction.rollback();
+      throw innerError;
     }
-
-    await tx.commit();
-
-    res.json({
-      message: 'Cập nhật thành công',
-      data: updatedRow
-    });
 
   } catch (error) {
     if (tx && !tx.finished) await tx.rollback();
@@ -901,6 +963,334 @@ const getApprovalHistory = async (req, res) => {
   } catch (error) {
     console.error(" getApprovalHistory:", error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+const getRequestsStats = async (req, res) => {
+  try {
+    const { id: managerId } = req.params;
+    let monthParam = req.query.month ? String(req.query.month) : '';
+
+    if (!managerId) {
+      return res.status(400).json({ message: 'Thiếu managerId' });
+    }
+
+    if (monthParam && !/^\d{4}-\d{2}$/.test(monthParam)) {
+      return res.status(400).json({ message: 'Tham số month (YYYY-MM) không hợp lệ' });
+    }
+
+    const baseRequestsCte = `
+      WITH managed_employees AS (
+        SELECT DISTINCT e.id
+        FROM employee e
+        LEFT JOIN position p ON p.id = e.position_id
+        LEFT JOIN department d ON d.id = p.department_id
+        WHERE e.id <> :manager_id
+          AND (
+            e.direct_manager_id = :manager_id
+            OR d.manager_id = :manager_id
+          )
+      ),
+      requests AS (
+        SELECT
+          lr.id,
+          'leave'::text AS request_type,
+          lr.leave_type::text AS request_subtype,
+          lr.employee_id,
+          lr.approver_id,
+          lr.status::text AS status,
+          lr.created_at,
+          lr.start_datetime AS request_date,
+          lr.reason
+        FROM leave_request lr
+        JOIN managed_employees me ON me.id = lr.employee_id
+
+        UNION ALL
+
+        SELECT
+          ot.id,
+          'overtime'::text AS request_type,
+          'overtime'::text AS request_subtype,
+          ot.employee_id,
+          ot.approver_id,
+          ot.status::text AS status,
+          ot.created_at,
+          ot.ot_date::timestamp with time zone AS request_date,
+          ot.reason
+        FROM overtime_request ot
+        JOIN managed_employees me ON me.id = ot.employee_id
+      )
+    `;
+
+    if (!monthParam) {
+      const latestMonthRow = await db.query(
+        `
+        ${baseRequestsCte}
+        SELECT TO_CHAR(MAX(created_at), 'YYYY-MM') AS latest_month
+        FROM requests
+        `,
+        {
+          replacements: { manager_id: managerId },
+          type: db.QueryTypes.SELECT
+        }
+      );
+
+      monthParam = latestMonthRow[0]?.latest_month || new Date().toISOString().slice(0, 7);
+    }
+
+    const [year, month] = monthParam.split('-').map(Number);
+    const currentStart = new Date(Date.UTC(year, month - 1, 1));
+    const currentEnd = new Date(Date.UTC(year, month, 1));
+    const previousStart = new Date(Date.UTC(year, month - 2, 1));
+    const previousEnd = currentStart;
+
+    const currentStartStr = currentStart.toISOString().slice(0, 10);
+    const currentEndStr = currentEnd.toISOString().slice(0, 10);
+    const previousStartStr = previousStart.toISOString().slice(0, 10);
+    const previousEndStr = previousEnd.toISOString().slice(0, 10);
+
+    const summaryRows = await db.query(
+      `
+      ${baseRequestsCte}
+      SELECT
+        COUNT(*) FILTER (
+          WHERE created_at >= :cur_start AND created_at < :cur_end
+        )::int AS total_current,
+        COUNT(*) FILTER (
+          WHERE created_at >= :prev_start AND created_at < :prev_end
+        )::int AS total_previous,
+
+        COUNT(*) FILTER (
+          WHERE created_at >= :cur_start AND created_at < :cur_end
+            AND status = 'pending'
+        )::int AS pending_current,
+        COUNT(*) FILTER (
+          WHERE created_at >= :prev_start AND created_at < :prev_end
+            AND status = 'pending'
+        )::int AS pending_previous,
+
+        COUNT(*) FILTER (
+          WHERE created_at >= :cur_start AND created_at < :cur_end
+            AND status = 'approved'
+        )::int AS approved_current,
+        COUNT(*) FILTER (
+          WHERE created_at >= :prev_start AND created_at < :prev_end
+            AND status = 'approved'
+        )::int AS approved_previous,
+
+        COUNT(*) FILTER (
+          WHERE created_at >= :cur_start AND created_at < :cur_end
+            AND status = 'rejected'
+        )::int AS rejected_current,
+        COUNT(*) FILTER (
+          WHERE created_at >= :prev_start AND created_at < :prev_end
+            AND status = 'rejected'
+        )::int AS rejected_previous,
+
+        COUNT(*) FILTER (
+          WHERE created_at >= :cur_start AND created_at < :cur_end
+            AND status = 'pending'
+            AND created_at <= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+        )::int AS overdue_pending_current,
+
+        COALESCE(AVG(
+          CASE
+            WHEN created_at >= :cur_start AND created_at < :cur_end
+              AND status = 'pending'
+            THEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at)) / 3600.0
+          END
+        ), 0)::float AS average_wait_hours_current,
+
+        COALESCE(AVG(
+          CASE
+            WHEN created_at >= :prev_start AND created_at < :prev_end
+              AND status = 'pending'
+            THEN EXTRACT(EPOCH FROM ((:prev_end::timestamp) - created_at)) / 3600.0
+          END
+        ), 0)::float AS average_wait_hours_previous
+      FROM requests
+      `,
+      {
+        replacements: {
+          manager_id: managerId,
+          cur_start: currentStartStr,
+          cur_end: currentEndStr,
+          prev_start: previousStartStr,
+          prev_end: previousEndStr
+        },
+        type: db.QueryTypes.SELECT
+      }
+    );
+
+    const breakdownRows = await db.query(
+      `
+      ${baseRequestsCte}
+      SELECT
+        request_subtype,
+        COUNT(*)::int AS total
+      FROM requests
+      WHERE created_at >= :cur_start AND created_at < :cur_end
+      GROUP BY request_subtype
+      ORDER BY total DESC, request_subtype ASC
+      `,
+      {
+        replacements: {
+          manager_id: managerId,
+          cur_start: currentStartStr,
+          cur_end: currentEndStr
+        },
+        type: db.QueryTypes.SELECT
+      }
+    );
+
+    const pendingRows = await db.query(
+      `
+      ${baseRequestsCte}
+      SELECT
+        r.id,
+        r.request_type,
+        r.request_subtype,
+        r.status,
+        r.created_at,
+        r.request_date,
+        r.reason,
+        e.id AS employee_id,
+        e.employee_code,
+        e.full_name AS employee_name,
+        approver.full_name AS approver_name,
+        p.position_name,
+        d.department_name,
+        (r.approver_id = :manager_id AND r.status = 'pending') AS can_approve,
+        ROUND((EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - r.created_at)) / 3600.0)::numeric, 1)::float AS waiting_hours,
+        (r.created_at <= CURRENT_TIMESTAMP - INTERVAL '24 hours') AS is_overdue
+      FROM requests r
+      JOIN employee e ON e.id = r.employee_id
+      LEFT JOIN employee approver ON approver.id = r.approver_id
+      LEFT JOIN position p ON p.id = e.position_id
+      LEFT JOIN department d ON d.id = p.department_id
+      WHERE r.status = 'pending'
+      ORDER BY is_overdue DESC, r.created_at ASC
+      LIMIT 10
+      `,
+      {
+        replacements: { manager_id: managerId },
+        type: db.QueryTypes.SELECT
+      }
+    );
+
+    const monthlyRows = await db.query(
+      `
+      ${baseRequestsCte}
+      SELECT
+        r.id,
+        r.request_type,
+        r.request_subtype,
+        r.status,
+        r.created_at,
+        r.request_date,
+        r.reason,
+        e.id AS employee_id,
+        e.employee_code,
+        e.full_name AS employee_name,
+        approver.full_name AS approver_name,
+        p.position_name,
+        d.department_name,
+        (r.approver_id = :manager_id AND r.status = 'pending') AS can_approve,
+        ROUND((EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - r.created_at)) / 3600.0)::numeric, 1)::float AS waiting_hours,
+        (r.created_at <= CURRENT_TIMESTAMP - INTERVAL '24 hours') AS is_overdue
+      FROM requests r
+      JOIN employee e ON e.id = r.employee_id
+      LEFT JOIN employee approver ON approver.id = r.approver_id
+      LEFT JOIN position p ON p.id = e.position_id
+      LEFT JOIN department d ON d.id = p.department_id
+      WHERE r.created_at >= :cur_start AND r.created_at < :cur_end
+      ORDER BY r.created_at DESC, r.employee_id ASC
+      `,
+      {
+        replacements: {
+          manager_id: managerId,
+          cur_start: currentStartStr,
+          cur_end: currentEndStr
+        },
+        type: db.QueryTypes.SELECT
+      }
+    );
+
+    const summary = summaryRows[0] || {};
+    const resolvedCurrent =
+      Number(summary.approved_current || 0) + Number(summary.rejected_current || 0);
+    const resolvedPrevious =
+      Number(summary.approved_previous || 0) + Number(summary.rejected_previous || 0);
+
+    res.json({
+      month: monthParam,
+      summary: {
+        totalCurrent: Number(summary.total_current || 0),
+        totalPrevious: Number(summary.total_previous || 0),
+        pendingCurrent: Number(summary.pending_current || 0),
+        pendingPrevious: Number(summary.pending_previous || 0),
+        approvedCurrent: Number(summary.approved_current || 0),
+        approvedPrevious: Number(summary.approved_previous || 0),
+        rejectedCurrent: Number(summary.rejected_current || 0),
+        rejectedPrevious: Number(summary.rejected_previous || 0),
+        overduePendingCurrent: Number(summary.overdue_pending_current || 0),
+        approvalRateCurrent:
+          resolvedCurrent > 0
+            ? Math.round((Number(summary.approved_current || 0) / resolvedCurrent) * 1000) / 10
+            : 0,
+        approvalRatePrevious:
+          resolvedPrevious > 0
+            ? Math.round((Number(summary.approved_previous || 0) / resolvedPrevious) * 1000) / 10
+            : 0,
+        averageWaitHoursCurrent:
+          Math.round(Number(summary.average_wait_hours_current || 0) * 10) / 10,
+        averageWaitHoursPrevious:
+          Math.round(Number(summary.average_wait_hours_previous || 0) * 10) / 10
+      },
+      breakdown: breakdownRows.map((row) => ({
+        key: row.request_subtype,
+        total: Number(row.total || 0)
+      })),
+      pendingRequests: pendingRows.map((row) => ({
+        id: row.id,
+        type: row.request_type,
+        subtype: row.request_subtype,
+        status: row.status,
+        createdAt: row.created_at,
+        requestDate: row.request_date,
+        reason: row.reason,
+        employeeId: row.employee_id,
+        employeeCode: row.employee_code,
+        employeeName: row.employee_name,
+        approverName: row.approver_name,
+        positionName: row.position_name,
+        departmentName: row.department_name,
+        canApprove: Boolean(row.can_approve),
+        waitingHours: Number(row.waiting_hours || 0),
+        isOverdue: Boolean(row.is_overdue)
+      })),
+      monthlyRequests: monthlyRows.map((row) => ({
+        id: row.id,
+        type: row.request_type,
+        subtype: row.request_subtype,
+        status: row.status,
+        createdAt: row.created_at,
+        requestDate: row.request_date,
+        reason: row.reason,
+        employeeId: row.employee_id,
+        employeeCode: row.employee_code,
+        employeeName: row.employee_name,
+        approverName: row.approver_name,
+        positionName: row.position_name,
+        departmentName: row.department_name,
+        canApprove: Boolean(row.can_approve),
+        waitingHours: Number(row.waiting_hours || 0),
+        isOverdue: Boolean(row.is_overdue)
+      }))
+    });
+  } catch (error) {
+    console.error('getRequestsStats error:', error);
+    res.status(500).json({ message: 'Lỗi server khi lấy thống kê đơn từ' });
   }
 };
 
@@ -1333,6 +1723,7 @@ module.exports = {
   getApprovalRequests,
   updateApprovalStatus,
   getApprovalHistory,
+  getRequestsStats,
   getAttendanceStats,
   getPayrollOverview,
   getDepartmentPayrollBreakdown,

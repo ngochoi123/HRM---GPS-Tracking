@@ -6,16 +6,18 @@ export const managerApprovals={
   },
 
   //  Duyệt đơn
-  approveRequest: (type, id) => {
+  approveRequest: (type, id, approverId) => {
     return axiosClient.put(`/manager/approval/${type}/${id}`, {
       status: 'approved',
+      approverId
     });
   },
 
   //  Từ chối đơn
-  rejectRequest: (type, id) => {
+  rejectRequest: (type, id, approverId) => {
     return axiosClient.put(`/manager/approval/${type}/${id}`, {
       status: 'rejected',
+      approverId
     });
   },
   getApprovalHistory: (managerId) => {
