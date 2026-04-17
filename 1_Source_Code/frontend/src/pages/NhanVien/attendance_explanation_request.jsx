@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axiosClient from "../../api/axiosClient";
+// Đã xóa import axiosClient thừa
 import { HiMiniXCircle } from "react-icons/hi2";
 import { MdChatBubbleOutline } from "react-icons/md";
 import { IoCloudUploadOutline } from "react-icons/io5";
@@ -15,9 +15,11 @@ import { LuClock2 } from "react-icons/lu";
 import { FiClock } from "react-icons/fi";
 import { GoBlocked } from "react-icons/go";
 import './ae_request.css'
-const attendance_explanation_request = () => {
 
-    const fileRef = React.useRef();
+// 1. SỬA TÊN COMPONENT VIẾT HOA CHỮ CÁI ĐẦU
+const AttendanceExplanationRequest = () => {
+
+const fileRef = React.useRef();
 
 const user = JSON.parse(localStorage.getItem("user") || "{}");
 const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
@@ -35,7 +37,7 @@ const approved = requests.filter(r => r.status === "approved").length;
 const pending = requests.filter(r => r.status === "pending").length;
 const rejected = requests.filter(r => r.status === "rejected").length;
 
-const percentApproved = total ? (approved / total) * 100 : 0;
+// Đã xóa biến percentApproved không sử dụng
 
 const [form, setForm] = useState({
   date: "",
@@ -166,7 +168,7 @@ if (checkinMin < minCheckin) {
 
   } catch (err) {
     console.error(err.response?.data || err);
-    setNotification("Gửi thất bại!");
+    setNotification({ message: "Gửi thất bại!", type: "error" });
   }
 };
 const getExplanationText = (type) => {
@@ -214,6 +216,7 @@ useEffect(() => {
     })
     .catch(console.error);
 }, [user?.id]);
+
 const getLatestMonthYear = () => {
   if (!requests || requests.length === 0) return "";
 
@@ -227,6 +230,7 @@ const getLatestMonthYear = () => {
 
   return `${month.toString().padStart(2, "0")}/${year}`;
 };
+
 const filteredRequests = filterMonth
   ? requests.filter((r) => {
       const date = new Date(r.attendance_date);
@@ -799,9 +803,8 @@ const filteredRequests = filterMonth
 
         </div>
 
-
-
     );
 };
 
-export default attendance_explanation_request;
+// 2. NHỚ ĐỔI TÊN Ở PHẦN EXPORT NỮA NHÉ
+export default AttendanceExplanationRequest;

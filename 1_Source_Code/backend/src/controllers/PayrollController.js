@@ -1,4 +1,4 @@
-﻿const db = require('../config/database');
+const db = require('../config/database');
 const {
     calcStandardWorkHours,
     getAttendanceStatusForCheckIn,
@@ -113,7 +113,7 @@ const ymdFromPgDate = (value) => {
     return `${y}-${m}-${day}`;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_HM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 const parseHmToVNDate = (attendanceDateYmd, hm) => {
@@ -473,10 +473,14 @@ const correctAttendance = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Không tìm thấy nhân viên.' });
         }
 
-        let targetId = attendanceId != null && attendanceId !== '' ? Number(attendanceId) : null;
-        if (targetId != null && !Number.isFinite(targetId)) {
-            await tx.rollback();
-            return res.status(400).json({ success: false, error: 'attendanceId không hợp lệ.' });
+        let targetId = attendanceId != null && attendanceId !== '' ? attendanceId : null;
+        if (targetId != null) {
+            const isNumeric = /^\d+$/.test(String(targetId));
+            const isUuid = UUID_RE.test(String(targetId));
+            if (!isNumeric && !isUuid) {
+                await tx.rollback();
+                return res.status(400).json({ success: false, error: 'attendanceId không hợp lệ.' });
+            }
         }
 
         if (targetId) {
@@ -506,7 +510,7 @@ const correctAttendance = async (req, res) => {
                     transaction: tx,
                 }
             );
-            targetId = byDay ? Number(byDay.id) : null;
+            targetId = byDay ? byDay.id : null;
         }
 
         if (targetId) {
@@ -566,7 +570,7 @@ const correctAttendance = async (req, res) => {
                 }
             );
             const first = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
-            targetId = first && first.id != null ? Number(first.id) : null;
+            targetId = first && first.id != null ? first.id : null;
         }
 
         await tx.commit();

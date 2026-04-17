@@ -11,7 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -52,7 +54,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "App cần sử dụng GPS để theo dõi hành trình chấm công của bạn trong ca làm việc ngay cả khi tắt màn hình."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
