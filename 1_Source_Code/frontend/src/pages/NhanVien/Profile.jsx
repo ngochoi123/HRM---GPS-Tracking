@@ -363,19 +363,21 @@ useEffect(() => {
                 </p>
               )}
 
-              <button onClick={handleChangePassword} className="accpet">
-                Xác nhận
-              </button>
+              <div className="modal-actions-profile">
+                <button onClick={handleChangePassword} className="accept-profile">
+                  Xác nhận
+                </button>
 
-              <button onClick={handleCloseModal} className="canncel">
-                Huỷ
-              </button>
+                <button onClick={handleCloseModal} className="canncel-profile">
+                  Huỷ
+                </button>
+              </div>
             </div>
           </div>
         )}
         {showContractModal && (
   <div className="modal" onClick={() => setShowContractModal(false)}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-content-profile" onClick={(e) => e.stopPropagation()}>
 
       <h3 className="modal-title">Thông báo</h3>
 
@@ -383,12 +385,14 @@ useEffect(() => {
         {contractMessage}
       </p>
 
-      <button
+      <div className="modal-footer-profile">
+        <button
         onClick={() => setShowContractModal(false)}
-        className="btn-ok"
+        className="btn-ok-accept"
       >
         OK
       </button>
+      </div>
 
     </div>
   </div>

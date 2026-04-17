@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Search, Clock3, CalendarDays, AlertTriangle, Link2, CheckCircle2, PlayCircle } from 'lucide-react';
 import './AttendanceHistoryModal.css';
 
@@ -27,8 +28,15 @@ const statusLabel = (row) => {
   const status = row?.status;
   const hasCheckIn = !!row?.check_in_time;
   const hasCheckOut = !!row?.check_out_time;
+  const explicitText = typeof row?.status_text === 'string' ? row.status_text : '';
   if (hasCheckIn && !hasCheckOut) {
     return { text: 'Đang làm', tone: 'working', icon: <PlayCircle size={14} /> };
+  }
+  if (explicitText) {
+    if (status === 'off_day') return { text: explicitText, tone: 'off', icon: <CalendarDays size={14} /> };
+    if (status === 'absent') return { text: explicitText, tone: 'bad', icon: <AlertTriangle size={14} /> };
+    if (status === 'on_time') return { text: explicitText, tone: 'ok', icon: <CheckCircle2 size={14} /> };
+    return { text: explicitText, tone: 'warn', icon: <AlertTriangle size={14} /> };
   }
   switch (status) {
     case 'on_time':
@@ -77,7 +85,7 @@ export default function AttendanceHistoryModal({
 
   if (!open) return null;
 
-  return (
+  const modal = (
     <div className="ahm-overlay" role="dialog" aria-modal="true">
       <div className="ahm-shell">
         <div className="ahm-top">
@@ -242,5 +250,11 @@ export default function AttendanceHistoryModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modal, document.body);
+  }
+
+  return modal;
 }
 

@@ -844,3 +844,8 @@
 
 .file-name { color: #2563eb; text-decoration: underline; cursor: pointer; }
 .file-size { color: #94a3b8; }
+
+.yellow-bg {
+  background-color: #FEF3C7;
+  color: #D97706;
+}

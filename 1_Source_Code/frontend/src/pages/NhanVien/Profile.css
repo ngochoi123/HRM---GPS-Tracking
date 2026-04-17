@@ -432,6 +432,15 @@
 
   animation: fadeIn 0.2s ease;
 }
+.modal-content-profile{
+  background: #fff;
+  padding: 30px 25px;
+  border-radius: 16px;
+  width: 300px;
+  text-align: center;
+
+  animation: fadeIn 0.2s ease;
+}
 
 /* title */
 .modal-title {
@@ -471,7 +480,34 @@
 .btn-ok:active {
   transform: scale(0.95);
 }
+.modal-footer-profile{
+  display: flex;
+  justify-content: center; /* Căn giữa theo chiều ngang */
+  margin-top: 0px;
+  
+}
 
+.btn-ok-accept{
+  background: #00b33c !important;
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+/* hover */
+.btn-ok-accept:hover {
+  background: #009933;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 179, 60, 0.3);
+}
+
+/* click */
+.btn-ok-accept:active {
+  transform: scale(0.95);
+}
 /* animation */
 @keyframes fadeIn {
   from {
@@ -536,4 +572,56 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
 .password-input span:hover {
   color: #00b33c;
+}
+
+/* Container để căn giữa và tạo khoảng cách cho 2 nút */
+.modal-actions-profile {
+  display: flex;
+  justify-content: center;
+  gap: 10px; /* Khoảng cách giữa 2 nút */
+  margin-top: 10px !important;
+}
+
+/* Nút Xác nhận */
+.accept-profile {
+  background-color: #00b33c !important;
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 110px;
+  transition: all 0.2s ease;
+}
+
+.accept-profile:hover {
+  background-color: #009933 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 179, 60, 0.3);
+}
+
+/* Nút Hủy */
+.canncel-profile {
+  background-color: #f0f0f0;
+  color: #555;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 110px;
+  transition: all 0.2s ease;
+}
+
+.canncel-profile:hover {
+  background-color: #e5e5e5;
+  color: #333;
+  transform: translateY(-2px);
+}
+
+/* Hiệu ứng khi click chung cho cả 2 nút */
+.accept-profile:active, 
+.canncel-profile:active {
+  transform: scale(0.95);
 }

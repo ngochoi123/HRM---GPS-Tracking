@@ -1343,7 +1343,7 @@ const getDashboardOverview = async (req, res) => {
   }
 };
 
-const createPersonalNotification = async ({ transaction, employeeId, title, desc, content, notificationType = 'info' }) => {
+const createPersonalNotification = async ({ transaction, employeeId, senderId = null, title, desc, content, notificationType = 'info' }) => {
   const rows = await db.query(
     `
     INSERT INTO notification (
@@ -1353,14 +1353,15 @@ const createPersonalNotification = async ({ transaction, employeeId, title, desc
       target,
       "desc",
       status,
+      sender_id,
       target_employee_id,
       created_at
     )
-    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :employeeId, NOW())
+    VALUES (:title, :content, :notificationType, 'Cá nhân', :desc, 'Đã gửi', :senderId, :employeeId, NOW())
     RETURNING id
     `,
     {
-      replacements: { title, content, notificationType, desc: desc || '', employeeId },
+      replacements: { title, content, notificationType, desc: desc || '', senderId, employeeId },
       type: QueryTypes.SELECT,
       transaction
     }
@@ -1381,13 +1382,25 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
   if (type === 'payroll') {
     const title = isApproved ? `Bảng lương ${monthYear} đã được duyệt` : `Bảng lương ${monthYear} bị từ chối`;
     const desc = isApproved ? 'Giám đốc đã duyệt bảng lương của bạn.' : 'Giám đốc đã từ chối bảng lương của bạn.';
+    const netSalaryText = Number(payrollRow?.net_salary || 0).toLocaleString('vi-VN');
+    const deductionText = Number(payrollRow?.total_deduction || 0).toLocaleString('vi-VN');
     const content = isApproved
-      ? `Bảng lương tháng ${monthYear} của ${employeeName} đã được Giám đốc phê duyệt. Thực nhận: ${Number(payrollRow?.net_salary || 0).toLocaleString('vi-VN')} VNĐ. Chi phí tiền lương công ty chi trả: ${Number((payrollRow?.net_salary || 0) + (payrollRow?.total_deduction || 0)).toLocaleString('vi-VN')} VNĐ.`
-      : `Bảng lương tháng ${monthYear} của ${employeeName} đã bị từ chối. Vui lòng kiểm tra lại thông tin lương.`;
+      ? `
+        <p><strong style="color:#065f46">Bảng lương tháng ${monthYear} của bạn đã được Giám đốc duyệt.</strong></p>
+        <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
+          <p style="margin:0;"><strong>Thực nhận:</strong> ${netSalaryText} VNĐ</p>
+          <p style="margin:8px 0 0;"><strong>Tổng khấu trừ:</strong> ${deductionText} VNĐ</p>
+        </div>
+      `
+      : `
+        <p><strong style="color:#b91c1c">Bảng lương tháng ${monthYear} của bạn chưa được duyệt.</strong></p>
+        <p>Vui lòng kiểm tra lại thông tin bảng lương hoặc liên hệ bộ phận phụ trách để được hỗ trợ.</p>
+      `;
 
     return createPersonalNotification({
       transaction,
       employeeId,
+      senderId: null,
       title,
       desc,
       content,
@@ -1403,12 +1416,25 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
     ? `${requestRow?.start_datetime || ''} - ${requestRow?.end_datetime || ''}`
     : `${requestRow?.ot_date || ''} ${requestRow?.start_time || ''} - ${requestRow?.end_time || ''}`;
   const content = isApproved
-    ? `${requestLabel} của ${employeeName} cho ${rangeLabel} đã được phê duyệt. Lý do: ${requestRow?.reason || 'Không có'}.`
-    : `${requestLabel} của ${employeeName} cho ${rangeLabel} đã bị từ chối. Lý do: ${requestRow?.reason || 'Không có'}.`;
+    ? `
+      <p><strong style="color:#065f46">${requestLabel} của bạn đã được chấp thuận.</strong></p>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:10px;">
+        <p style="margin:0;"><strong>Thời gian:</strong> ${rangeLabel}</p>
+      </div>
+      <p><strong>Lý do trong đơn:</strong> ${requestRow?.reason || 'Không có'}</p>
+    `
+    : `
+      <p><strong style="color:#b91c1c">${requestLabel} của bạn đã bị từ chối.</strong></p>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;">
+        <p style="margin:0;"><strong>Thời gian:</strong> ${rangeLabel}</p>
+      </div>
+      <p><strong>Lý do trong đơn:</strong> ${requestRow?.reason || 'Không có'}</p>
+    `;
 
   return createPersonalNotification({
     transaction,
     employeeId,
+    senderId: requestRow?.approver_id || null,
     title,
     desc,
     content,

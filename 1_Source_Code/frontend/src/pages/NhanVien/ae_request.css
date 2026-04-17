@@ -1,0 +1,20 @@
+.info-section-bottom-ae-request{
+  display: flex;
+  
+
+  margin-top: 10px;
+  border-radius: 10px;
+  height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  background-color: white;
+}
+.info-section-bottom-ae-request-left{
+  font-size: 14px;
+  font-weight: bold;
+}
+.info-section-bottom-ae-request-right{
+  
+  width: 286px;
+  font-size: 16px;
+}

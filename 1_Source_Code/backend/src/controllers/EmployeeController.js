@@ -1,7 +1,15 @@
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
-const { normalizeWorkLocation, checkInEmployee, checkOutEmployee, fetchWorkLocations } = require('../services/attendanceActions');
+const {
+  normalizeWorkLocation,
+  checkInEmployee,
+  checkOutEmployee,
+  fetchWorkLocations,
+  calcStandardWorkHours,
+  getAttendanceStatusForCheckIn,
+  getAttendanceStatusForCheckOut,
+} = require('../services/attendanceActions');
 const { getClientIp, parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
 
@@ -136,6 +144,27 @@ exports.getAttendanceHistory = async (req, res) => {
     const year = req.query?.year ? Number(req.query.year) : null;
 
     const hasMonthYear = Number.isFinite(month) && Number.isFinite(year) && month >= 1 && month <= 12 && year >= 1970;
+    const nowParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+    const currentYear = Number(nowParts.find((p) => p.type === 'year')?.value);
+    const currentMonth = Number(nowParts.find((p) => p.type === 'month')?.value);
+    const currentDay = Number(nowParts.find((p) => p.type === 'day')?.value);
+    const targetYear = hasMonthYear ? year : currentYear;
+    const targetMonth = hasMonthYear ? month : currentMonth;
+    const daysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const isFutureMonth =
+      targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth);
+    const lastDisplayDay =
+      targetYear === currentYear && targetMonth === currentMonth
+        ? currentDay
+        : isFutureMonth
+          ? 0
+          : daysInTargetMonth;
+
     const rows = await db.query(
       `
         SELECT
@@ -146,37 +175,119 @@ exports.getAttendanceHistory = async (req, res) => {
           total_work_hours
         FROM attendance
         WHERE employee_id = $1
-          AND ($2::int IS NULL OR EXTRACT(MONTH FROM attendance_date) = $2)
-          AND ($3::int IS NULL OR EXTRACT(YEAR FROM attendance_date) = $3)
+          AND EXTRACT(MONTH FROM attendance_date) = $2
+          AND EXTRACT(YEAR FROM attendance_date) = $3
         ORDER BY attendance_date DESC
       `,
-      { bind: [id, hasMonthYear ? month : null, hasMonthYear ? year : null], type: QueryTypes.SELECT }
+      { bind: [id, targetMonth, targetYear], type: QueryTypes.SELECT }
     );
 
-    const finalizedRows = rows.filter((r) => r.check_in_time != null && r.check_out_time != null);
-    const totalHours = finalizedRows.reduce((sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0), 0);
-    const daysWorked = rows.filter((r) => r.check_in_time != null).length;
-    const lateOrEarlyCount = finalizedRows.filter((r) => r.status === 'late' || r.status === 'early_leave').length;
+    const STANDARD_DAY_HOURS_CAP = 8;
+    const SHIFT_END_MINUTES = 17 * 60;
+    const pad2 = (value) => String(value).padStart(2, '0');
+    const congFromCappedHours = (cappedHours) => {
+      const ratio = Math.min(cappedHours / STANDARD_DAY_HOURS_CAP, 1);
+      return Math.round(ratio * 100) / 100;
+    };
+    const roundWorkDaysSum = (sum) => Math.round(sum * 100) / 100;
+    const getDateKey = (value) => {
+      if (!value) return null;
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    };
+    const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
+    const isSundayDate = (ymd) => {
+      const d = new Date(`${ymd}T00:00:00+07:00`);
+      return !Number.isNaN(d.getTime()) && d.getDay() === 0;
+    };
 
-    let workingDaysInMonth = null;
-    if (hasMonthYear) {
-      // Quy ước: 1 tháng nghỉ 4 ngày => số ngày công chuẩn tháng = số ngày trong tháng - 4
-      const mIndex = month - 1;
-      const last = new Date(year, mIndex + 1, 0);
-      const daysInMonth = last.getDate();
-      workingDaysInMonth = Math.max(0, daysInMonth - 4);
-    }
+    const rowMap = new Map(rows.map((row) => [getDateKey(row.attendance_date), row]));
+    const normalizedRows = Array.from({ length: lastDisplayDay }, (_, index) => {
+      const attendanceDate = `${targetYear}-${pad2(targetMonth)}-${pad2(index + 1)}`;
+      const isSunday = isSundayDate(attendanceDate);
+      const row = rowMap.get(attendanceDate) || null;
+      const checkInDt = row?.check_in_time ? new Date(row.check_in_time) : null;
+      const checkOutDt = row?.check_out_time ? new Date(row.check_out_time) : null;
+      const hasValidIn = checkInDt instanceof Date && !Number.isNaN(checkInDt.getTime());
+      const hasValidOut = checkOutDt instanceof Date && !Number.isNaN(checkOutDt.getTime());
 
+      if (!hasValidIn) {
+        return {
+          attendance_date: attendanceDate,
+          check_in_time: null,
+          check_out_time: null,
+          status: isSunday ? 'off_day' : 'absent',
+          status_text: isSunday ? 'Nghỉ Chủ nhật' : 'Vắng mặt',
+          is_late: false,
+          is_early_leave: false,
+          is_off_day: isSunday,
+          total_work_hours: 0,
+        };
+      }
+
+      const isLate = getAttendanceStatusForCheckIn(checkInDt) === 'late';
+      if (!hasValidOut) {
+        return {
+          attendance_date: attendanceDate,
+          check_in_time: row.check_in_time,
+          check_out_time: null,
+          status: isLate ? 'late' : 'on_time',
+          status_text: isLate ? 'Đi trễ' : 'Đang làm',
+          is_late: isLate,
+          is_early_leave: false,
+          is_off_day: false,
+          total_work_hours: 0,
+        };
+      }
+
+      const isEarlyLeave = getMinutesOfDay(checkOutDt) < SHIFT_END_MINUTES;
+      const totalWorkHours = calcStandardWorkHours(checkInDt, checkOutDt);
+
+      return {
+        attendance_date: attendanceDate,
+        check_in_time: row.check_in_time,
+        check_out_time: row.check_out_time,
+        status: isLate ? 'late' : isEarlyLeave ? 'early_leave' : 'on_time',
+        status_text: isLate && isEarlyLeave
+          ? 'Đi trễ / Về sớm'
+          : isLate
+            ? 'Đi trễ'
+            : isEarlyLeave
+              ? 'Về sớm'
+              : 'Đúng giờ',
+        is_late: isLate,
+        is_early_leave: isEarlyLeave,
+        is_off_day: false,
+        total_work_hours: totalWorkHours,
+      };
+    });
+
+    const totalHours = normalizedRows.reduce(
+      (sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0),
+      0
+    );
+
+    const daysWorked = roundWorkDaysSum(
+      normalizedRows.reduce((sum, r) => {
+        const h = r.total_work_hours != null ? Number(r.total_work_hours) : 0;
+        return sum + congFromCappedHours(h);
+      }, 0)
+    );
+
+    const workingDaysInMonth = normalizedRows.filter((r) => !r.is_off_day).length;
+    const lateOrEarlyCount = normalizedRows.filter((r) => r.is_late || r.is_early_leave).length;
     const compliancePercent =
-      workingDaysInMonth && workingDaysInMonth > 0 ? Math.round((daysWorked / workingDaysInMonth) * 100) : 0;
+      workingDaysInMonth > 0 ? Math.round((daysWorked / workingDaysInMonth) * 100) : 0;
 
     return res.status(200).json({
       success: true,
       data: {
-        rows,
+        rows: normalizedRows,
         summary: {
-          month: hasMonthYear ? month : null,
-          year: hasMonthYear ? year : null,
+          month: targetMonth,
+          year: targetYear,
           totalHours: Number(totalHours.toFixed(2)),
           daysWorked,
           workingDaysInMonth,
@@ -664,6 +775,139 @@ exports.getMyOvertimeRequests = async (req, res) => {
   } catch (error) {
     console.error("❌ Lỗi get OT:", error);
     res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+//tạo đơn giải trình
+exports.createExplanationRequest = async (req, res) => {
+  try {
+    const {
+      userId,
+      attendance_date,
+      explanation_type,
+      proposed_check_in,
+      proposed_check_out,
+      reason,
+      approverId
+    } = req.body;
+
+    const file = req.file;
+
+    // ===== VALIDATE =====
+    if (!userId || !attendance_date || !explanation_type) {
+      return res.status(400).json({ message: "Thiếu dữ liệu bắt buộc" });
+    }
+
+    // enum đúng theo DB
+    const validTypes = [
+      "forgot_checkin",
+      "forgot_checkout",
+      "system_error",
+      "late_arrival",
+      "early_leave"
+    ];
+
+    if (!validTypes.includes(explanation_type)) {
+      return res.status(400).json({ message: "Loại giải trình không hợp lệ" });
+    }
+
+    if (!approverId) {
+      return res.status(400).json({ message: "Chưa chọn người duyệt" });
+    }
+
+    // validate theo từng loại
+    if (explanation_type === "forgot_checkin" && !proposed_check_in) {
+      return res.status(400).json({ message: "Thiếu giờ check-in" });
+    }
+
+    if (explanation_type === "forgot_checkout" && !proposed_check_out) {
+      return res.status(400).json({ message: "Thiếu giờ check-out" });
+    }
+
+    const filePath = file ? file.filename : null;
+
+    // ===== INSERT =====
+    const result = await db.query(
+      `
+      INSERT INTO attendance_explanation_request (
+        employee_id,
+        attendance_date,
+        explanation_type,
+        proposed_check_in,
+        proposed_check_out,
+        reason,
+        approver_id,
+        attachment_url
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *
+      `,
+      {
+        bind: [
+          userId,
+          attendance_date,
+          explanation_type,
+          proposed_check_in || null,
+          proposed_check_out || null,
+          reason || null,
+          approverId,
+          filePath
+        ],
+        type: QueryTypes.INSERT
+      }
+    );
+
+    return res.status(201).json({
+      message: "Tạo đơn giải trình thành công",
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error("createExplanationRequest error:", error);
+    return res.status(500).json({
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+//lấy đơn giải trình
+exports.getMyExplanationRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT 
+        aer.id,
+        aer.attendance_date,
+        aer.explanation_type,
+        aer.proposed_check_in,
+        aer.proposed_check_out,
+        aer.reason,
+        aer.attachment_url,
+        aer.status,
+        aer.created_at,
+        e.full_name AS approver_name
+      FROM attendance_explanation_request aer
+      LEFT JOIN employee e ON aer.approver_id = e.id
+      WHERE aer.employee_id = $1
+      ORDER BY aer.created_at DESC
+      `,
+      {
+        bind: [id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    return res.json(result);
+
+  } catch (error) {
+    console.error("getMyExplanationRequests error:", error);
+    return res.status(500).json({
+      message: "Lỗi server",
+      error: error.message
+    });
   }
 };
 

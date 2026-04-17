@@ -3,10 +3,17 @@ const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
-const LATE_TOLERANCE = 5;
-const MAX_LATE = 120;
+const SHIFT_START_MINUTES = 7 * 60 + 30;
+const SHIFT_END_MINUTES = 17 * 60;
+const LUNCH_START_MINUTES = 11 * 60 + 30;
+const LUNCH_END_MINUTES = 13 * 60;
+const LATE_TOLERANCE = 0;
+const MAX_LATE = 24 * 60;
 
+const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
 const getShiftForDate = (dateObj) => {
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return null;
+  return { name: 'day', startMinutes: SHIFT_START_MINUTES, endMinutes: SHIFT_END_MINUTES };
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
 
   const morningStart = 7 * 60 + 30;

@@ -65,7 +65,7 @@ import Requests from './pages/NhanVien/Requests';
 import Profile from './pages/NhanVien/Profile';
 import Contract from "./pages/NhanVien/Contract";
 import OvertimeRequest from "./pages/NhanVien/OvertimeRequest";
-
+import Ae_request from "./pages/NhanVien/attendance_explanation_request";
 // ==========================================
 // 6. LAYOUT
 // ==========================================
@@ -175,6 +175,8 @@ function App() {
           <Route path="/NhanVien/contracts" element={<Contract />} />
           <Route path="/NhanVien/requests/leave" element={<Requests />} />
           <Route path="/NhanVien/requests/overtime" element={<OvertimeRequest />} />
+          <Route path="/NhanVien/requests/ae_request" element={<Ae_request />} />
+          
 
         </Route>
 

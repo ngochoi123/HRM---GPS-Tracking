@@ -56,6 +56,7 @@ const formatTime = (time) => {
   return time.slice(0, 5);
 };
 
+
 const calculateOTHours = (start, end) => {
   if (!start || !end) return "";
 
@@ -86,8 +87,46 @@ const filteredRequests = filterMonth
   : requests;
 
 const handleSubmit = async () => {
-  if (!form.ot_date || !form.start_time || !form.end_time || !approverId) {
-    setNotification("Vui lòng nhập đầy đủ thông tin!");
+  // 1. Validate đầy đủ
+  if (!form.ot_date) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng chọn ngày tăng ca!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+    if (!approverId) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng chọn người kiểm duyệt!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+
+  if (!form.start_time || !form.end_time) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng chọn thời gian bắt đầu và kết thúc!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+
+
+  if (!form.reason.trim()) {
+    setShowConfirmSubmit(false);
+    setNotification("Vui lòng nhập nội dung công việc!");
+    setTimeout(() => setNotification(""), 3000);
+    return;
+  }
+
+  // 2. Check logic thời gian
+  const [h1, m1] = form.start_time.split(":").map(Number);
+  const [h2, m2] = form.end_time.split(":").map(Number);
+
+  const start = h1 * 60 + m1;
+  const end = h2 * 60 + m2;
+
+  if (end <= start) {
+    setShowConfirmSubmit(false);
+    setNotification("Thời gian kết thúc phải lớn hơn thời gian bắt đầu!");
+    setTimeout(() => setNotification(""), 3000);
     return;
   }
 
@@ -105,7 +144,6 @@ const handleSubmit = async () => {
 
     await employeeService.createOvertimeRequest(payload);
 
-    // reload data
     const res = await employeeService.getOvertimeRequests(user.id);
     const data = res?.data || res || [];
 
@@ -286,7 +324,7 @@ useEffect(() => {
     <>
         <div className="request-left-header">
             <div className="header-left">
-                <h2>Tạo xin đơn tăng ca</h2>
+                <h2>Tạo đơn xin tăng ca</h2>
                 <p>Tạo và quản lý đơn tăng ca của bạn.</p>
             </div>
             <div className="header-right">
@@ -373,7 +411,7 @@ useEffect(() => {
                             <p>{calculateHours()}   
                             </p>
                         </div>
-                    </div>
+                </div>
             </div>
 
             <div className="info-section">
@@ -382,7 +420,7 @@ useEffect(() => {
                 </h3>
 
                 <div className="input-grid-1">
-                    <div className="input-group" style={{ marginTop: "20px" }}>
+                    <div className="input-group" style={{ marginTop: "10px" }}>
                     <label>Mô tả nội dung công việc</label>
                     <textarea
                         className="input-option-1"
@@ -512,7 +550,7 @@ useEffect(() => {
   <div className="modal-overlay" onClick={closeModal}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
 
-      <h2 style={{ marginBottom: "20px", fontSize: "20px" }}>
+      <h2 style={{ marginBottom: "20px", fontSize: "20px",fontWeight:"bold" }}>
         Chi tiết đơn tăng ca
       </h2>
 

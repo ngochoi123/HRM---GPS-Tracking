@@ -58,6 +58,13 @@ const Approvals = () => {
   maternity: "Nghỉ thai sản",
   bereavement: "Nghỉ tang"
   };
+  const explanationTypes = {
+  forgot_checkin: "Quên chấm công vào",
+  forgot_checkout: "Quên chấm công ra",
+  system_error: "Lỗi hệ thống",
+  late_arrival: "Đi muộn",
+  early_leave: "Về sớm"
+};
 
   useEffect(() => {
     const fetchData = async () => {
@@ -233,6 +240,12 @@ const handleApproveAll = async () => {
               >
                 Làm thêm giờ (OT)
               </button>
+              <button
+                className={`filter-tab ${filterType === 'explanation' ? 'active' : ''}`}
+                onClick={() => setFilterType('explanation')}
+              >
+                Giải trình
+              </button>
             </div>
           </div>
         </div>
@@ -248,7 +261,15 @@ const handleApproveAll = async () => {
         ) : (
           filteredRequests.map((req) => (
             <div className="request-card" key={`${req.type}-${req.id}`} style={{
-              borderLeft: `5px solid ${req.type === 'leave' ? "#34D399" : "#7E22CE"}`
+              borderLeft: `5px solid ${
+              req.type === 'leave'
+                ? "#34D399"
+                : req.type === 'overtime'
+                ? "#7E22CE"
+                : req.type === 'explanation'
+                ? "#F59E0B"
+                : "red"
+            }`
             }}>
                       
               <div className="card-user-section">
@@ -261,16 +282,33 @@ const handleApproveAll = async () => {
 
               <div className="card-info-section">
                 <div className="tag-wrapper">
-                  <span className={`tag-type ${req.type === 'leave' ? 'green-bg' : 'orange-bg'}`}>
-                    {req.type === 'leave' ? (
+                  <span
+                    className={`tag-type ${
+                      req.type === 'leave'
+                        ? 'green-bg'
+                        : req.type === 'overtime'
+                        ? 'orange-bg'
+                        : 'yellow-bg'
+                    }`}
+                  >
+                    {req.type === 'leave' && (
                       <>
                         <CiCalendar size={15} style={{ marginRight: "4px" }} />
                         {leaveTypes[req.leave_type] || "Nghỉ khác"}
                       </>
-                    ) : (
+                    )}
+
+                    {req.type === 'overtime' && (
                       <>
                         <IoMoonOutline size={15} style={{ marginRight: "4px" }} />
                         Làm thêm giờ (OT)
+                      </>
+                    )}
+
+                    {req.type === 'explanation' && (
+                      <>
+                        <CiClock2 size={15} style={{ marginRight: "4px" }} />
+                        Giải trình 
                       </>
                     )}
                   </span>
@@ -364,7 +402,14 @@ const handleApproveAll = async () => {
               
               {/* Header */}
               <div className="request-detail-header">
-                <h3>Chi tiết đơn {selectedRequest.type === 'leave' ? 'xin phép' : 'tăng ca'}</h3>
+                <h3>
+                  Chi tiết đơn{" "}
+                  {selectedRequest.type === 'leave'
+                    ? 'xin phép'
+                    : selectedRequest.type === 'overtime'
+                    ? 'tăng ca'
+                    : 'giải trình'}
+                </h3>
                 <button className="request-detail-btn-close" onClick={() => setSelectedRequest(null)}>✕</button>
               </div>
 
@@ -388,15 +433,24 @@ const handleApproveAll = async () => {
                   <div className="section-grid">
                     <div className="input-group">
                       <label>Loại đơn</label>
-                      <div className="fake-input">
-                        {selectedRequest.type === 'leave' 
-                          ? `${leaveTypes[selectedRequest.leave_type]}` 
-                          : "Làm thêm giờ (OT)"}
-                      </div>
+                     <div className="fake-input">
+                       {selectedRequest.type === 'leave'
+                      ? leaveTypes[selectedRequest.leave_type]
+                      : selectedRequest.type === 'overtime'
+                      ? "Làm thêm giờ (OT)"
+                      : explanationTypes[selectedRequest.explanation_type] || "Đơn giải trình"}
+                    </div>
                     </div>
                     <div className="input-group">
-                      <label>Người duyệt</label>
-                      <div className="fake-input">{selectedRequest.approver_name}</div>
+                      <label>
+                        {selectedRequest.type === "explanation"
+                          ? "Ngày cần giải trình"
+                          : "Người kiểm duyệt"}
+                      </label>
+                      <div className="fake-input">{selectedRequest.type === "explanation"
+                        ? moment(selectedRequest.start_datetime).format("DD/MM/YYYY")
+                        : selectedRequest.approver_name}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -404,49 +458,72 @@ const handleApproveAll = async () => {
                 {/* 2. Thời gian nghỉ/làm việc */}
                 <div className="request-detail-section">
                   <div className="section-title">
-                    <span className="icon">📅</span> Thời gian {selectedRequest.type === 'leave' ? 'nghỉ' : 'làm'}
+                    <span className="icon">📅</span> {selectedRequest.type === "explanation"
+                      ? "Thời gian thực tế"
+                      : selectedRequest.type === "leave"
+                      ? "Thời gian nghỉ"
+                      : "Thời gian làm"}
                   </div>
                   <div className="section-grid">
                     <div className="input-group">
-                      <label>Bắt đầu từ</label>
+                      <label>{selectedRequest.type === "explanation"
+                          ? "Thời gian vào"
+                          : "Bắt đầu vào"}</label>
                       <div className="fake-input">
-                        {moment(selectedRequest.start_datetime).format('DD/MM/YYYY')} 
-                        {selectedRequest.type === 'overtime' ? ` - ${selectedRequest.start_time}` : ' - Chiều'}
+                       {selectedRequest.type === "explanation"
+                          ? selectedRequest.start_time_ex
+                          : `${moment(selectedRequest.start_datetime).format("DD/MM/YYYY")}${
+                              selectedRequest.type === "overtime"
+                                ? ` - ${selectedRequest.start_time}`
+                                : ""
+                            }`
+                        }
                       </div>
                     </div>
                     <div className="input-group">
-                      <label>Kết thúc vào</label>
+                      <label>{selectedRequest.type === "explanation"
+                          ? "Thời gian ra"
+                          : "Kết thúc vào"}</label>
                       <div className="fake-input">
-                        {moment(selectedRequest.end_datetime || selectedRequest.start_datetime).format('DD/MM/YYYY')} 
-                        {selectedRequest.type === 'overtime' ? ` - ${selectedRequest.end_time}` : ' - Chiều'}
+                        {selectedRequest.type === "explanation"
+                          ? selectedRequest.end_time_ex
+                          : `${moment(selectedRequest.end_datetime).format("DD/MM/YYYY")}${
+                              selectedRequest.type === "overtime"
+                                ? ` - ${selectedRequest.end_time}`
+                                : ""
+                            }`
+                        }
                       </div>
                     </div>
                   </div>
-                  <div className="total-time-badge">
-                    Tổng thời gian {selectedRequest.type === 'leave' ? 'nghỉ' : 'làm'} dự kiến:{" "}
-                    <span>
-                      {selectedRequest.type === 'leave'
-                        ? `${moment(selectedRequest.end_datetime)
-                            .diff(moment(selectedRequest.start_datetime), 'days') + 1} ngày`
-                        : `${moment(selectedRequest.end_time, "HH:mm")
-                            .diff(moment(selectedRequest.start_time, "HH:mm"), 'hours', true)} giờ`}
-                    </span>
-                  </div>
+                  {selectedRequest.type !== "explanation" && (
+                    <div className="total-time-badge">
+                      Tổng thời gian {selectedRequest.type === 'leave' ? 'nghỉ' : 'làm'} dự kiến:{" "}
+                      <span>
+                        {selectedRequest.type === 'leave'
+                          ? `${moment(selectedRequest.end_datetime)
+                              .diff(moment(selectedRequest.start_datetime), 'days') + 1} ngày`
+                          : `${moment(selectedRequest.end_time, "HH:mm")
+                              .diff(moment(selectedRequest.start_time, "HH:mm"), 'hours', true)} giờ`}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Chi tiết thêm */}
                 <div className="request-detail-section">
                   <div className="section-title">
-                    <span className="icon">💬</span> Chi tiết thêm
+                    <span className="icon">💬</span>{" "}
+                      {selectedRequest.type === "explanation" ? "Giải trình" : "Chi tiết thêm"}
                   </div>
                   <div className="input-group full-width">
-                    <label>Lý do cụ thể</label>
+                    <label>{selectedRequest.type === "explanation" ? "Lý do giải trình cụ thể" : "Lý do cụ thể"}</label>
                     <div className="fake-textarea">
                       {selectedRequest.reason || "Không có lý do chi tiết."}
                     </div>
                   </div>
                   
-                  {selectedRequest.type === "leave" && (
+                  {(selectedRequest.type === "leave" || selectedRequest.type === "explanation") && (
                     <div
                       className="input-group full-width"
                       style={{ marginTop: "15px" }}
@@ -460,7 +537,20 @@ const handleApproveAll = async () => {
 
                             {/* nếu backend lưu full URL hoặc file name */}
                             <span className="file-name">
-                              {selectedRequest.attachment}
+                              {selectedRequest.attachment ? (
+                                <a
+                                  href={`http://localhost:5000/uploads/${selectedRequest.attachment}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="file-link"
+                                >
+                                  {selectedRequest.attachment}
+                                </a>
+                              ) : (
+                                <span style={{ color: "#94a3b8" }}>
+                                  Không có tài liệu đính kèm
+                                </span>
+                              )}
                             </span>
                           </>
                         ) : (
