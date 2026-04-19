@@ -143,12 +143,24 @@ export default function ContractStatistics() {
   };
 
   const handleRenewSubmit = async (e) => {
-    e.preventDefault();
+    // 1. Ràng buộc UI Ngày tháng
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(renewFormData.start_date);
+    const end = new Date(renewFormData.end_date);
+
+    if (renewFormData.contract_type !== 'indefinite') {
+      if (!renewFormData.end_date || end <= today || end <= start) {
+        toast.error('Ngày kết thúc phải lớn hơn ngày bắt đầu và ngày hiện tại!');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
         employee_id: selectedContract.employee_id,
-        contract_number: renewFormData.contract_number,
+        // Backend sẽ tự động sinh mã HĐ, không gửi contract_number từ client
         contract_type: renewFormData.contract_type,
         start_date: renewFormData.start_date,
         end_date: renewFormData.end_date,
@@ -465,16 +477,15 @@ export default function ContractStatistics() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Số hợp đồng mới */}
+                {/* Mã hợp đồng - Thông báo tự động */}
                 <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Số hợp đồng mới</label>
-                  <input 
-                    type="text"
-                    required
-                    value={renewFormData.contract_number}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all text-sm font-semibold"
-                    onChange={(e) => setRenewFormData({...renewFormData, contract_number: e.target.value})}
-                  />
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mã số hợp đồng</label>
+                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-gray-400" />
+                    <span className="text-xs text-gray-400 italic underline decoration-dotted">
+                      Mã hợp đồng gia hạn sẽ được hệ thống tự động khởi tạo để tránh trùng lặp.
+                    </span>
+                  </div>
                 </div>
 
                 {/* Loại hợp đồng */}

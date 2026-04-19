@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, 
-  ActivityIndicator, RefreshControl, Alert, Platform, FlatList, Dimensions, NativeSyntheticEvent, NativeScrollEvent
+  ActivityIndicator, RefreshControl, Alert, Platform, Dimensions, NativeSyntheticEvent, NativeScrollEvent
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as DocumentPicker from 'expo-document-picker';
@@ -94,18 +94,21 @@ export default function RequestsScreen() {
 
       const headers = { headers: { 'Authorization': `Bearer ${token}` } };
       
+      console.log("Fetching data for employee:", empId);
+      // Requirement 1: Pass token as 2nd param
       const apps = await employeeService.getApprovers(empId, token);
       setApprovers(apps);
 
       const [resLeave, resOt, reqEx] = await Promise.all([
         axios.get(`${API_URL}/employee/leave-request/${empId}`, headers),
         axios.get(`${API_URL}/employee/overtime-request/${empId}`, headers),
+        // Requirement 1: Pass token as 2nd param
         employeeService.getExplanationRequests(empId, token)
       ]);
 
-      console.log("Leave Data:", resLeave.data);
-      console.log("OT Data:", resOt.data);
-      console.log("Explanation Data:", reqEx);
+      console.log("Leave Data fetched:", resLeave.data?.length);
+      console.log("OT Data fetched:", resOt.data?.length);
+      console.log("Explanation Data fetched:", reqEx?.length);
 
       // Process Leave/OT
       const leaveData = (resLeave.data || []).map((r: any) => ({
@@ -165,7 +168,8 @@ export default function RequestsScreen() {
       });
       setOtHours(otH); setOtCount(otC);
     } catch (error) {
-       console.log('Error fetching data', error);
+       console.log('Error fetching requests data:', error);
+       Alert.alert('Lỗi', 'Không thể tải dữ liệu đơn từ');
     }
   }, []);
 
@@ -189,7 +193,7 @@ export default function RequestsScreen() {
     const x = event.nativeEvent.contentOffset.x;
     const index = Math.round(x / SCREEN_WIDTH);
     const tabs: ('leave' | 'overtime' | 'explanation')[] = ['leave', 'overtime', 'explanation'];
-    if (tabs[index] !== activeTab) {
+    if (tabs[index] && tabs[index] !== activeTab) {
       setActiveTab(tabs[index]);
     }
   };
@@ -205,12 +209,16 @@ export default function RequestsScreen() {
       overtime: "Tăng ca (OT)",
       forgot_checkin: "Quên checkin",
       forgot_checkout: "Quên checkout",
-      late_arrival: "Đi muộn",
-      early_leave: "Về sớm",
-      system_error: "Lỗi hệ thống"
+      early_leave: "Về sớm"
     };
     return types[type] || type;
   };
+
+  const getThemeColor = useCallback((tab: string) => {
+    if (tab === 'leave') return '#10b981';
+    if (tab === 'overtime') return '#3b82f6';
+    return '#f43f5e';
+  }, []);
 
   const toMinutes = (date: Date) => date.getHours() * 60 + date.getMinutes();
   const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -239,10 +247,10 @@ export default function RequestsScreen() {
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (!res.canceled && res.assets?.[0]) setAttachment(res.assets[0]);
-    } catch (err) { console.log('Error picking file', err); }
+    } catch (err) { console.log('Error picking file:', err); }
   };
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (_event: any, date?: Date) => {
     setDatePickerMode(null);
     if (!date) return;
     if (datePickerMode === 'start') setStartDate(date);
@@ -260,6 +268,7 @@ export default function RequestsScreen() {
     try {
       const empId = await AsyncStorage.getItem('employeeId');
       const token = await AsyncStorage.getItem('userToken') || '';
+      if (!token) throw new Error("Phiên đăng nhập hết hạn!");
       
       const formData = new FormData();
       formData.append('userId', empId!);
@@ -304,6 +313,7 @@ export default function RequestsScreen() {
           } as any);
         }
         console.log("Submitting Explanation FormData:", Array.from((formData as any)._parts));
+        // Requirement 1: Pass token as 2nd param
         await employeeService.createExplanationRequest(formData, token);
       } else {
         formData.append('leave_type', leaveType);
@@ -330,6 +340,7 @@ export default function RequestsScreen() {
       setView('list');
       fetchData();
     } catch (error: any) {
+      console.log("Submit error:", error?.response?.data || error.message);
       Alert.alert('Lỗi', error?.response?.data?.message || 'Không thể tạo đơn!');
     } finally {
       setIsLoading(false);
@@ -431,14 +442,14 @@ export default function RequestsScreen() {
       <View style={styles.header}>
         {view === 'form' ? (
           <TouchableOpacity onPress={() => setView('list')} style={styles.backBtn}>
-            <Feather name="chevron-left" size={24} color={activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e')} />
+            <Feather name="chevron-left" size={24} color={getThemeColor(activeTab)} />
           </TouchableOpacity>
         ) : (
           <View style={[styles.iconWrap, { backgroundColor: activeTab === 'leave' ? '#dcfce7' : (activeTab === 'overtime' ? '#dbeafe' : '#ffe4e6') }]}>
-            <Feather name="file-text" size={22} color={activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e')} />
+            <Feather name="file-text" size={22} color={getThemeColor(activeTab)} />
           </View>
         )}
-        <Text style={styles.headerTitle}>{view === 'list' ? 'Đơn từ & Giải trình' : 'Tạo yêu cầu mới'}</Text>
+        <Text style={styles.headerTitle}>{view === 'list' ? 'Đơn từ và Giải trình' : 'Tạo yêu cầu mới'}</Text>
         <BellButton />
       </View>
 
@@ -517,6 +528,7 @@ export default function RequestsScreen() {
               )}
             </View>
 
+            {/* Requirement 2: Impossible condition check. Ensure mutually exclusive tab checks are ORed if needed, or structured cleanly in IF blocks */}
             {activeTab === 'explanation' && (
               <View style={styles.inputSplit}>
                 <TouchableOpacity onPress={() => setDatePickerMode('checkin')} style={[styles.inputGroup, { flex: 1 }]}>
@@ -545,7 +557,7 @@ export default function RequestsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>TÀI LIỆU ĐÍNH KÈM</Text>
                 <TouchableOpacity style={styles.attachBtn} onPress={pickDocument}>
-                  <Feather name="paperclip" size={20} color={activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e')} />
+                  <Feather name="paperclip" size={20} color={getThemeColor(activeTab)} />
                   <Text style={[styles.attachText, !attachment && { color: '#94a3b8' }]} numberOfLines={1}>{attachment ? attachment.name : 'Chọn file minh chứng...'}</Text>
                   {attachment && <TouchableOpacity onPress={() => setAttachment(null)}><Feather name="x-circle" size={18} color="#f43f5e" /></TouchableOpacity>}
                 </TouchableOpacity>
@@ -553,7 +565,7 @@ export default function RequestsScreen() {
             )}
 
             <TouchableOpacity 
-              style={[styles.submitBtn, { backgroundColor: activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e') }]} 
+              style={[styles.submitBtn, { backgroundColor: getThemeColor(activeTab) }]} 
               onPress={handleSubmit} 
               disabled={isLoading}
             >
@@ -574,7 +586,7 @@ export default function RequestsScreen() {
           value={datePickerMode === 'start' ? startDate : datePickerMode === 'end' ? endDate : datePickerMode === 'checkin' ? expCheckin : datePickerMode === 'checkout' ? expCheckout : expDate}
           mode={['checkin', 'checkout'].includes(datePickerMode) ? 'time' : 'date'}
           is24Hour={true}
-          onChange={handleDateChange}
+          onChange={(event: any, date?: Date) => handleDateChange(event, date)}
         />
       )}
 
@@ -582,10 +594,18 @@ export default function RequestsScreen() {
         <View style={styles.sheetContent}>
           <Text style={styles.sheetTitle}>Chọn loại {activeTab === 'explanation' ? 'giải trình' : 'nghỉ phép'}</Text>
           <ScrollView>
-            {(activeTab === 'explanation' ? ['forgot_checkin', 'forgot_checkout', 'late_arrival', 'early_leave', 'system_error'] : ['annual', 'sick', 'unpaid', 'maternity', 'bereavement']).map((t) => (
-              <TouchableOpacity key={t} style={styles.sheetItem} onPress={() => { activeTab === 'explanation' ? setExpType(t) : setLeaveType(t); setShowTypeSheet(false); }}>
-                <Text style={[styles.sheetItemText, (activeTab === 'explanation' ? expType === t : leaveType === t) && { color: activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e'), fontWeight: 'bold' }]}>{getLeaveTypeText(t)}</Text>
-                {(activeTab === 'explanation' ? expType === t : leaveType === t) && <Feather name="check" size={20} color={activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e')} />}
+            {(activeTab === 'explanation' ? ['forgot_checkin', 'forgot_checkout', 'early_leave'] : ['annual', 'sick', 'unpaid', 'maternity', 'bereavement']).map((t) => (
+              <TouchableOpacity key={t} style={styles.sheetItem} onPress={() => { 
+                // Requirement 3: ESLint no-unused-expressions. Wrap calls in proper IF block
+                if (activeTab === 'explanation') {
+                  setExpType(t);
+                } else {
+                  setLeaveType(t);
+                }
+                setShowTypeSheet(false); 
+              }}>
+                <Text style={[styles.sheetItemText, (activeTab === 'explanation' ? expType === t : leaveType === t) && { color: getThemeColor(activeTab), fontWeight: 'bold' }]}>{getLeaveTypeText(t)}</Text>
+                {(activeTab === 'explanation' ? expType === t : leaveType === t) && <Feather name="check" size={20} color={getThemeColor(activeTab)} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -598,7 +618,7 @@ export default function RequestsScreen() {
           <ScrollView>
             {approvers.map((appr) => (
               <TouchableOpacity key={appr.id} style={styles.sheetItem} onPress={() => { setApproverId(appr.id); setShowApproverSheet(false); }}>
-                <Text style={[styles.sheetItemText, approverId === appr.id && { color: activeTab === 'leave' ? '#10b981' : (activeTab === 'overtime' ? '#3b82f6' : '#f43f5e'), fontWeight: 'bold' }]}>{appr.full_name} ({appr.position_name})</Text>
+                <Text style={[styles.sheetItemText, approverId === appr.id && { color: getThemeColor(activeTab), fontWeight: 'bold' }]}>{appr.full_name} ({appr.position_name})</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>

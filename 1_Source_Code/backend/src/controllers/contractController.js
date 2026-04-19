@@ -156,7 +156,6 @@ const contractController = {
     try {
       const { id: oldContractId } = req.params;
       const { 
-        contract_number, 
         employee_id, 
         contract_type, 
         start_date, 
@@ -165,11 +164,24 @@ const contractController = {
         allowances 
       } = req.body;
 
-      if (!end_date || !contract_number) {
-        return res.status(400).json({ message: 'Thông tin gia hạn thiếu (Ngày hết hạn hoặc Số HĐ).' });
+      // 1. Validate Ngày tháng
+      if (!start_date || !end_date) {
+        return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ ngày bắt đầu và ngày kết thúc gia hạn.' });
       }
 
-      // 1. Đóng hợp đồng cũ
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+
+      if (end <= today || end <= start) {
+        return res.status(400).json({ message: 'Ngày kết thúc phải lớn hơn ngày bắt đầu và ngày hiện tại!' });
+      }
+
+      // 2. Auto-generate Mã hợp đồng (An toàn, tránh trùng lặp)
+      const newContractNumber = `HD-${employee_id}-${Date.now()}`;
+
+      // 3. Đóng hợp đồng cũ
       await db.query(`
         UPDATE contract 
         SET is_active = false, 
@@ -180,7 +192,7 @@ const contractController = {
         transaction: t
       });
 
-      // 2. Tạo hợp đồng mới
+      // 4. Tạo hợp đồng mới dùng mã tự sinh
       const insertQuery = `
         INSERT INTO contract (
           contract_number, employee_id, contract_type, 
@@ -195,7 +207,7 @@ const contractController = {
 
       await db.query(insertQuery, {
         replacements: {
-          contract_number,
+          contract_number: newContractNumber,
           employee_id,
           contract_type,
           start_date,
