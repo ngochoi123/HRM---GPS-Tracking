@@ -236,10 +236,24 @@ const createDecision = async (req, res) => {
     }
 
     const yearStr = new Date().getFullYear().toString().slice(2);
-    const countQuery = `SELECT COUNT(*) FROM hr_decision WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`;
-    const [countResult] = await db.query(countQuery, { type: db.QueryTypes.SELECT });
-    const seq = String(parseInt(countResult.count) + 1).padStart(3, '0');
-    const decision_number = `QĐ-${yearStr}-${seq}`;
+    const prefix = `QĐ-${yearStr}-`;
+
+    const maxQuery = `SELECT decision_number FROM hr_decision WHERE decision_number LIKE :prefix ORDER BY decision_number DESC LIMIT 1`;
+    const [maxRecord] = await db.query(maxQuery, { 
+      replacements: { prefix: `${prefix}%` }, 
+      type: db.QueryTypes.SELECT,
+      transaction: t 
+    });
+
+    let nextSeq = 1;
+    if (maxRecord && maxRecord.decision_number) {
+      const lastSeq = parseInt(maxRecord.decision_number.split('-')[2]);
+      if (!isNaN(lastSeq)) {
+        nextSeq = lastSeq + 1;
+      }
+    }
+    const seq = String(nextSeq).padStart(3, '0');
+    const decision_number = `${prefix}${seq}`;
     
     // Tạm hardcode ID người tạo
     const issuer_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
