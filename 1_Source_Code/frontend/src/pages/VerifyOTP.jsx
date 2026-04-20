@@ -90,7 +90,8 @@ const VerifyOTP = () => {
       }
     } catch (err) {
       console.error(err);
-      setError('Không thể kết nối đến máy chủ!');
+      const serverMsg = err.response?.data?.message;
+      setError(serverMsg || 'Không thể kết nối đến máy chủ!');
       setIsLoading(false);
     }
   };
@@ -103,14 +104,16 @@ const VerifyOTP = () => {
       const data = await authService.forgotPassword(email);
 
       if (data.success) {
-        alert('Mã OTP mới đã được gửi! Vui lòng kiểm tra lại email của bạn.');
+        // FUNC-OTP08: Báo thành công "Đã gửi lại mã"
+        alert('Đã gửi lại mã - Vui lòng kiểm tra lại email của bạn.');
         setCountdown(60); 
       } else {
         setError(data.message || 'Lỗi khi gửi lại mã OTP');
       }
     } catch (err) {
       console.error(err);
-      setError('Không thể kết nối đến máy chủ để gửi lại mã!');
+      const serverMsg = err.response?.data?.message;
+      setError(serverMsg || 'Không thể kết nối đến máy chủ để gửi lại mã!');
     } finally {
         setIsLoading(false);
     }
@@ -122,7 +125,7 @@ const VerifyOTP = () => {
         <div className="login-top-bar"></div>
 
         <div className="login-header">
-          <h2>Xác nhận mã OTP</h2>
+          <h2 style={{ fontWeight: 'bold' }}>Xác minh OTP</h2>
           <p>
             Mã xác nhận gồm 6 chữ số đã được gửi đến email <br />
             <strong style={{ color: '#111827' }}>{email}</strong>
@@ -155,33 +158,36 @@ const VerifyOTP = () => {
           </div>
 
           <div className="resend-text">
-            Bạn chưa nhận được mã?{' '}
-            <button 
-              type="button" 
-              className="resend-link" 
-              onClick={handleResend}
-              disabled={countdown > 0}
-            >
-              Gửi lại {countdown > 0 ? `(${countdown}s)` : ''}
-            </button>
+            Bạn không nhận được mã? 
+            {countdown > 0 ? (
+              <span style={{ color: '#9ca3af' }}> Gửi lại mã sau {countdown}s</span>
+            ) : (
+              <button 
+                type="button" 
+                className="resend-link" 
+                onClick={handleResend}
+              >
+                 Gửi lại mã
+              </button>
+            )}
           </div>
 
-          <button type="submit" disabled={isLoading} className="btn-login">
-            {isLoading ? 'Đang xác thực...' : 'Xác nhận'}
+          <button type="submit" disabled={isLoading} className="btn-login btn-verify-otp">
+            {isLoading ? 'Đang xác thực...' : 'Xác nhận OTP'}
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center' }}>
           <button 
-            onClick={() => navigate('/forgot-password')}
+            onClick={() => navigate('/login')}
             style={{
               background: 'none', border: 'none', display: 'inline-flex', alignItems: 'center', 
               color: '#6b7280', fontSize: '14px', fontWeight: '500', cursor: 'pointer', gap: '6px'
             }}
-            onMouseOver={(e) => e.target.style.color = '#1da053'}
-            onMouseOut={(e) => e.target.style.color = '#6b7280'}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#1da053')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
           >
-            <ArrowLeft size={16} /> Quay lại
+            <ArrowLeft size={16} /> Quay lại đăng nhập
           </button>
         </div>
 

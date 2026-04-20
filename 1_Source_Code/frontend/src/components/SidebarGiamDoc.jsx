@@ -3,8 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, Building, Users, FileText, MapPin, 
   Briefcase, CheckSquare, Settings, HelpCircle, 
-  LogOut, HelpCircle as QuestionIcon, Calculator 
+  LogOut, Calculator, Bell 
 } from 'lucide-react';
+import LogoutModal from './LogoutModal';
 
 const SidebarGiamDoc = () => {
   const location = useLocation();
@@ -24,6 +25,7 @@ const SidebarGiamDoc = () => {
     { path: '/GiamDoc/branches', icon: <MapPin size={20} />, label: 'Chi nhánh' },
     { path: '/GiamDoc/positions', icon: <Briefcase size={20} />, label: 'Chức vụ' },
     { path: '/GiamDoc/approvals', icon: <CheckSquare size={20} />, label: 'Phê duyệt' },
+    { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Thông báo' },
   ];
 
   const handleLogoutClick = (e) => {
@@ -128,25 +130,11 @@ const SidebarGiamDoc = () => {
       </div>
 
       {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
-      {showLogoutModal && (
-        <div className="modal-overlay" onClick={() => setShowLogoutModal(false)}>
-          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon-container">
-               <div className="icon-circle">
-                  <QuestionIcon size={40} color="#16a34a" />
-               </div>
-            </div>
-            
-            <h3>Xác nhận đăng xuất</h3>
-            <p>Bạn có chắc chắn muốn đăng xuất?</p>
-            
-            <div className="modal-actions">
-              <button className="btn-confirm" onClick={confirmLogout}>Xác nhận</button>
-              <button className="btn-cancel" onClick={() => setShowLogoutModal(false)}>Hủy</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+        onConfirm={confirmLogout} 
+      />
     </aside>
   );
 };

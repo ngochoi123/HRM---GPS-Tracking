@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShieldCheck, UserCog, Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon } from 'lucide-react';
+import { LayoutDashboard, UserCog, Settings, LogOut, HelpCircle, Bell } from 'lucide-react';
+import LogoutModal from './LogoutModal';
 
 const SidebarAdmin = () => {
   const location = useLocation();
@@ -13,6 +14,7 @@ const SidebarAdmin = () => {
     { path: '/Admin/dashboard', icon: <LayoutDashboard size={20} />, label: 'Phân công chấm công' },
     { path: '/Admin/users', icon: <UserCog size={20} />, label: 'Quản lý tài khoản' },
     { path: '/Admin/LocationSettings', icon: <Settings size={20} />, label: 'Cài đặt vị trí chấm công' },
+    { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Thông báo' },
   ];
 
   // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
@@ -74,25 +76,11 @@ const SidebarAdmin = () => {
       </div>
 
       {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
-      {showLogoutModal && (
-        <div className="modal-overlay" onClick={() => setShowLogoutModal(false)}>
-          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon-container">
-               <div className="icon-circle">
-                  <QuestionIcon size={40} color="#16a34a" />
-               </div>
-            </div>
-            
-            <h3>Xác nhận đăng xuất</h3>
-            <p>Bạn có chắc chắn muốn đăng xuất?</p>
-            
-            <div className="modal-actions">
-              <button className="btn-confirm" onClick={confirmLogout}>Xác nhận</button>
-              <button className="btn-cancel" onClick={() => setShowLogoutModal(false)}>Hủy</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+        onConfirm={confirmLogout} 
+      />
     </aside>
   );
 };

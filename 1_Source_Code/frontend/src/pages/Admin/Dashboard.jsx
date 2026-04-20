@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const [isFetching, setIsFetching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // --- 1. LẤY DANH SÁCH BRANCHES KHI MOUNT ---
   useEffect(() => {
@@ -87,8 +88,23 @@ export default function AdminDashboard() {
   // --- XỬ LÝ SỰ KIỆN ---
   const handleAssignTypeChange = (type) => {
     setAssignType(type);
+    setSelectedBranch('');
     setSelectedDepartment('');
     setSelectedEmployee('');
+    setWorkLocationId('');
+    setErrors({}); // Xóa lỗi khi đổi type
+  };
+
+  const handleReset = () => {
+    setAssignType('branch');
+    setSelectedBranch('');
+    setSelectedDepartment('');
+    setSelectedEmployee('');
+    setWorkLocationId('');
+    setAssignedDate(new Date().toISOString().split('T')[0]);
+    setIsTemporary(false);
+    setEndDate('');
+    setErrors({});
   };
 
   const handleBranchChange = (e) => {
@@ -98,23 +114,44 @@ export default function AdminDashboard() {
     setWorkLocationId('');
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!selectedBranch) newErrors.branch = "Vui lòng chọn chi nhánh";
+    
+    if (assignType === 'department' && !selectedDepartment) {
+      newErrors.department = "Vui lòng chọn phòng ban";
+    }
+    
+    if (assignType === 'employee') {
+      if (!selectedDepartment) newErrors.department = "Vui lòng chọn phòng ban";
+      if (!selectedEmployee) newErrors.employee = "Vui lòng chọn nhân viên";
+    }
+    
+    if (!workLocationId) newErrors.location = "Vui lòng chọn khu vực GPS";
+    
+    if (isTemporary) {
+      if (!endDate) {
+        newErrors.endDate = "Vui lòng chọn ngày kết thúc";
+      } else if (endDate < assignedDate) {
+        newErrors.endDate = "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrors({});
+
+    if (!validateForm()) return;
     
     let targetId = '';
     if (assignType === 'branch') targetId = selectedBranch;
     if (assignType === 'department') targetId = selectedDepartment;
     if (assignType === 'employee') targetId = selectedEmployee;
-
-    if (isTemporary && endDate && endDate < assignedDate) {
-      alert("Ngày kết thúc không thể trước ngày bắt đầu!");
-      return;
-    }
-
-    if (!targetId || !workLocationId) {
-      alert("Vui lòng chọn đầy đủ đối tượng và địa điểm áp dụng!");
-      return;
-    }
 
     const payloadParams = {
       assign_type: assignType,
@@ -133,15 +170,13 @@ export default function AdminDashboard() {
       if (payload?.success) {
         setIsSuccess(true);
         setTimeout(() => setIsSuccess(false), 3000);
-        setSelectedDepartment('');
-        setSelectedEmployee('');
-        setWorkLocationId('');
+        handleReset(); // SỬ DỤNG HÀM RESET MỚI
       } else {
-        alert("Lỗi: " + (payload?.message || 'Không thể phân công'));
+        setErrors({ server: payload?.message || 'Không thể thực hiện phân công' });
       }
     } catch (error) {
       console.error("Lỗi API submit:", error);
-      alert("Lỗi máy chủ khi thực hiện lưu dữ liệu!");
+      setErrors({ server: "Lỗi kết nối máy chủ. Vui lòng thử lại sau." });
     } finally {
       setIsLoading(false);
     }
@@ -166,9 +201,16 @@ export default function AdminDashboard() {
 
         {/* Thông báo thành công */}
         {isSuccess && (
-          <div className="mx-8 mt-6 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-4 rounded-lg flex items-center gap-3 animate-bounce">
+          <div className="mx-8 mt-6 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-4 rounded-lg flex items-center gap-3 animate-bounce shadow-sm">
             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             <span className="font-bold text-sm">Phân công thành công! Dữ liệu đã được cập nhật.</span>
+          </div>
+        )}
+
+        {errors.server && (
+          <div className="mx-8 mt-6 bg-rose-50 border border-rose-200 text-rose-700 px-5 py-4 rounded-lg flex items-center gap-3 animate-shake">
+            <AlertCircle className="w-5 h-5 text-rose-500" />
+            <span className="font-bold text-sm">{errors.server}</span>
           </div>
         )}
 
@@ -221,8 +263,7 @@ export default function AdminDashboard() {
                   <select 
                     value={selectedBranch} 
                     onChange={handleBranchChange}
-                    required
-                    className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 transition-all cursor-pointer shadow-sm font-medium pr-10"
+                    className={`w-full bg-white border ${errors.branch ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'} text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 transition-all cursor-pointer shadow-sm font-medium pr-10`}
                   >
                     <option value="" disabled>-- Chọn chi nhánh --</option>
                     {branches.map(br => (
@@ -230,6 +271,7 @@ export default function AdminDashboard() {
                     ))}
                   </select>
                 </div>
+                {errors.branch && <p className="text-xs text-rose-500 mt-1.5 font-bold flex items-center gap-1"><AlertCircle size={12}/> {errors.branch}</p>}
               </div>
 
               {(assignType === 'department' || assignType === 'employee') && (
@@ -240,15 +282,17 @@ export default function AdminDashboard() {
                       value={selectedDepartment} onChange={(e) => {
                         setSelectedDepartment(e.target.value);
                         setSelectedEmployee('');
+                        if (errors.department) setErrors({...errors, department: null});
                       }}
-                      required disabled={!selectedBranch || isFetching}
-                      className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-100 transition-all font-medium appearance-none shadow-sm"
+                      disabled={!selectedBranch || isFetching}
+                      className={`w-full bg-white border ${errors.department ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'} text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-100 transition-all font-medium appearance-none shadow-sm`}
                     >
                       <option value="" disabled>-- Chọn phòng ban --</option>
                       {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                     </select>
                     <Users className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  {errors.department && <p className="text-xs text-rose-500 mt-1.5 font-bold flex items-center gap-1"><AlertCircle size={12}/> {errors.department}</p>}
                 </div>
               )}
 
@@ -257,15 +301,19 @@ export default function AdminDashboard() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Chọn Nhân viên <span className="text-rose-500">*</span></label>
                   <div className="relative">
                     <select 
-                      value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}
-                      required disabled={!selectedDepartment || isFetching}
-                      className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-100 transition-all font-medium appearance-none shadow-sm"
+                      value={selectedEmployee} onChange={(e) => {
+                        setSelectedEmployee(e.target.value);
+                        if (errors.employee) setErrors({...errors, employee: null});
+                      }}
+                      disabled={!selectedDepartment || isFetching}
+                      className={`w-full bg-white border ${errors.employee ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'} text-gray-800 text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-100 transition-all font-medium appearance-none shadow-sm`}
                     >
                       <option value="" disabled>{selectedDepartment ? '-- Danh sách nhân sự --' : '-- Chọn phòng ban trước --'}</option>
                       {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                     </select>
                     <User className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  {errors.employee && <p className="text-xs text-rose-500 mt-1.5 font-bold flex items-center gap-1"><AlertCircle size={12}/> {errors.employee}</p>}
                   {selectedDepartment && employees.length === 0 && !isFetching && (
                     <p className="text-[12px] text-rose-500 mt-2 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> Không có nhân sự nào trong phòng ban này.
@@ -290,13 +338,17 @@ export default function AdminDashboard() {
                   Địa điểm chấm công áp dụng <span className="text-rose-500">*</span>
                 </label>
                 <select 
-                  value={workLocationId} onChange={(e) => setWorkLocationId(e.target.value)}
-                  required disabled={!selectedBranch || isFetching}
-                  className="w-full bg-white border border-gray-300 text-[#4f46e5] font-bold text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-50 transition-all shadow-sm"
+                  value={workLocationId} onChange={(e) => {
+                    setWorkLocationId(e.target.value);
+                    if (errors.location) setErrors({...errors, location: null});
+                  }}
+                  disabled={!selectedBranch || isFetching}
+                  className={`w-full bg-white border ${errors.location ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'} text-[#4f46e5] font-bold text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 disabled:bg-gray-50 transition-all shadow-sm`}
                 >
                   <option value="" disabled>-- Chọn khu vực GPS hợp lệ --</option>
                   {workLocations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
+                {errors.location && <p className="text-xs text-rose-500 mt-1.5 font-bold flex items-center gap-1"><AlertCircle size={12}/> {errors.location}</p>}
               </div>
 
               <div>
@@ -316,7 +368,11 @@ export default function AdminDashboard() {
                   <div className="relative flex items-center justify-center">
                     <input 
                       type="checkbox" className="peer sr-only" 
-                      checked={isTemporary} onChange={(e) => setIsTemporary(e.target.checked)}
+                      checked={isTemporary} onChange={(e) => {
+                        const val = e.target.checked;
+                        setIsTemporary(val);
+                        if (!val) setEndDate(''); // CLEAR DATA KHI UNCHECK (TC FUNC-PC-04)
+                      }}
                     />
                     <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-[#4f46e5] peer-checked:border-[#4f46e5] transition-all flex items-center justify-center bg-white shadow-sm">
                       <CheckCircle2 className="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
@@ -336,10 +392,13 @@ export default function AdminDashboard() {
                       Ngày kết thúc (End Date) <span className="text-rose-500">*</span>
                     </label>
                     <input 
-                      type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                      required
-                      className="w-full bg-white border border-blue-200 text-[#4f46e5] text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 transition-all shadow-sm font-semibold"
+                      type="date" value={endDate} onChange={(e) => {
+                        setEndDate(e.target.value);
+                        if (errors.endDate) setErrors({...errors, endDate: null});
+                      }}
+                      className={`w-full bg-white border ${errors.endDate ? 'border-rose-400 ring-1 ring-rose-400' : 'border-blue-200'} text-[#4f46e5] text-sm rounded-lg px-4 py-3 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 transition-all shadow-sm font-semibold`}
                     />
+                    {errors.endDate && <p className="text-xs text-rose-500 mt-1.5 font-bold flex items-center gap-1 animate-pulse"><AlertCircle size={12}/> {errors.endDate}</p>}
                   </div>
                   <div className="flex items-center gap-3 text-[#4f46e5] bg-white p-3 rounded-lg border border-blue-100 shrink-0 shadow-sm">
                     <div className="text-center px-2">
@@ -362,11 +421,7 @@ export default function AdminDashboard() {
             <button 
               type="button" 
               className="px-6 py-2.5 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-all text-sm"
-              onClick={() => {
-                 setAssignType('branch');
-                 setSelectedBranch('');
-                 setWorkLocationId('');
-              }}
+              onClick={handleReset}
             >
               Hủy bỏ
             </button>

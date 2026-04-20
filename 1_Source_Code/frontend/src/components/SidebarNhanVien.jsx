@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import './menu.css';   
 import { FaAngleRight } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, MapPin, CreditCard, FileText, Settings, HelpCircle, LogOut, HelpCircle as QuestionIcon } from 'lucide-react';
+import { Home, MapPin, CreditCard, FileText, Settings, HelpCircle, LogOut } from 'lucide-react';
+import LogoutModal from './LogoutModal';
 
 const menuItems = [
     { path: '/NhanVien/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
@@ -149,25 +150,11 @@ const SidebarNhanVien = () => {
       </div>
 
       {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
-      {showLogoutModal && (
-        <div className="modal-overlay" onClick={() => setShowLogoutModal(false)}>
-          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon-container">
-               <div className="icon-circle">
-                  <QuestionIcon size={40} color="#16a34a" />
-               </div>
-            </div>
-            
-            <h3>Xác nhận đăng xuất</h3>
-            <p>Bạn có chắc chắn muốn đăng xuất?</p>
-            
-            <div className="modal-actions">
-              <button className="btn-confirm" onClick={confirmLogout}>Xác nhận</button>
-              <button className="btn-cancel" onClick={() => setShowLogoutModal(false)}>Hủy</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+        onConfirm={confirmLogout} 
+      />
     </aside>
   );
 };

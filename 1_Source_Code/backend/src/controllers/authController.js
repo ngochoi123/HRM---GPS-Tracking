@@ -112,7 +112,7 @@ const forgotPassword = async (req, res) => {
     if (!employee) {
         return res.status(404).json({ 
             success: false, 
-            message: 'Tài khoản không tồn tại trong hệ thống' 
+            message: 'Thông tin không hợp lệ và không thực hiện thay đổi mật khẩu' 
         });
     }
 

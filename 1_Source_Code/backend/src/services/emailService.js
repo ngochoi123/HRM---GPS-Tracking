@@ -2,62 +2,99 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const PDFDocument = require('pdfkit');
+const nodemailer = require('nodemailer');
 
 // Thư mục chứa font tiếng Việt
 const FONTS_DIR = path.join(__dirname, '..', 'fonts');
 
 // ==========================================
-// 1. HÀM GỬI MAIL CỐT LÕI (Dùng Brevo API)
+// 1. HÀM GỬI MAIL CỐT LÕI (Nodemailer cho Local / Brevo cho Prod)
 // ==========================================
 async function transportMail({ to, subject, html, attachments = [] }) {
-  console.log(`🚀 Đang gửi email tới: ${to} qua Brevo API...`);
-  
-  const payload = {
-    sender: { 
-      name: "Hệ thống Quản lý Nhân sự GPS", 
-      email: "peopelteach@gmail.com" // Đã cố định email gửi đi
-    },
-    to: [{ email: to }], // Email nhận truyền vào linh hoạt
-    subject: subject,
-    htmlContent: html,
-  };
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // Xử lý file đính kèm (PDF)
-  if (attachments && attachments.length > 0) {
-    payload.attachment = attachments.map(att => {
-      let base64Content = att.content;
-      
-      if (Buffer.isBuffer(att.content)) {
-        base64Content = att.content.toString('base64');
-      } else if (typeof att.content === 'string' && !/^[A-Za-z0-9+/=]+$/.test(att.content)) {
-        base64Content = Buffer.from(att.content).toString('base64');
-      }
-
-      return {
-        name: att.filename || att.name || 'document.pdf',
-        content: base64Content
-      };
-    });
-  }
-
-  try {
-    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+  if (!isProduction) {
+    // --- MÔI TRƯỜNG LOCAL (Dùng Nodemailer + Gmail) ---
+    console.log(`📧 [Local] Đang gửi email tới: ${to} qua Nodemailer...`);
+    
+    // Khởi tạo transporter từ .env
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
     });
-    console.log("✅ Gửi email thành công! Message ID:", response.data.messageId);
-    return response.data;
-  } catch (error) {
-    console.error("❌ Lỗi gửi email qua Brevo API:");
-    if (error.response) {
-      console.error(error.response.data);
-    } else {
-      console.error(error.message);
+
+    const mailOptions = {
+      from: `"Hệ thống Quản lý Nhân sự GPS" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+      attachments: attachments.map(att => ({
+        filename: att.filename || 'document.pdf',
+        content: att.content // Buffer hoặc string
+      }))
+    };
+
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      console.log("✅ [Local] Gửi email thành công! Message ID:", info.messageId);
+      return info;
+    } catch (error) {
+      console.error("❌ [Local] Lỗi gửi email qua Nodemailer:", error.message);
+      throw error;
     }
-    throw error;
+  } else {
+    // --- MÔI TRƯỜNG PRODUCTION (Dùng Brevo API) ---
+    console.log(`🚀 [Prod] Đang gửi email tới: ${to} qua Brevo API...`);
+    
+    const payload = {
+      sender: { 
+        name: "Hệ thống Quản lý Nhân sự GPS", 
+        email: "peopelteach@gmail.com" 
+      },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: html,
+    };
+
+    if (attachments && attachments.length > 0) {
+      payload.attachment = attachments.map(att => {
+        let base64Content = att.content;
+        
+        if (Buffer.isBuffer(att.content)) {
+          base64Content = att.content.toString('base64');
+        } else if (typeof att.content === 'string' && !/^[A-Za-z0-9+/=]+$/.test(att.content)) {
+          base64Content = Buffer.from(att.content).toString('base64');
+        }
+
+        return {
+          name: att.filename || att.name || 'document.pdf',
+          content: base64Content
+        };
+      });
+    }
+
+    try {
+      const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      console.log("✅ [Prod] Gửi email thành công! Message ID:", response.data.messageId);
+      return response.data;
+    } catch (error) {
+      console.error("❌ [Prod] Lỗi gửi email qua Brevo API:");
+      if (error.response) {
+        console.error(error.response.data);
+      } else {
+        console.error(error.message);
+      }
+      throw error;
+    }
   }
 }
 

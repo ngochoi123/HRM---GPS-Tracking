@@ -49,7 +49,9 @@ const ForgotPassword = () => {
       }
     } catch (err) {
       console.error(err);
-      setError('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng!');
+      // Lấy thông báo từ server nếu có (xử lý trường hợp 404, 400, ...)
+      const serverMsg = err.response?.data?.message;
+      setError(serverMsg || 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng!');
       setIsLoading(false);
     }
   };

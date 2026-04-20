@@ -4,9 +4,10 @@ import { FaAngleRight } from "react-icons/fa";
 import { 
   Home, Clock, FileText, Wallet, CreditCard,// Nhóm cá nhân
   Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
-  Settings, LogOut, HelpCircle, HelpCircle as QuestionIcon,
+  Settings, LogOut, HelpCircle,
   FileSpreadsheet 
 } from 'lucide-react';
+import LogoutModal from './LogoutModal';
 const personalItems = [
     { path: '/QuanLy/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/QuanLy/CheckIn', icon: <Clock size={20} />, label: 'Chấm công' },
@@ -210,25 +211,11 @@ const SidebarQuanLy = () => {
       </div>
 
       {/* MODAL */}
-      {showLogoutModal && (
-        <div className="modal-overlay" onClick={() => setShowLogoutModal(false)}>
-          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon-container">
-               <div className="icon-circle">
-                  <QuestionIcon size={40} color="#16a34a" />
-               </div>
-            </div>
-            
-            <h3>Xác nhận đăng xuất</h3>
-            <p>Bạn có chắc chắn muốn đăng xuất?</p>
-            
-            <div className="modal-actions">
-              <button className="btn-confirm" onClick={confirmLogout}>Xác nhận</button>
-              <button className="btn-cancel" onClick={() => setShowLogoutModal(false)}>Hủy</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogoutModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+        onConfirm={confirmLogout} 
+      />
     </aside>
   );
 };

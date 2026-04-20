@@ -1,5 +1,5 @@
-﻿import React, { useState, useRef, useEffect, startTransition } from "react";
-import { Bell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useState, useRef, useEffect, startTransition } from "react";
+import { Bell, CheckCircle2, ChevronDown, ChevronUp, Paperclip } from "lucide-react";
 import NotificationDetailModal from "./NotificationDetailModal";
 import { notificationService } from "../../services/notificationService";
 import {
@@ -193,11 +193,25 @@ export default function NotificationBell() {
     return `${text.slice(0, 72).trim()}…`;
   };
 
+  const normalizeNotificationType = (t) => {
+    if (!t) return "info";
+    const v = String(t).toLowerCase();
+    if (v.includes("cảnh") || v === "warning") return "warning";
+    if (v.includes("bình") || v === "info" || v === "thông tin") return "info";
+    if (v === "system") return "system";
+    return t;
+  };
+
   const unreadCount = safeNotifications.filter((item) => !isReadValue(item.is_read)).length;
   const previewLimit = 5;
   const hasMoreThanPreview = safeNotifications.length > previewLimit;
+
   const displayedNotifications =
     isExpanded || !hasMoreThanPreview ? safeNotifications : safeNotifications.slice(0, previewLimit);
+
+  const hasAttachment = (content) => {
+    return String(content || "").includes("📎") || String(content || "").includes("href=");
+  };
 
   return (
     <div className="relative inline-block font-sans antialiased" ref={dropdownRef}>
@@ -278,7 +292,9 @@ export default function NotificationBell() {
                           onClick={() => handleViewNotification(noti)}
                           className={`group relative flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 ${
                             isUnread
-                              ? "border-sky-300 bg-gradient-to-r from-sky-100 via-cyan-100 to-sky-100 hover:from-sky-100 hover:via-sky-200 hover:to-sky-100 shadow-[0_4px_12px_rgba(56,189,248,0.25)]"
+                              ? normalizeNotificationType(noti.notification_type) === "warning"
+                                ? "border-red-200 bg-red-50 hover:bg-red-100 shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
+                                : "border-sky-200 bg-sky-50 hover:bg-sky-100 shadow-[0_4px_12px_rgba(56,189,248,0.15)]"
                               : "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 shadow-[0_1px_6px_rgba(15,23,42,0.04)]"
                           }`}
                         >
@@ -305,8 +321,16 @@ export default function NotificationBell() {
                             <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
                               {stripHtml(noti.content || noti.desc || "")}
                             </p>
-                            <p className="mt-2 text-xs tabular-nums text-slate-400">
-                              <span>{timeStr}</span>
+                            <p className="mt-2 text-xs tabular-nums text-slate-400 flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                {timeStr}
+                                {hasAttachment(noti.content || noti.desc) && (
+                                  <span className="flex items-center gap-1 text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded-md text-[10px]">
+                                    <Paperclip size={10} strokeWidth={3} />
+                                    Đính kèm
+                                  </span>
+                                )}
+                              </span>
                               {noti.status === "Đã chỉnh sửa" && (
                                 <span>
                                   {" "}

@@ -4,10 +4,13 @@ import EmployeeDetail from './EmployeeDetail';
 import EditEmployee from './EditEmployee';
 import AddEmployee from './AddEmployee';
 import { managerEmployeeService } from '../../services/managerEmployeeService';
+import { directorDepartmentService } from '../../services/directorDepartmentService';
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState([]);
+  const [loadingDepts, setLoadingDepts] = useState(false);
 
   // States cho Bộ lọc & Tìm kiếm
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,8 +42,24 @@ export default function EmployeeManagement() {
     }
   };
 
+  const fetchDepartments = async () => {
+    setLoadingDepts(true);
+    try {
+      const response = await directorDepartmentService.getDepartments();
+      // Handle response which could be the direct array or {success, data}
+      const depts = response?.success ? response.data : 
+                    Array.isArray(response) ? response : [];
+      setDepartments(depts);
+    } catch (error) {
+      console.error("Lỗi khi tải phòng ban:", error);
+    } finally {
+      setLoadingDepts(false);
+    }
+  };
+
   useEffect(() => {
     fetchEmployees();
+    fetchDepartments();
   }, []);
 
   // 🎨 HÀM XỬ LÝ MÀU SẮC TRẠNG THÁI
@@ -79,7 +98,9 @@ export default function EmployeeManagement() {
     const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         emp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         emp.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchDept = departmentFilter === 'ALL' || emp.department === departmentFilter;
+    const matchDept = departmentFilter === 'ALL' || 
+                      emp.department === departmentFilter || 
+                      String(emp.department_id) === departmentFilter;
     const matchStatus = statusFilter === 'ALL' || emp.status === statusFilter;
     
     return matchSearch && matchDept && matchStatus;
@@ -183,10 +204,15 @@ export default function EmployeeManagement() {
             className="w-full md:w-56 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-cyan-400"
           >
             <option value="ALL">Tất cả phòng ban</option>
-            <option value="Công nghệ (IT)">Công nghệ (IT)</option>
-            <option value="Nhân sự (HR)">Nhân sự (HR)</option>
-            <option value="Marketing">Marketing</option>
-            <option value="Kế toán">Kế toán</option>
+            {loadingDepts ? (
+              <option disabled>Đang tải...</option>
+            ) : (
+              departments.map((dept) => (
+                <option key={dept.id} value={dept.department_name || dept.name}>
+                  {dept.department_name || dept.name}
+                </option>
+              ))
+            )}
           </select>
 
           <select 
