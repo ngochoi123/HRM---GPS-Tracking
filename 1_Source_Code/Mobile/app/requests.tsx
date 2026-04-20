@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, 
-  ActivityIndicator, RefreshControl, Alert, Platform, Dimensions, NativeSyntheticEvent, NativeScrollEvent
+  ActivityIndicator, RefreshControl, Alert, Platform, Dimensions, NativeSyntheticEvent, NativeScrollEvent,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { API_URL } from '@/config/env';
+import { API_URL, SOCKET_URL } from '@/config/env';
 import { SwipeableSheet } from '@/components/SwipeableSheet';
 import { BellButton } from '@/components/BellButton';
 import { employeeService } from '@/services/employeeService';
@@ -84,6 +87,7 @@ export default function RequestsScreen() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'start' | 'end' | 'checkin' | 'checkout' | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // --- LOGIC: FETCHING ---
   const fetchData = useCallback(async () => {
@@ -347,28 +351,79 @@ export default function RequestsScreen() {
     }
   };
 
+  const handleViewAttachment = async (filename: string) => {
+    if (!filename || isDownloading) return;
+
+    // Chuẩn hóa tên file (bỏ dấu / ở đầu nếu có)
+    const cleanFile = filename.startsWith('/') ? filename.slice(1) : filename;
+    const url = cleanFile.startsWith('http') ? cleanFile : `${SOCKET_URL}/uploads/${cleanFile}`;
+    const cleanFilename = cleanFile.split('/').pop() || 'attachment';
+
+    console.log('[Attachment] Requesting URL:', url);
+    
+    setIsDownloading(true);
+    try {
+      // 1. Kiểm tra quyền chia sẻ (trên Android/iOS)
+      if (!(await Sharing.isAvailableAsync())) {
+        return Alert.alert('Lỗi', 'Thiết bị của bạn không hỗ trợ tính năng chia sẻ/lưu tệp.');
+      }
+
+      // 2. Tải tệp xuống thư mục tạm của ứng dụng
+      const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory || '') + cleanFilename;
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+
+      if (downloadResult.status === 200) {
+        // 3. Mở menu chia sẻ/lưu của hệ thống
+        await Sharing.shareAsync(downloadResult.uri, {
+          mimeType: downloadResult.headers?.['content-type'] || undefined,
+          dialogTitle: `Tải xuống: ${cleanFilename}`
+        });
+      } else {
+        throw new Error(`Server returned ${downloadResult.status}`);
+      }
+    } catch (error) {
+      console.log('Download/Share error:', error);
+      // Fallback sang mở URL nếu tải xuống thất bại (ví dụ: lỗi FileSystem)
+      try {
+        await Linking.openURL(url);
+      } catch (err) {
+        Alert.alert('Lỗi', 'Không thể tải xuống hoặc mở tệp này.');
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // --- RENDER HELPERS ---
   const renderHistoryItem = ({ item }: { item: any }) => {
-    const isExplanation = !!item.attendance_date;
     const s = getStatusStyle(item.status);
+    const isExplanation = !!item.attendance_date;
+    const isOvertime = item.type === 'overtime';
+
+    const handlePress = () => {
+      setSelectedRequest(item);
+      setShowDetailSheet(true);
+    };
     
     if (isExplanation) {
       return (
-        <TouchableOpacity style={styles.requestCard} onPress={() => { setSelectedRequest(item); setShowDetailSheet(true); }}>
+        <TouchableOpacity style={styles.requestCard} onPress={handlePress}>
           <View style={styles.reqTop}>
             <Text style={styles.reqType}>{getLeaveTypeText(item.explanation_type)}</Text>
             <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
               <Text style={[styles.statusText, { color: s.text }]}>{s.label}</Text>
             </View>
           </View>
-          <Text style={styles.reqDate}>{new Date(item.attendance_date).toLocaleDateString('vi-VN')} ({item.proposed_check_in} - {item.proposed_check_out})</Text>
+          <Text style={styles.reqDate}>
+            <Feather name="calendar" size={12} color="#64748b" /> {new Date(item.attendance_date).toLocaleDateString('vi-VN')} ({item.proposed_check_in} - {item.proposed_check_out})
+          </Text>
           <Text style={styles.reqReason} numberOfLines={2}>&quot;{item.reason}&quot;</Text>
         </TouchableOpacity>
       );
     }
     
     return (
-      <View style={styles.requestCard}>
+      <TouchableOpacity style={styles.requestCard} onPress={handlePress}>
         <View style={styles.reqTop}>
           <Text style={styles.reqType}>{item.type_label}</Text>
           <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
@@ -376,10 +431,10 @@ export default function RequestsScreen() {
           </View>
         </View>
         <Text style={styles.reqDate}>
-          {new Date(item.start_datetime).toLocaleDateString('vi-VN')} {item.end_datetime && `- ${new Date(item.end_datetime).toLocaleDateString('vi-VN')}`}
+          <Feather name="calendar" size={12} color="#64748b" /> {new Date(item.start_datetime).toLocaleDateString('vi-VN')} {item.end_datetime && !isOvertime && `- ${new Date(item.end_datetime).toLocaleDateString('vi-VN')}`}
         </Text>
         <Text style={styles.reqReason} numberOfLines={2}>&quot;{item.reason}&quot;</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -626,18 +681,133 @@ export default function RequestsScreen() {
       </SwipeableSheet>
 
       <SwipeableSheet visible={showDetailSheet} onClose={() => setShowDetailSheet(false)} maxHeightRatio={0.8}>
-        {selectedRequest && (
-          <View style={styles.sheetContent}>
-            <Text style={styles.sheetTitle}>Chi tiết giải trình</Text>
-            <View style={styles.detailRow}><Text style={styles.dtL}>Loại đơn:</Text><Text style={styles.dtV}>{getLeaveTypeText(selectedRequest.explanation_type)}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.dtL}>Người duyệt:</Text><Text style={styles.dtV}>{selectedRequest.approver_name || '---'}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.dtL}>Ngày:</Text><Text style={styles.dtV}>{new Date(selectedRequest.attendance_date).toLocaleDateString('vi-VN')}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.dtL}>Thời gian:</Text><Text style={styles.dtV}>{selectedRequest.proposed_check_in} - {selectedRequest.proposed_check_out}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.dtL}>Lý do:</Text><Text style={styles.dtV}>{selectedRequest.reason}</Text></View>
-            <TouchableOpacity style={styles.closeSheetBtn} onPress={() => setShowDetailSheet(false)}><Text style={styles.closeSheetBtnText}>Đóng</Text></TouchableOpacity>
-          </View>
-        )}
+        {selectedRequest && (() => {
+          const isExp = !!selectedRequest.attendance_date;
+          const isOt = selectedRequest.type === 'overtime';
+          const s = getStatusStyle(selectedRequest.status);
+          
+          let title = "Chi tiết nghỉ phép";
+          if (isExp) title = "Chi tiết giải trình";
+          else if (isOt) title = "Chi tiết tăng ca";
+
+          return (
+            <View style={styles.sheetContent}>
+              <View style={styles.sheetHeaderDetail}>
+                <View style={[styles.sheetTitleIconWrap, { backgroundColor: s.bg }]}>
+                  <Feather name={isExp ? "alert-circle" : (isOt ? "briefcase" : "umbrella")} size={24} color={s.text} />
+                </View>
+                <Text style={styles.sheetTitle}>{title}</Text>
+                <View style={[styles.statusBadgeDetail, { backgroundColor: s.bg }]}>
+                  <Text style={[styles.statusText, { color: s.text }]}>{s.label.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+                {/* Thông tin chung */}
+                <View style={styles.detailSection}>
+                  <View style={styles.detailRow}>
+                    <Feather name="tag" size={16} color="#64748b" style={styles.dtIcon} />
+                    <Text style={styles.dtL}>Loại đơn:</Text>
+                    <Text style={styles.dtV}>{getLeaveTypeText(isExp ? selectedRequest.explanation_type : (isOt ? 'overtime' : selectedRequest.type))}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Feather name="user" size={16} color="#64748b" style={styles.dtIcon} />
+                    <Text style={styles.dtL}>Người duyệt:</Text>
+                    <Text style={styles.dtV}>{selectedRequest.approver_name || '---'}</Text>
+                  </View>
+
+                  {/* Thời gian - Chia theo loại */}
+                  {isExp ? (
+                    <>
+                      <View style={styles.detailRow}>
+                        <Feather name="calendar" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Ngày:</Text>
+                        <Text style={styles.dtV}>{new Date(selectedRequest.attendance_date).toLocaleDateString('vi-VN')}</Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Feather name="clock" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Thời gian:</Text>
+                        <Text style={styles.dtV}>{selectedRequest.proposed_check_in} - {selectedRequest.proposed_check_out}</Text>
+                      </View>
+                    </>
+                  ) : isOt ? (
+                    <>
+                      <View style={styles.detailRow}>
+                        <Feather name="calendar" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Ngày OT:</Text>
+                        <Text style={styles.dtV}>{new Date(selectedRequest.ot_date || selectedRequest.start_datetime).toLocaleDateString('vi-VN')}</Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Feather name="clock" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Giờ:</Text>
+                        <Text style={styles.dtV}>{selectedRequest.start_time} - {selectedRequest.end_time}</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.detailRow}>
+                        <Feather name="calendar" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Từ ngày:</Text>
+                        <Text style={styles.dtV}>{new Date(selectedRequest.start_datetime).toLocaleDateString('vi-VN')}</Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Feather name="calendar" size={16} color="#64748b" style={styles.dtIcon} />
+                        <Text style={styles.dtL}>Đến ngày:</Text>
+                        <Text style={styles.dtV}>{selectedRequest.end_datetime ? new Date(selectedRequest.end_datetime).toLocaleDateString('vi-VN') : '---'}</Text>
+                      </View>
+                    </>
+                  )}
+
+                  <View style={[styles.detailRow, { alignItems: 'flex-start' }]}>
+                    <Feather name="align-left" size={16} color="#64748b" style={[styles.dtIcon, { marginTop: 2 }]} />
+                    <Text style={styles.dtL}>Lý do:</Text>
+                    <Text style={styles.dtV}>{selectedRequest.reason || '---'}</Text>
+                  </View>
+
+                  {/* Minh chứng (nếu có) */}
+                  {(() => {
+                    const attachmentFile = selectedRequest.attachment || (selectedRequest.attachment_url && selectedRequest.attachment_url.replace('/uploads/', ''));
+                    
+                    if (attachmentFile) {
+                      const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachmentFile);
+                      return (
+                        <View style={[styles.detailRow, { marginTop: 10, alignItems: 'flex-start' }]}>
+                          <Feather name="paperclip" size={16} color="#64748b" style={[styles.dtIcon, { marginTop: 12 }]} />
+                          <Text style={[styles.dtL, { marginTop: 12 }]}>Minh chứng:</Text>
+                          <TouchableOpacity 
+                            style={[styles.attachmentLink, isDownloading && { opacity: 0.6 }]} 
+                            onPress={() => handleViewAttachment(attachmentFile)}
+                            disabled={isDownloading}
+                          >
+                            <View style={styles.attachmentContent}>
+                              <Feather name={isImg ? "image" : "file-text"} size={18} color="#3b82f6" />
+                              <Text style={styles.attachmentLinkText} numberOfLines={1}>
+                                {attachmentFile}
+                              </Text>
+                              {isDownloading ? (
+                                <ActivityIndicator size="small" color="#3b82f6" />
+                              ) : (
+                                <Feather name="download" size={14} color="#3b82f6" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                </View>
+
+                <TouchableOpacity style={[styles.closeSheetBtn, { backgroundColor: s.bg + '50' }]} onPress={() => setShowDetailSheet(false)}>
+                  <Text style={[styles.closeSheetBtnText, { color: s.text }]}>ĐÓNG CỬA SỔ</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          );
+        })()}
       </SwipeableSheet>
+
     </SafeAreaView>
   );
 }
@@ -681,13 +851,21 @@ const styles = StyleSheet.create({
   attachText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#1e293b', marginLeft: 10 },
   submitBtn: { padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10 },
   submitText: { color: '#fff', fontSize: 14, fontWeight: '800', marginLeft: 10 },
-  sheetContent: { padding: 25, paddingBottom: 50 },
-  sheetTitle: { fontSize: 18, fontWeight: '900', color: '#0f172a', marginBottom: 20, textAlign: 'center' },
+  sheetContent: { padding: 25, paddingBottom: 20 },
+  sheetHeaderDetail: { alignItems: 'center', marginBottom: 25 },
+  sheetTitleIconWrap: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  sheetTitle: { fontSize: 18, fontWeight: '900', color: '#0f172a', marginBottom: 8, textAlign: 'center' },
+  statusBadgeDetail: { paddingHorizontal: 15, paddingVertical: 4, borderRadius: 12 },
+  detailSection: { backgroundColor: '#f8fafc', padding: 20, borderRadius: 20, borderWidth: 1, borderColor: '#f1f5f9' },
+  detailRow: { flexDirection: 'row', marginBottom: 16, alignItems: 'center' },
+  dtIcon: { marginRight: 10, width: 16 },
+  dtL: { width: 90, fontSize: 13, fontWeight: '700', color: '#64748b' },
+  dtV: { flex: 1, fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  attachmentLink: { backgroundColor: '#fff', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', flex: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  attachmentContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  attachmentLinkText: { flex: 1, fontSize: 13, color: '#3b82f6', fontWeight: '700', marginHorizontal: 10 },
+  closeSheetBtn: { padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 25 },
+  closeSheetBtnText: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   sheetItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  sheetItemText: { fontSize: 15, fontWeight: '600', color: '#334155' },
-  detailRow: { flexDirection: 'row', marginBottom: 15 },
-  dtL: { width: 100, fontSize: 14, fontWeight: '700', color: '#64748b' },
-  dtV: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  closeSheetBtn: { backgroundColor: '#f1f5f9', padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 20 },
-  closeSheetBtnText: { color: '#64748b', fontSize: 14, fontWeight: '800' }
+  sheetItemText: { fontSize: 15, fontWeight: '600', color: '#334155' }
 });
