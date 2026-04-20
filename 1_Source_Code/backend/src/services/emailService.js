@@ -254,34 +254,92 @@ function generateDecisionPdfBuffer(employeeName, decisionData) {
 function buildDecisionEmailHtml(employeeName, decisionData, isReward) {
   const { decision_number, form, amount, reason, issue_date } = decisionData;
   const title = isReward ? 'THÔNG BÁO QUYẾT ĐỊNH KHEN THƯỞNG' : 'THÔNG BÁO QUYẾT ĐỊNH KỶ LUẬT';
+  const titleColor = isReward ? '#1da053' : '#dc2626';
   
+  const content = `
+    <h2 style="color: ${titleColor}; margin-top: 0;">${title}</h2>
+    <p>Kính gửi <strong>${escapeHtml(employeeName)}</strong>,</p>
+    <p>Hệ thống Quản lý Nhân sự HR PeopleTech xin thông báo về quyết định nhân sự liên quan đến bạn với các thông tin chi tiết như sau:</p>
+    
+    <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; border: 1px solid #e5e7eb; margin: 20px 0;">
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        <li style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;"><strong>Số quyết định:</strong> ${escapeHtml(decision_number)}</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;"><strong>Ngày ban hành:</strong> ${formatVietnameseCalendarDate(issue_date)}</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;"><strong>Hình thức:</strong> ${escapeHtml(form)}</li>
+        ${amount && Number(amount) > 0 ? `
+        <li style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;"><strong>Số tiền:</strong> <span style="color: #1da053; font-weight: bold;">${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)}</span></li>
+        ` : ''}
+        <li style="padding: 8px 0;"><strong>Lý do:</strong> ${escapeHtml(reason)}</li>
+      </ul>
+    </div>
+
+    <p style="margin-top: 25px; padding: 15px; background-color: #fffbeb; border-left: 4px solid #f59e0b; font-weight: bold; color: #92400e;">
+      ⚠️ Chi tiết quyết định có chữ ký và con dấu đã được đính kèm bằng file PDF trong email này. Vui lòng tải xuống để xem.
+    </p>
+  `;
+
+  return _wrapEmailLayout(content);
+}
+
+/**
+ * Helper để bọc layout chung cho Email (Header, Body, Footer)
+ */
+function _wrapEmailLayout(content) {
   return `
-    <div style="font-family: Arial, sans-serif; padding: 20px;">
-      <h2>${title}</h2>
-      <p>Kính gửi ${escapeHtml(employeeName)},</p>
-      <p>Hệ thống gửi đính kèm bản PDF quyết định liên quan đến bạn.</p>
+    <div style="background-color: #f4f4f4; padding: 30px 0; font-family: 'Arial', sans-serif; color: #333333;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <!-- Header -->
+        <div style="padding: 25px; text-align: center; border-bottom: 1px solid #eeeeee;">
+          <img src="https://example.com/logo-hr-peopletech.png" alt="HR PeopleTech Logo" style="width: 150px; display: block; margin: 0 auto;">
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 40px 30px; line-height: 1.6;">
+          ${content}
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f3f4f6; padding: 25px; text-align: center; color: #6b7280; font-size: 13px;">
+          <p style="margin: 0 0 10px 0; font-weight: 500;">Đây là email tự động từ Hệ thống Quản lý Nhân sự HR PeopleTech.</p>
+          <p style="margin: 0 0 15px 0;">Vui lòng không trả lời trực tiếp email này.</p>
+          <div style="border-top: 1px solid #e5e7eb; padding-top: 15px; margin-top: 10px;">
+            <p style="margin: 0;"><strong>Công ty Công nghệ HR PeopleTech</strong></p>
+            <p style="margin: 5px 0 0 0;">Địa chỉ: 123 Đường Công Nghệ, Quận 1, TP. Hồ Chí Minh</p>
+            <p style="margin: 2px 0 0 0;">Hotline: 028.1234.5678 | Website: peopletech.vn</p>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
+
 
 // ==========================================
 // 3. CÁC HÀM XUẤT RA (EXPORTS) ĐỂ CONTROLLER GỌI
 // ==========================================
 
 const sendOTPEmail = async (toEmail, otpCode) => {
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f8;">
-      <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
-        <h2 style="color: #1da053; text-align: center;">XÁC MINH OTP</h2>
-        <p>Chào bạn, mã OTP của bạn là:</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; background: #f3f4f6; padding: 10px 20px;">
-            ${otpCode}
-          </span>
-        </div>
-      </div>
+  const content = `
+    <h2 style="color: #1da053; margin-top: 0; text-align: center; text-transform: uppercase;">Xác minh mã OTP</h2>
+    <p>Xin chào,</p>
+    <p>Bạn đã yêu cầu cấp mã xác thực để đặt lại mật khẩu trên hệ thống HR PeopleTech. Vui lòng sử dụng mã OTP dưới đây để hoàn tất quy trình:</p>
+    
+    <div style="background-color: #f0fdf4; border: 2px dashed #1da053; border-radius: 12px; padding: 30px; text-align: center; margin: 30px 0;">
+      <span style="font-size: 36px; font-weight: bold; color: #1da053; letter-spacing: 8px; font-family: monospace;">${otpCode}</span>
     </div>
+    
+    <div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 15px; margin-top: 20px;">
+      <p style="margin: 0; color: #e11d48; font-weight: bold;">⚠️ Cảnh báo bảo mật:</p>
+      <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #4b5563;">
+        <li>Mã này có hiệu lực trong vòng <strong>5 phút</strong>.</li>
+        <li><strong>Tuyệt đối không chia sẻ mã này</strong> cho bất kỳ ai, kể cả nhân viên hỗ trợ kỹ thuật.</li>
+      </ul>
+    </div>
+    <p style="margin-top: 25px; color: #6b7280; font-size: 14px;">Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email hoặc liên hệ với bộ phận nhân sự để được hỗ trợ.</p>
   `;
+
+  const htmlContent = _wrapEmailLayout(content);
+
 
   try {
     await transportMail({ to: toEmail, subject: 'Mã xác nhận OTP Đặt lại mật khẩu', html: htmlContent });
@@ -294,15 +352,30 @@ const sendOTPEmail = async (toEmail, otpCode) => {
 };
 
 const sendAccountEmail = async (email, fullName, username, password) => {
-  const subject = 'Cấp tài khoản hệ thống HR People Tech';
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; padding: 20px;">
-      <h2>THÔNG TIN TÀI KHOẢN</h2>
-      <p>Chào <strong>${fullName}</strong>,</p>
-      <p>Tên đăng nhập: <strong>${username}</strong></p>
-      <p>Mật khẩu: <strong style="color: #ef4444;">${password}</strong></p>
+  const subject = 'Chào mừng gia nhập hệ thống HR PeopleTech';
+  
+  const content = `
+    <h2 style="color: #1da053; margin-top: 0; text-transform: uppercase;">Chào mừng gia nhập hệ thống</h2>
+    <p>Xin chào <strong>${escapeHtml(fullName)}</strong>,</p>
+    <p>Chào mừng bạn đã chính thức trở thành một thành viên của HR PeopleTech. Tài khoản truy cập hệ thống Quản lý Nhân sự của bạn đã được khởi tạo thành công.</p>
+    
+    <div style="background-color: #f9fafb; border-radius: 10px; padding: 25px; border: 1px solid #e5e7eb; margin: 30px 0;">
+      <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">Thông tin đăng nhập:</h3>
+      <p style="margin: 15px 0 10px 0;">Tên đăng nhập: <strong style="color: #1da053;">${escapeHtml(username)}</strong></p>
+      <p style="margin: 0;">Mật khẩu: <strong style="color: #ea580c; font-size: 18px;">${escapeHtml(password)}</strong></p>
     </div>
+
+    <div style="text-align: center; margin: 35px 0;">
+      <a href="#" style="background-color: #1da053; color: #ffffff; padding: 14px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 16px; box-shadow: 0 2px 4px rgba(29, 160, 83, 0.3);">Đăng nhập ngay</a>
+    </div>
+
+    <p style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; color: #166534; font-size: 14px; text-align: center; font-style: italic;">
+      💡 Nhắc nhở: Vui lòng đổi mật khẩu ngay sau lần đăng nhập đầu tiên để bảo đảm an toàn cho tài khoản của bạn.
+    </p>
   `;
+
+  const htmlContent = _wrapEmailLayout(content);
+
 
   try {
     await transportMail({ to: email, subject: subject, html: htmlContent });

@@ -25,7 +25,6 @@ const SidebarGiamDoc = () => {
     { path: '/GiamDoc/branches', icon: <MapPin size={20} />, label: 'Chi nhánh' },
     { path: '/GiamDoc/positions', icon: <Briefcase size={20} />, label: 'Chức vụ' },
     { path: '/GiamDoc/approvals', icon: <CheckSquare size={20} />, label: 'Phê duyệt' },
-    { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Thông báo' },
   ];
 
   const handleLogoutClick = (e) => {

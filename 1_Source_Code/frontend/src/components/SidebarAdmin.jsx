@@ -14,7 +14,6 @@ const SidebarAdmin = () => {
     { path: '/Admin/dashboard', icon: <LayoutDashboard size={20} />, label: 'Phân công chấm công' },
     { path: '/Admin/users', icon: <UserCog size={20} />, label: 'Quản lý tài khoản' },
     { path: '/Admin/LocationSettings', icon: <Settings size={20} />, label: 'Cài đặt vị trí chấm công' },
-    { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Thông báo' },
   ];
 
   // Hàm khi bấm nút Đăng Xuất ở Sidebar -> Chỉ hiện Modal
