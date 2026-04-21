@@ -12,10 +12,20 @@ export default function EmployeeManagement() {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(false);
 
+  // AUTH STATE
+  const [user, setUser] = useState(null);
+
   // States cho Bộ lọc & Tìm kiếm
   const [searchTerm, setSearchTerm] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('ALL');
+  // selectedDeptId: dùng để gọi API (thực sự filter server-side cho Director)
+  const [selectedDeptId, setSelectedDeptId] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  
+  // 1. Load User Info
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+  }, []);
   
   // States cho Phân trang
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,10 +39,12 @@ export default function EmployeeManagement() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (deptId = null) => {
     setLoading(true);
     try {
-      const data = await managerEmployeeService.getEmployees();
+      // Truyền deptId để Director lọc theo phòng ban (server-side)
+      // Manager: backend tự scope theo department_id của họ, không cần truyền
+      const data = await managerEmployeeService.getEmployees(deptId || null);
       setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhân viên:", error);
@@ -46,7 +58,6 @@ export default function EmployeeManagement() {
     setLoadingDepts(true);
     try {
       const response = await directorDepartmentService.getDepartments();
-      // Handle response which could be the direct array or {success, data}
       const depts = response?.success ? response.data : 
                     Array.isArray(response) ? response : [];
       setDepartments(depts);
@@ -61,6 +72,13 @@ export default function EmployeeManagement() {
     fetchEmployees();
     fetchDepartments();
   }, []);
+
+  // Khi Director thay đổi phòng ban -> gọi lại API với deptId mới
+  const handleDeptFilterChange = (deptId) => {
+    setSelectedDeptId(deptId);
+    setCurrentPage(1);
+    fetchEmployees(deptId || null);
+  };
 
   // 🎨 HÀM XỬ LÝ MÀU SẮC TRẠNG THÁI
   const getStatusStyle = (status) => {
@@ -93,17 +111,14 @@ export default function EmployeeManagement() {
     }
   };
 
-  // 🔍 LOGIC LỌC DỮ LIỆU
+  // 🔍 LOGIC LỌC DỮ LIỆU (Client-side chỉ lọc search và status; dept đã được lọc server-side)
   const filteredEmployees = employees.filter(emp => {
     const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         emp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         emp.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchDept = departmentFilter === 'ALL' || 
-                      emp.department === departmentFilter || 
-                      String(emp.department_id) === departmentFilter;
     const matchStatus = statusFilter === 'ALL' || emp.status === statusFilter;
     
-    return matchSearch && matchDept && matchStatus;
+    return matchSearch && matchStatus;
   });
 
   // 📄 LOGIC PHÂN TRANG
@@ -198,22 +213,25 @@ export default function EmployeeManagement() {
             />
           </div>
           
-          <select 
-            value={departmentFilter}
-            onChange={(e) => { setDepartmentFilter(e.target.value); setCurrentPage(1); }}
-            className="w-full md:w-56 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-cyan-400"
-          >
-            <option value="ALL">Tất cả phòng ban</option>
-            {loadingDepts ? (
-              <option disabled>Đang tải...</option>
-            ) : (
-              departments.map((dept) => (
-                <option key={dept.id} value={dept.department_name || dept.name}>
-                  {dept.department_name || dept.name}
-                </option>
-              ))
-            )}
-          </select>
+          {/* Dropdown phòng ban: ẩn với Manager (backend tự scope), hiện với Director để filter server-side */}
+          {user?.role !== 'MANAGER' && (
+            <select 
+              value={selectedDeptId}
+              onChange={(e) => handleDeptFilterChange(e.target.value)}
+              className="w-full md:w-56 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-cyan-400"
+            >
+              <option value="">Tất cả phòng ban</option>
+              {loadingDepts ? (
+                <option disabled>Đang tải...</option>
+              ) : (
+                departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.department_name || dept.name}
+                  </option>
+                ))
+              )}
+            </select>
+          )}
 
           <select 
             value={statusFilter}

@@ -25,6 +25,9 @@ const upload = multer({ storage: storage });
 const managementController = require('../controllers/managementController');
 const decisionController = require('../controllers/decisionController');
 const contractController = require('../controllers/contractController');
+const authenticateToken = require('../middlewares/authMiddleware');
+
+router.use(authenticateToken);
 
 // --- CÁC ROUTE CỦA BẠN ---
 router.get('/form-options', managementController.getFormOptions);

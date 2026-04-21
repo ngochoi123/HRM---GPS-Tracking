@@ -57,9 +57,9 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
   const handleChange = (e) => {
     let { name, value } = e.target;
 
-    // ✅ Chỉ cho chữ + số + khoảng trắng
+    // ✅ Chỉ cho chữ + số + khoảng trắng + dấu gạch (-) và gạch dưới (_)
     if (name === "position_code" || name === "position_name") {
-      value = value.replace(/[^a-zA-Z0-9À-ỹ\s]/g, "");
+      value = value.replace(/[^a-zA-Z0-9À-ỹ\s\-_]/g, "");
     }
 
     // ✅ Chỉ cho số
@@ -72,7 +72,7 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
  const handleSubmit = async (e) => {
   e.preventDefault();
 
-  const textRegex = /^(?=.*[a-zA-Z])[a-zA-Z0-9À-ỹ\s]+$/;
+  const textRegex = /^(?=.*[a-zA-Z])[a-zA-Z0-9À-ỹ\s\-_]+$/;
 
   // ✅ trim
   if (!formData.position_code.trim()) {
@@ -87,12 +87,12 @@ export default function AddEditPosition({ position, onBack, onSaveSuccess }) {
 
   // ✅ regex
   if (!textRegex.test(formData.position_code)) {
-    alert("Mã chức vụ chỉ được chứa chữ, chữ + số!");
+    alert("Mã chức vụ chỉ được chứa chữ, số và kí tự đặc biệt như - _!");
     return;
   }
 
   if (!textRegex.test(formData.position_name)) {
-    alert("Tên chức vụ chỉ được chứa chữ, chữ + số!");
+    alert("Tên chức vụ chỉ được chứa chữ, số và kí tự đặc biệt như - _!");
     return;
   }
 

@@ -330,5 +330,64 @@ const createLocationAssignment = async (req, res) => {
     }
   }
 
+// 6. Lấy danh sách chức vụ theo phòng ban
+const getPositionsByDepartment = async (req, res) => {
+  try {
+    const { departmentId } = req.params;
+    const positions = await db.query(
+      `SELECT id, position_name as name, level 
+       FROM position 
+       WHERE department_id = :departmentId 
+       ORDER BY level = 'manager' DESC, position_name ASC`,
+      { replacements: { departmentId }, type: db.QueryTypes.SELECT }
+    );
+    res.status(200).json({ success: true, data: positions });
+  } catch (error) {
+    console.error("Lỗi getPositionsByDepartment:", error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+};
 
-module.exports = { getLocations, createLocation, updateLocationSettings, deleteWorkLocation, getBranches, getDepartmentsByBranch, getEmployeesByDepartment, getWorkLocationsByBranch, createLocationAssignment };
+// 7. Kiểm tra phòng ban đã có Trưởng phòng chưa
+const checkDepartmentManager = async (req, res) => {
+  try {
+    const { id } = req.params; // departmentId
+    const query = `
+      SELECT e.id, e.full_name
+      FROM employee e
+      JOIN position p ON e.position_id = p.id
+      WHERE p.department_id = :id 
+        AND p.level = 'manager' 
+        AND e.status = 'active'
+      LIMIT 1
+    `;
+    const results = await db.query(query, {
+      replacements: { id },
+      type: db.QueryTypes.SELECT
+    });
+
+    res.status(200).json({
+      success: true,
+      hasManager: results.length > 0,
+      manager: results.length > 0 ? results[0] : null
+    });
+  } catch (error) {
+    console.error("Lỗi checkDepartmentManager:", error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+};
+
+
+module.exports = { 
+  getLocations, 
+  createLocation, 
+  updateLocationSettings, 
+  deleteWorkLocation, 
+  getBranches, 
+  getDepartmentsByBranch, 
+  getEmployeesByDepartment, 
+  getWorkLocationsByBranch, 
+  createLocationAssignment,
+  getPositionsByDepartment,
+  checkDepartmentManager
+};

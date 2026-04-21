@@ -11,6 +11,8 @@ const {
   getAttendanceStatusForCheckOut,
 } = require('../services/attendanceActions');
 const { getClientIp, parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
+const bcrypt = require('bcryptjs'); // Dùng bcryptjs để tương thích tốt hơn
+const { sendAccountEmail } = require('../services/emailService');
 
 
 exports.getDashboard = async (req, res) => {
@@ -548,6 +550,193 @@ exports.getContract = async (req, res) => {
       message: "Lỗi server",
       error: error.message
     });
+  }
+};
+
+// ==========================================================
+// 🔴 TẠO NHÂN VIÊN MỚI (Admin/Manager use only)
+// Logic: Transaction + Manager Check + Auto direct_manager_id
+// ==========================================================
+exports.createEmployee = async (req, res) => {
+  const t = await db.transaction();
+
+  try {
+    const { 
+      full_name, phone_number, personal_email, address, 
+      identity_card_number, date_of_birth, gender, 
+      bank_account_number, bank_name, status,
+      work_email, position_id, join_date,
+      username, password, send_email 
+    } = req.body;
+
+    // 1. Validate dữ liệu cơ bản
+    if (!full_name || !position_id || !username || !password) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc (Họ tên, Chức vụ, Tài khoản)!' });
+    }
+
+    // 2. Kiểm tra thông tin Chức vụ & Manager Lock
+    const positionQuery = `
+      SELECT level, department_id, position_name 
+      FROM position 
+      WHERE id = :position_id
+    `;
+    const positions = await db.query(positionQuery, {
+      replacements: { position_id },
+      type: QueryTypes.SELECT,
+      transaction: t
+    });
+
+    if (positions.length === 0) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: 'Chức vụ không tồn tại!' });
+    }
+
+    const targetPos = positions[0];
+    const isManagerLevel = targetPos.level === 'manager';
+
+    if (isManagerLevel) {
+      // 🕵️ Double Check: Phòng ban đã có trưởng phòng chưa?
+      const managerCheckQuery = `
+        SELECT e.id, e.full_name 
+        FROM employee e
+        JOIN position p ON e.position_id = p.id
+        WHERE p.department_id = :dept_id 
+          AND p.level = 'manager' 
+          AND e.status = 'active'
+        LIMIT 1
+      `;
+      const existingManagers = await db.query(managerCheckQuery, {
+        replacements: { dept_id: targetPos.department_id },
+        type: QueryTypes.SELECT,
+        transaction: t
+      });
+
+      if (existingManagers.length > 0) {
+        await t.rollback();
+        return res.status(400).json({ 
+          success: false, 
+          message: `Phòng ban "${targetPos.position_name}" đã có Trưởng phòng (${existingManagers[0].full_name}). Vui lòng cách chức trưởng phòng cũ trước khi bổ nhiệm người mới.` 
+        });
+      }
+    }
+
+    // 3. Tạo mã nhân viên
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const employee_code = `NV-${new Date().getFullYear()}-${randomSuffix}`;
+
+    // 4. Insert Employee
+    const insertEmpQuery = `
+      INSERT INTO employee (
+        employee_code, full_name, phone_number, personal_email, address, 
+        identity_card_number, date_of_birth, gender, bank_account_number, bank_name, 
+        status, work_email, position_id, join_date
+      ) VALUES (
+        :employee_code, :full_name, :phone_number, :personal_email, :address, 
+        :identity_card_number, :date_of_birth, :gender, :bank_account_number, :bank_name, 
+        :status, :work_email, :position_id, :join_date
+      ) RETURNING id;
+    `;
+
+    const [empResult] = await db.query(insertEmpQuery, {
+      replacements: {
+        employee_code, full_name, 
+        phone_number: phone_number || null, 
+        personal_email: personal_email || null, 
+        address: address || null,
+        identity_card_number: identity_card_number || null, 
+        date_of_birth: date_of_birth || null, 
+        gender: (gender !== undefined && gender !== '') ? gender : null, 
+        bank_account_number: bank_account_number || null, 
+        bank_name: bank_name || null, 
+        status: status || 'active',
+        work_email: work_email || null,
+        position_id, 
+        join_date: join_date || null
+      },
+      type: QueryTypes.INSERT,
+      transaction: t
+    });
+
+    const newEmployeeId = empResult[0].id;
+
+    // 5. Insert User Account
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    const insertUserQuery = `
+      INSERT INTO user_account (
+        employee_id, username, password_hash, role_code, require_pass_change, status
+      ) VALUES (
+        :employee_id, :username, :password_hash, :role_code, true, 'active'
+      )
+    `;
+
+    // Mặc định role_code theo level: nếu là manager thì role là MANAGER, nếu không mặc định EMPLOYEE
+    const roleCode = isManagerLevel ? 'MANAGER' : 'EMPLOYEE';
+
+    await db.query(insertUserQuery, {
+      replacements: {
+        employee_id: newEmployeeId,
+        username: username,
+        password_hash: password_hash,
+        role_code: roleCode
+      },
+      type: QueryTypes.INSERT,
+      transaction: t
+    });
+
+    // 6. 🚀 AUTO-UPDATE DIRECT MANAGER (Nếu là Manager mới)
+    if (isManagerLevel && targetPos.department_id) {
+      const updateTeamQuery = `
+        UPDATE employee 
+        SET direct_manager_id = :newManagerId 
+        FROM position p
+        WHERE employee.position_id = p.id 
+          AND p.department_id = :deptId 
+          AND employee.id != :newManagerId
+          AND employee.status = 'active'
+      `;
+      await db.query(updateTeamQuery, {
+        replacements: { 
+          newManagerId: newEmployeeId, 
+          deptId: targetPos.department_id 
+        },
+        type: QueryTypes.UPDATE,
+        transaction: t
+      });
+    }
+
+    await t.commit();
+
+    // 7. Gửi Email thông báo (Async - Không block response)
+    if (send_email === true || send_email === 'true') {
+      const targetEmail = personal_email || work_email;
+      if (targetEmail) {
+        sendAccountEmail(targetEmail, full_name, username, password).catch(err => {
+          console.error("❌ Lỗi gửi email sau khi tạo NV:", err.message);
+        });
+      }
+    }
+
+    return res.status(201).json({ 
+      success: true, 
+      message: isManagerLevel 
+        ? 'Bổ nhiệm Trưởng phòng mới và cập nhật quản lý trực tiếp thành công!' 
+        : 'Thêm nhân viên và cấp tài khoản thành công!',
+      data: { employee_id: newEmployeeId, employee_code }
+    });
+
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    console.error('❌ Error createEmployee:', error);
+    
+    // Bắt lỗi Unique Constraint (Username/Email)
+    if (error.original && error.original.code === '23505') {
+      return res.status(400).json({ success: false, message: 'Tên đăng nhập hoặc Email đã tồn tại trong hệ thống!' });
+    }
+
+    res.status(500).json({ success: false, message: 'Lỗi máy chủ khi tạo nhân viên', error: error.message });
   }
 };
 

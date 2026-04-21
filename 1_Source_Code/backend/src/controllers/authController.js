@@ -22,9 +22,11 @@ const login = async (req, res) => {
       SELECT 
         e.id as employee_id, e.full_name, e.work_email, 
         ua.id as user_id, ua.username, ua.role_code, ua.status, ua.require_pass_change,
-        ua.password_hash -- Lấy cái này để verify
+        ua.password_hash, -- Lấy cái này để verify
+        p.department_id
       FROM user_account ua
       JOIN employee e ON ua.employee_id = e.id
+      LEFT JOIN position p ON e.position_id = p.id
       WHERE (ua.username = :username OR e.work_email = :username OR e.personal_email = :username)
     `;
 
@@ -53,7 +55,12 @@ const login = async (req, res) => {
 
     // 3. SINH TOKEN (Quan trọng để không bị lỗi ReferenceError)
     const token = jwt.sign(
-      { id: user.user_id, username: user.username, role: user.role_code },
+      { 
+        id: user.user_id, 
+        username: user.username, 
+        role: user.role_code,
+        department_id: user.department_id 
+      },
       process.env.JWT_SECRET || 'your_jwt_secret', 
       { expiresIn: '24h' }
     );
@@ -64,12 +71,13 @@ const login = async (req, res) => {
         success: true,
         require_pass_change: true,
         message: "Vui lòng đổi mật khẩu trước khi sử dụng hệ thống.",
-        token: token, // Bây giờ token đã có giá trị
+        token: token,
         user: {
           id: user.employee_id,
           name: user.full_name,
           username: user.username,
-          role: user.role_code
+          role: user.role_code,
+          department_id: user.department_id || null
         }
       });
     }
@@ -83,7 +91,8 @@ const login = async (req, res) => {
         id: user.employee_id,
         name: user.full_name,
         username: user.username,
-        role: user.role_code
+        role: user.role_code,
+        department_id: user.department_id || null
       }
     });
 

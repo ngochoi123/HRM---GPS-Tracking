@@ -10,7 +10,8 @@ const {
   createUser, 
   updateUser, 
   getEmployeesWithoutAccount, 
-  adminForceResetPassword 
+  adminForceResetPassword,
+  syncManagerAssignments
 } = require('../controllers/AdminController');
 
 const { 
@@ -18,12 +19,19 @@ const {
   createLocation, 
   updateLocationSettings, 
   deleteWorkLocation,
-  getBranches,
-  getDepartmentsByBranch,
   getEmployeesByDepartment,
   getWorkLocationsByBranch,
-  createLocationAssignment
+  createLocationAssignment,
+  getPositionsByDepartment,
+  checkDepartmentManager,
+  getBranches,
+  getDepartmentsByBranch
 } = require('../controllers/locationController');
+
+const authenticateToken = require('../middlewares/authMiddleware');
+
+// Áp dụng Auth Middleware cho toàn bộ route admin
+router.use(authenticateToken);
 
 // ==========================================
 // QUẢN LÝ USER / NHÂN VIÊN
@@ -34,6 +42,7 @@ router.post('/users', createUser);
 router.put('/users/:id', updateUser);
 router.get('/employees-no-account', getEmployeesWithoutAccount);
 router.post('/force-reset-password', adminForceResetPassword);
+router.post('/sync-managers', syncManagerAssignments); // Đồng bộ direct_manager_id toàn hệ thống
 
 // ==========================================
 // QUẢN LÝ ĐỊA ĐIỂM CHẤM CÔNG (LOCATIONS)
@@ -59,4 +68,9 @@ router.get('/hierarchy/employees/:departmentId', getEmployeesByDepartment);
 router.get('/hierarchy/work-locations/:branchId', getWorkLocationsByBranch);
 // Tạo phân công (Branch/Department/Employee)
 router.post('/hierarchy/assignments', createLocationAssignment);
+
+// --- CÁC ROUTE PHỤ TRỢ CHO CASCADING DROPDOWN ---
+router.get('/hierarchy/positions/:departmentId', getPositionsByDepartment);
+router.get('/hierarchy/departments/:id/manager-check', checkDepartmentManager);
+
 module.exports = router;

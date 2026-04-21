@@ -248,10 +248,59 @@ const adminForceResetPassword = async (req, res) => {
   }
 };
 
-module.exports = { 
-  getAllUsers, 
-  createUser, 
-  updateUser, 
-  getEmployeesWithoutAccount, 
-  adminForceResetPassword
+// ==========================================
+// SYNC: Cập nhật direct_manager_id cho toàn bộ nhân  viên
+// theo manager_id hiện tại của phòng ban
+// ==========================================
+const syncManagerAssignments = async (req, res) => {
+  const t = await db.transaction();
+  try {
+    // Bước 1: Cập nhật direct_manager_id của tất cả nhân viên active
+    // dựa trên manager_id của phòng ban họ thuộc về
+    const result = await db.query(
+      `UPDATE employee
+       SET direct_manager_id = d.manager_id
+       FROM position p
+       JOIN department d ON p.department_id = d.id
+       WHERE employee.position_id = p.id
+         AND d.manager_id IS NOT NULL
+         AND employee.id != d.manager_id
+         AND employee.status = 'active'
+         AND (employee.direct_manager_id IS DISTINCT FROM d.manager_id)`,
+      { type: db.QueryTypes.UPDATE, transaction: t }
+    );
+
+    // Bước 2: nhân viên thuộc phòng chưa có manager -> set NULL để không bị stale
+    await db.query(
+      `UPDATE employee
+       SET direct_manager_id = NULL
+       FROM position p
+       JOIN department d ON p.department_id = d.id
+       WHERE employee.position_id = p.id
+         AND d.manager_id IS NULL
+         AND employee.direct_manager_id IS NOT NULL
+         AND employee.status = 'active'`,
+      { type: db.QueryTypes.UPDATE, transaction: t }
+    );
+
+    await t.commit();
+    const updatedCount = result[1] || 0;
+    res.status(200).json({
+      success: true,
+      message: `Đã đồng bộ direct_manager_id cho ${updatedCount} nhân viên thành công.`
+    });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    console.error('syncManagerAssignments error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi sync: ' + error.message });
+  }
+};
+
+module.exports = {
+  getAllUsers,
+  createUser,
+  updateUser,
+  getEmployeesWithoutAccount,
+  adminForceResetPassword,
+  syncManagerAssignments
 };

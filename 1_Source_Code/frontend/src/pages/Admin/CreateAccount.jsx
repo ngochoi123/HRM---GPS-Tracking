@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'; // Đã thêm useEffect ở 
 import { ArrowLeft, UserSquare2, KeyRound, ShieldCheck, RefreshCw, UserPlus, Users } from 'lucide-react';
 // Sử dụng service tập trung cho các API Admin liên quan tới tài khoản
 import { adminUserService } from '../../services/adminUserService';
-
 const CreateAccount = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('existing');
 
@@ -14,18 +13,82 @@ const CreateAccount = ({ onBack }) => {
     username: '',
     password: '',
     role: 'EMPLOYEE',
-status: 'active',
+    status: 'active',
     sendEmail: true
+  });
+
+  // HIERARCHY STATES
+  const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [selection, setSelection] = useState({
+    branchId: '',
+    departmentId: ''
+  });
+  const [managerCheck, setManagerCheck] = useState({
+    hasManager: false,
+    managerName: ''
   });
 
   // STATE ĐỂ CHỨA DANH SÁCH NHÂN VIÊN TỪ BACKEND
   const [employeesList, setEmployeesList] = useState([]);
 
+  // 1. Fetch Branches on mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const res = await adminUserService.getBranches();
+        if (res.success) setBranches(res.data);
+      } catch (err) {
+        console.error("Lỗi tải chi nhánh:", err);
+      }
+    };
+    fetchBranches();
+  }, []);
+
+  // 2. Fetch Departments when Branch changes
+  useEffect(() => {
+    if (!selection.branchId) return;
+    const fetchDepts = async () => {
+      try {
+        const res = await adminUserService.getDepartments(selection.branchId);
+        if (res.success) setDepartments(res.data);
+      } catch (err) {
+        console.error("Lỗi tải phòng ban:", err);
+      }
+    };
+    fetchDepts();
+  }, [selection.branchId]);
+
+  // 3. Fetch Positions & Check Manager when Department changes
+  useEffect(() => {
+    if (!selection.departmentId) return;
+    const fetchData = async () => {
+      try {
+        // Parallel calls for performance
+        const [posRes, checkRes] = await Promise.all([
+          adminUserService.getPositions(selection.departmentId),
+          adminUserService.checkManager(selection.departmentId)
+        ]);
+
+        if (posRes.success) setPositions(posRes.data);
+        if (checkRes.success) {
+          setManagerCheck({
+            hasManager: checkRes.hasManager,
+            managerName: checkRes.manager?.full_name || ''
+          });
+        }
+      } catch (err) {
+        console.error("Lỗi tải chức vụ/kiểm tra manager:", err);
+      }
+    };
+    fetchData();
+  }, [selection.departmentId]);
+
   // GỌI API LẤY DANH SÁCH NHÂN VIÊN CHƯA CÓ TÀI KHOẢN
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        // Gọi qua adminUserService để tránh lặp lại baseURL và header Authorization
         const res = await adminUserService.getEmployeesWithoutAccount();
         if (res.success) {
           setEmployeesList(res.data);
@@ -35,13 +98,11 @@ status: 'active',
       }
     };
     
-    // Chỉ gọi API nếu đang mở tab "Chọn nhân sự có sẵn"
     if (activeTab === 'existing') {
       fetchEmployees();
     }
   }, [activeTab]); 
 
-  // TẠO MẬT KHẨU NGẪU NHIÊN
   const generatePassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
     let pass = "";
@@ -51,7 +112,6 @@ status: 'active',
     setFormData({ ...formData, password: pass });
   };
 
-  // XỬ LÝ KHI BẤM NÚT TẠO
   const handleCreateSubmit = async () => {
     if (!formData.username || !formData.password) {
       alert("Vui lòng nhập Username và Password!");
@@ -72,9 +132,7 @@ status: 'active',
     };
 
     try {
-      // Tạo tài khoản thông qua service, axiosClient sẽ tự gắn token
       const response = await adminUserService.createUser(payload);
-      
       if (response?.status === 201 || response?.success) {
         alert("Khởi tạo tài khoản thành công!");
         onBack();
@@ -126,8 +184,6 @@ status: 'active',
           {activeTab === 'existing' && (
             <div className="ca-form-group ca-fade-in">
               <label>Chọn nhân viên (Chưa có tài khoản) <span className="ca-required">*</span></label>
-              
-              {/* ĐÃ SỬA: Đổ danh sách động từ DB vào đây */}
               <select 
                 className="ca-input-select"
                 value={formData.employeeId}
@@ -140,14 +196,13 @@ status: 'active',
                   </option>
                 ))}
               </select>
-
               <p className="ca-helper-text">ⓘ Chỉ hiển thị những nhân sự đang làm việc và chưa được cấp tài khoản.</p>
             </div>
           )}
 
           {activeTab === 'new' && (
-            <div className="ca-grid-2 ca-fade-in">
-              <div className="ca-form-group">
+            <div className="ca-fade-in">
+              <div className="ca-form-group" style={{ marginBottom: '15px' }}>
                 <label>Họ và tên nhân viên <span className="ca-required">*</span></label>
                 <input 
                   type="text" 
@@ -157,22 +212,74 @@ status: 'active',
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                 />
               </div>
-              
-              <div className="ca-form-group">
-                <label>Vị trí / Chức vụ <span className="ca-required">*</span></label>
-                <select 
-                  className="ca-input-select"
-                  value={formData.positionId}
-                  onChange={(e) => setFormData({...formData, positionId: e.target.value})}
-                >
-                  <option value="">-- Chọn vị trí / chức vụ --</option>
-                  <option value="1">Nhân viên IT</option>
-                  <option value="2">Chuyên viên Nhân sự</option>
-                  <option value="3">Nhân viên Kinh doanh</option>
-                </select>
+
+              <div className="ca-grid-3">
+                <div className="ca-form-group">
+                  <label>Chi nhánh <span className="ca-required">*</span></label>
+                  <select 
+                    className="ca-input-select"
+                    value={selection.branchId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelection({ branchId: val, departmentId: '' });
+                      setFormData(prev => ({ ...prev, positionId: '' }));
+                      setDepartments([]); // Reset departments list immediately
+                      setPositions([]); // Reset positions list
+                    }}
+                  >
+                    <option value="">-- Chọn chi nhánh --</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="ca-form-group">
+                  <label>Phòng ban <span className="ca-required">*</span></label>
+                  <select 
+                    className="ca-input-select"
+                    value={selection.departmentId}
+                    disabled={!selection.branchId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelection(prev => ({ ...prev, departmentId: val }));
+                      setFormData(prev => ({ ...prev, positionId: '' }));
+                      setPositions([]); // Reset positions list immediately
+                      setManagerCheck({ hasManager: false, managerName: '' }); // Reset manager check
+                    }}
+                  >
+                    <option value="">-- Chọn phòng ban --</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="ca-form-group">
+                  <label>Vị trí / Chức vụ <span className="ca-required">*</span></label>
+                  <select 
+                    className="ca-input-select"
+                    value={formData.positionId}
+                    disabled={!selection.departmentId}
+                    onChange={(e) => {
+                      const selectedPos = positions.find(p => p.id === parseInt(e.target.value));
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        positionId: e.target.value,
+                        role: selectedPos?.level === 'manager' ? 'MANAGER' : 'EMPLOYEE'
+                      }));
+                    }}
+                  >
+                    <option value="">-- Chọn chức vụ --</option>
+                    {positions.map(p => {
+                      const isLocked = managerCheck.hasManager && p.level === 'manager';
+                      return (
+                        <option key={p.id} value={p.id} disabled={isLocked}>
+                          {p.name} {isLocked ? `(Đã có Trưởng phòng: ${managerCheck.managerName})` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               </div>
 
-              <div className="ca-form-group">
+              <div className="ca-form-group" style={{ marginTop: '15px' }}>
                 <label>Email liên hệ (Tùy chọn)</label>
                 <input 
                   type="email" 
@@ -242,16 +349,15 @@ status: 'active',
             </div>
             <div className="ca-form-group">
               <label>Trạng thái tài khoản</label>
-              {/* SỬA THÀNH NHƯ SAU ĐỂ KHỚP VỚI DATABASE ENUM */}
-                <select 
-                  className="ca-input-select" 
-                  style={{ color: formData.status === 'active' ? '#10b981' : '#ef4444', fontWeight: '500' }}
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                >
-                  <option value="active">Đang hoạt động (Active)</option>
-                  <option value="locked">Khóa (Locked)</option>
-                </select>
+              <select 
+                className="ca-input-select" 
+                style={{ color: formData.status === 'active' ? '#10b981' : '#ef4444', fontWeight: '500' }}
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value})}
+              >
+                <option value="active">Đang hoạt động (Active)</option>
+                <option value="locked">Khóa (Locked)</option>
+              </select>
             </div>
           </div>
 

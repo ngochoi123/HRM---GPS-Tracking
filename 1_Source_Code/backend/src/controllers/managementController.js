@@ -1,10 +1,26 @@
-﻿
+
 const db = require('../config/database'); 
 const bcrypt = require('bcrypt');
 const { sendAccountEmail } = require('../services/emailService');
 
 const getEmployees = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+    // Director có thể truyền ?departmentId=X để lọc theo phòng ban
+    const { departmentId } = req.query;
+
+    let whereClause = '';
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      // MANAGER: bắt buộc chỉ xem phòng ban của mình (server-side enforcement)
+      whereClause = 'WHERE p.department_id = :deptId';
+      replacements.deptId = department_id;
+    } else if ((role === 'DIRECTOR' || role === 'ADMIN') && departmentId) {
+      // DIRECTOR/ADMIN có thể lọc theo phòng ban cụ thể nếu truyền param
+      whereClause = 'WHERE p.department_id = :deptId';
+      replacements.deptId = departmentId;
+    }
 
     const query = `
       SELECT 
@@ -13,16 +29,18 @@ const getEmployees = async (req, res) => {
         e.full_name AS name, 
         e.work_email AS email, 
         p.position_name AS position, 
+        d.id AS department_id,
         d.department_name AS department, 
         e.status 
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
+      ${whereClause}
       ORDER BY e.created_at DESC;
     `;
 
-    
     const employees = await db.query(query, {
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -39,6 +57,7 @@ const getEmployees = async (req, res) => {
         email: emp.email || 'Chưa cập nhật',
         position: emp.position || 'Chưa phân bổ',
         department: emp.department || 'Chưa phân bổ',
+        department_id: emp.department_id,
         status: emp.status,
         statusText: statusText
       };
@@ -56,12 +75,22 @@ const getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
     
+    const { role, department_id } = req.user;
+    let scopingClause = '';
+    let replacements = { id };
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const query = `
       SELECT 
         e.*, 
         e.address AS current_address,
         p.position_name AS position_title, 
         d.department_name AS department_title,
+        p.department_id,
         u.username,
         u.role_code,
         u.last_login
@@ -69,11 +98,11 @@ const getEmployeeById = async (req, res) => {
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
       LEFT JOIN user_account u ON u.employee_id = e.id
-      WHERE e.id = :id
+      WHERE e.id = :id ${scopingClause}
     `;
 
     const result = await db.query(query, {
-      replacements: { id: id },
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -98,22 +127,39 @@ const getEmployeeById = async (req, res) => {
 };
 
 const updateEmployee = async (req, res) => {
+  const t = await db.transaction();
   try {
     const { id } = req.params;
-    
+    const { role, department_id: callerDeptId } = req.user;
+
     const { 
       full_name, phone_number, personal_email, current_address, 
       identity_card_number, date_of_birth, gender, 
       bank_account_number, bank_name, status,
-      work_email, position_id, department_id, join_date, direct_manager_id
+      work_email, position_id, join_date, direct_manager_id
     } = req.body;
 
-    const updateQuery = `
+    // 1. RBAC: Manager chỉ được cập nhật nhân viên trong phòng mình
+    if (role === 'MANAGER') {
+      const empCheck = await db.query(
+        `SELECT e.id FROM employee e
+         JOIN position p ON e.position_id = p.id
+         WHERE e.id = :id AND p.department_id = :deptId`,
+        { replacements: { id, deptId: callerDeptId }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      if (empCheck.length === 0) {
+        await t.rollback();
+        return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật nhân viên này!' });
+      }
+    }
+
+    // 2. Cập nhật thông tin nhân viên
+    await db.query(`
       UPDATE employee
       SET full_name = :full_name,
           phone_number = :phone_number,
           personal_email = :personal_email,
-          address = :address, 
+          address = :address,
           identity_card_number = :identity_card_number,
           date_of_birth = :date_of_birth,
           gender = :gender,
@@ -126,17 +172,13 @@ const updateEmployee = async (req, res) => {
           direct_manager_id = :direct_manager_id,
           updated_at = NOW()
       WHERE id = :id
-    `;
-
-    await db.query(updateQuery, {
+    `, {
       replacements: { 
-        id: id, 
+        id,
         full_name: full_name || null, 
         phone_number: phone_number || null, 
         personal_email: personal_email || null, 
-        
-        address: current_address || null,  
-        
+        address: current_address || null,
         identity_card_number: identity_card_number || null, 
         date_of_birth: date_of_birth || null, 
         gender: (gender !== undefined && gender !== '') ? gender : null, 
@@ -148,35 +190,82 @@ const updateEmployee = async (req, res) => {
         join_date: join_date || null,
         direct_manager_id: direct_manager_id || null
       },
-      type: db.QueryTypes.UPDATE
+      type: db.QueryTypes.UPDATE,
+      transaction: t
     });
 
+    // 3. Nếu position_id được cập nhật, kiểm tra xem có phải level 'manager' không
+    if (position_id) {
+      const posRows = await db.query(
+        `SELECT level, department_id FROM position WHERE id = :position_id`,
+        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      const pos = posRows[0];
+
+      if (pos && pos.level === 'manager' && pos.department_id) {
+        const deptId = pos.department_id;
+
+        // 3a. Cập nhật manager_id trong bảng department
+        await db.query(
+          `UPDATE department SET manager_id = :empId WHERE id = :deptId`,
+          { replacements: { empId: id, deptId }, type: db.QueryTypes.UPDATE, transaction: t }
+        );
+
+        // 3b. Cascade: cập nhật direct_manager_id cho toàn bộ nhân viên trong phòng ban
+        await db.query(
+          `UPDATE employee
+           SET direct_manager_id = :empId
+           FROM position p
+           WHERE employee.position_id = p.id
+             AND p.department_id = :deptId
+             AND employee.id != :empId
+             AND employee.status = 'active'`,
+          { replacements: { empId: id, deptId }, type: db.QueryTypes.UPDATE, transaction: t }
+        );
+      }
+    }
+
+    await t.commit();
     res.status(200).json({ success: true, message: 'Cập nhật hồ sơ thành công!' });
 
   } catch (error) {
+    if (!t.finished) await t.rollback();
     console.error('Lỗi API updateEmployee:', error);
-    res.status(500).json({ success: false, message: 'Lỗi Server khi cập nhật' });
+    res.status(500).json({ success: false, message: 'Lỗi Server khi cập nhật: ' + error.message });
   }
 };
 const getFormOptions = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+    let deptWhere = '';
+    let posWhere = '';
+    let mgrWhere = "WHERE e.status = 'active'";
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      deptWhere = 'WHERE id = :deptId';
+      posWhere = 'WHERE department_id = :deptId';
+      mgrWhere += ' AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const departments = await db.query(
-      "SELECT id, department_name FROM department ORDER BY department_name", 
-      { type: db.QueryTypes.SELECT }
+      `SELECT id, department_name FROM department ${deptWhere} ORDER BY department_name`, 
+      { replacements, type: db.QueryTypes.SELECT }
     );
 
     const positions = await db.query(
-      "SELECT id, position_name, department_id FROM position ORDER BY position_name", 
-      { type: db.QueryTypes.SELECT }
+      `SELECT id, position_name, department_id FROM position ${posWhere} ORDER BY position_name`, 
+      { replacements, type: db.QueryTypes.SELECT }
     );
 
     const managers = await db.query(
       `SELECT e.id, e.full_name, p.department_id 
        FROM employee e
        LEFT JOIN position p ON e.position_id = p.id
-       WHERE e.status = 'active' 
+       ${mgrWhere}
        ORDER BY e.full_name`, 
-      { type: db.QueryTypes.SELECT }
+      { replacements, type: db.QueryTypes.SELECT }
     );
 
     res.status(200).json({ departments, positions, managers });
@@ -239,11 +328,49 @@ const createEmployee = async (req, res) => {
     const saltRounds = 10;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
+    // Kiểm tra level của chức vụ để gán role_code phù hợp
+    let roleCode = 'EMPLOYEE';
+    let newDeptId = null;
+    if (position_id) {
+      const posRows = await db.query(
+        `SELECT level, department_id FROM position WHERE id = :position_id`,
+        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      const pos = posRows[0];
+      if (pos) {
+        if (pos.level === 'manager') roleCode = 'MANAGER';
+        if (pos.level === 'director') roleCode = 'DIRECTOR';
+        newDeptId = pos.department_id;
+      }
+    }
+
+    // --- Auto-assign direct_manager_id ---
+    // Nếu form không truyền direct_manager_id và nhân viên KHÔNG phải manager,
+    // tự động lấy manager_id hiện tại của phòng ban
+    let resolvedManagerId = direct_manager_id || null;
+    if (!resolvedManagerId && roleCode !== 'MANAGER' && newDeptId) {
+      const deptRows = await db.query(
+        `SELECT manager_id FROM department WHERE id = :deptId`,
+        { replacements: { deptId: newDeptId }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      if (deptRows[0]?.manager_id) {
+        resolvedManagerId = deptRows[0].manager_id;
+      }
+    }
+
+    // Cập nhật lại direct_manager_id cho nhân viên vừa tạo nếu cần
+    if (resolvedManagerId && resolvedManagerId !== (direct_manager_id || null)) {
+      await db.query(
+        `UPDATE employee SET direct_manager_id = :mgr WHERE id = :empId`,
+        { replacements: { mgr: resolvedManagerId, empId: newEmployeeId }, type: db.QueryTypes.UPDATE, transaction: t }
+      );
+    }
+
     const insertUserQuery = `
       INSERT INTO user_account (
         employee_id, username, password_hash, role_code, require_pass_change
       ) VALUES (
-        :employee_id, :username, :password_hash, 'employee', true
+        :employee_id, :username, :password_hash, :role_code, true
       )
     `;
 
@@ -251,11 +378,31 @@ const createEmployee = async (req, res) => {
       replacements: {
         employee_id: newEmployeeId,
         username: username,
-        password_hash: password_hash
+        password_hash: password_hash,
+        role_code: roleCode
       },
       type: db.QueryTypes.INSERT,
       transaction: t
     });
+
+    // Nếu là Trưởng phòng mới: cập nhật department.manager_id và cascade direct_manager_id cho CẢ PHÒNG
+    if (roleCode === 'MANAGER' && newDeptId) {
+      await db.query(
+        `UPDATE department SET manager_id = :empId WHERE id = :deptId`,
+        { replacements: { empId: newEmployeeId, deptId: newDeptId }, type: db.QueryTypes.UPDATE, transaction: t }
+      );
+      // Cascade: gán tất cả nhân viên (active) trong phòng sang trưởng phòng mới
+      await db.query(
+        `UPDATE employee
+         SET direct_manager_id = :empId
+         FROM position p
+         WHERE employee.position_id = p.id
+           AND p.department_id = :deptId
+           AND employee.id != :empId
+           AND employee.status = 'active'`,
+        { replacements: { empId: newEmployeeId, deptId: newDeptId }, type: db.QueryTypes.UPDATE, transaction: t }
+      );
+    }
 
     await t.commit();
 
@@ -382,7 +529,16 @@ const deleteEmployee = async (req, res) => {
 
 const getPresentEmployees = async (req, res) => {
   try {
-const query = `
+    const { role, department_id } = req.user;
+    let whereClause = '';
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      whereClause = 'AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
+    const query = `
       SELECT 
         e.id AS employee_id,
         e.full_name, 
@@ -395,14 +551,17 @@ const query = `
         wl.location_name
       FROM employee e
       JOIN attendance a ON e.id = a.employee_id
+      LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN work_location wl ON a.work_location_id = wl.id
       WHERE e.status = 'active'
         AND a.attendance_date = CURRENT_DATE
         AND a.check_in_time IS NOT NULL
+        ${whereClause}
       ORDER BY a.check_in_time ASC
     `;
 
     const employees = await db.query(query, {
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -415,7 +574,16 @@ const query = `
 
 const getAbsentEmployees = async (req, res) => {
   try {
-const query = `
+    const { role, department_id: managerDeptId } = req.user;
+    let scopingClause = '';
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND p.department_id = :deptId';
+      replacements.deptId = managerDeptId;
+    }
+
+    const query = `
       SELECT 
         e.id AS employee_id,
         e.full_name, 
@@ -443,10 +611,12 @@ const query = `
           WHERE attendance_date = CURRENT_DATE
             AND check_in_time IS NOT NULL
         )
+        ${scopingClause}
       ORDER BY e.full_name ASC
     `;
 
     const employees = await db.query(query, {
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -460,28 +630,43 @@ const getChangesSummary = async (req, res) => {
   try {
     const { month } = req.query; // yyyy-MM
 
+    const { role, department_id } = req.user;
+    let scopingClause = '';
+    let replacements = { month };
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const query = `
       SELECT
-  (SELECT COUNT(*) 
-   FROM employee 
-   WHERE join_date <= TO_DATE(:month, 'YYYY-MM')
-     AND (status = 'active' OR TO_CHAR(updated_at, 'YYYY-MM') > :month)
-  ) AS total,
+        (SELECT COUNT(*) 
+         FROM employee e
+         LEFT JOIN position p ON e.position_id = p.id
+         WHERE e.join_date <= TO_DATE(:month, 'YYYY-MM')
+           AND (e.status = 'active' OR TO_CHAR(e.updated_at, 'YYYY-MM') > :month)
+           ${scopingClause}
+        ) AS total,
 
-  (SELECT COUNT(*) 
-   FROM employee 
-   WHERE TO_CHAR(join_date, 'YYYY-MM') = :month
-  ) AS new_employees,
+        (SELECT COUNT(*) 
+         FROM employee e
+         LEFT JOIN position p ON e.position_id = p.id
+         WHERE TO_CHAR(e.join_date, 'YYYY-MM') = :month
+           ${scopingClause}
+        ) AS new_employees,
 
-  (SELECT COUNT(*) 
-   FROM employee 
-   WHERE status = 'inactive'
-     AND TO_CHAR(updated_at, 'YYYY-MM') = :month
-  ) AS leave_employees
+        (SELECT COUNT(*) 
+         FROM employee e
+         LEFT JOIN position p ON e.position_id = p.id
+         WHERE e.status = 'inactive'
+           AND TO_CHAR(e.updated_at, 'YYYY-MM') = :month
+           ${scopingClause}
+        ) AS leave_employees
     `;
 
     const result = await db.query(query, {
-      replacements: { month },
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -496,6 +681,15 @@ const getChangesList = async (req, res) => {
   try {
     const { month } = req.query;
 
+    const { role, department_id } = req.user;
+    let scopingClause = '';
+    let replacements = { month };
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const query = `
       SELECT 
         e.id AS employee_id,
@@ -507,6 +701,7 @@ const getChangesList = async (req, res) => {
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
       WHERE TO_CHAR(e.join_date, 'YYYY-MM') = :month
+      ${scopingClause}
 
       UNION ALL
 
@@ -521,6 +716,7 @@ const getChangesList = async (req, res) => {
       LEFT JOIN department d ON p.department_id = d.id
       WHERE e.status = 'inactive'
         AND TO_CHAR(e.updated_at, 'YYYY-MM') = :month
+        ${scopingClause}
 
       UNION ALL
 
@@ -536,12 +732,13 @@ const getChangesList = async (req, res) => {
       LEFT JOIN department d ON p.department_id = d.id
       WHERE lr.status = 'approved'
         AND TO_CHAR(lr.start_datetime, 'YYYY-MM') = :month
+        ${scopingClause}
 
       ORDER BY date DESC;
     `;
 
     const result = await db.query(query, {
-      replacements: { month },
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -987,15 +1184,23 @@ const getApprovalHistory = async (req, res) => {
 
 const getRequestsStats = async (req, res) => {
   try {
-    const { id: managerId } = req.params;
+    const { role, department_id } = req.user;
+    const { id: managerId } = req.params; // Keeping managerId for CTE fallback or specific views
     let monthParam = req.query.month ? String(req.query.month) : '';
-
-    if (!managerId) {
-      return res.status(400).json({ message: 'Thiếu managerId' });
-    }
 
     if (monthParam && !/^\d{4}-\d{2}$/.test(monthParam)) {
       return res.status(400).json({ message: 'Tham số month (YYYY-MM) không hợp lệ' });
+    }
+
+    let managedEmployeesClause = '';
+    let replacementsCte = { manager_id: managerId };
+
+    if (role === 'MANAGER') {
+      managedEmployeesClause = 'WHERE p.department_id = :deptId';
+      replacementsCte.deptId = department_id;
+    } else {
+      // For Director/Admin: Full company access
+      managedEmployeesClause = ''; 
     }
 
     const baseRequestsCte = `
@@ -1003,12 +1208,7 @@ const getRequestsStats = async (req, res) => {
         SELECT DISTINCT e.id
         FROM employee e
         LEFT JOIN position p ON p.id = e.position_id
-        LEFT JOIN department d ON d.id = p.department_id
-        WHERE e.id <> :manager_id
-          AND (
-            e.direct_manager_id = :manager_id
-            OR d.manager_id = :manager_id
-          )
+        ${managedEmployeesClause}
       ),
       requests AS (
         SELECT
@@ -1049,7 +1249,7 @@ const getRequestsStats = async (req, res) => {
         FROM requests
         `,
         {
-          replacements: { manager_id: managerId },
+          replacements: replacementsCte,
           type: db.QueryTypes.SELECT
         }
       );
@@ -1131,7 +1331,7 @@ const getRequestsStats = async (req, res) => {
       `,
       {
         replacements: {
-          manager_id: managerId,
+          ...replacementsCte,
           cur_start: currentStartStr,
           cur_end: currentEndStr,
           prev_start: previousStartStr,
@@ -1154,7 +1354,7 @@ const getRequestsStats = async (req, res) => {
       `,
       {
         replacements: {
-          manager_id: managerId,
+          ...replacementsCte,
           cur_start: currentStartStr,
           cur_end: currentEndStr
         },
@@ -1192,7 +1392,7 @@ const getRequestsStats = async (req, res) => {
       LIMIT 10
       `,
       {
-        replacements: { manager_id: managerId },
+        replacements: { ...replacementsCte },
         type: db.QueryTypes.SELECT
       }
     );
@@ -1227,7 +1427,7 @@ const getRequestsStats = async (req, res) => {
       `,
       {
         replacements: {
-          manager_id: managerId,
+          ...replacementsCte,
           cur_start: currentStartStr,
           cur_end: currentEndStr
         },
@@ -1343,6 +1543,20 @@ const getAttendanceStats = async (req, res) => {
     const prevStartStr = prevStart.toISOString().slice(0, 10);
     const prevEndStr = prevEnd.toISOString().slice(0, 10);
 
+    const { role, department_id } = req.user;
+    let scopingClause = '';
+    let replacements = {
+      cur_start: curStartStr,
+      cur_end: curEndStr,
+      prev_start: prevStartStr,
+      prev_end: prevEndStr,
+    };
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const attendanceAgg = await db.query(
       `
       SELECT
@@ -1356,14 +1570,11 @@ const getAttendanceStats = async (req, res) => {
             AND a.status IN ('late', 'early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_prev
       FROM attendance a
       JOIN employee e ON e.id = a.employee_id AND e.status = 'active'
+      LEFT JOIN position p ON e.position_id = p.id
+      WHERE 1=1 ${scopingClause}
       `,
       {
-        replacements: {
-          cur_start: curStartStr,
-          cur_end: curEndStr,
-          prev_start: prevStartStr,
-          prev_end: prevEndStr,
-        },
+        replacements,
         type: db.QueryTypes.SELECT,
       }
     );
@@ -1378,12 +1589,15 @@ const getAttendanceStats = async (req, res) => {
           )
         ), 0)::int AS leave_days_cur
       FROM leave_request lr
+      JOIN employee e ON e.id = lr.employee_id
+      LEFT JOIN position p ON e.position_id = p.id
       WHERE lr.status = 'approved'
         AND lr.start_datetime < :cur_end
         AND lr.end_datetime > :cur_start
+        ${scopingClause}
       `,
       {
-        replacements: { cur_start: curStartStr, cur_end: curEndStr },
+        replacements,
         type: db.QueryTypes.SELECT,
       }
     );
@@ -1398,12 +1612,15 @@ const getAttendanceStats = async (req, res) => {
           )
         ), 0)::int AS leave_days_prev
       FROM leave_request lr
+      JOIN employee e ON e.id = lr.employee_id
+      LEFT JOIN position p ON e.position_id = p.id
       WHERE lr.status = 'approved'
         AND lr.start_datetime < :prev_end
         AND lr.end_datetime > :prev_start
+        ${scopingClause}
       `,
       {
-        replacements: { prev_start: prevStartStr, prev_end: prevEndStr },
+        replacements,
         type: db.QueryTypes.SELECT,
       }
     );
@@ -1442,6 +1659,7 @@ const getAttendanceStats = async (req, res) => {
     );
     const tolMin = tolRow[0]?.tol ?? 15;
 
+
     const deptRows = await db.query(
       `
       SELECT
@@ -1453,12 +1671,13 @@ const getAttendanceStats = async (req, res) => {
       JOIN employee e ON e.position_id = p.id AND e.status = 'active'
       LEFT JOIN attendance a ON a.employee_id = e.id
         AND a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
+      WHERE 1=1 ${scopingClause}
       GROUP BY d.id, d.department_name
       HAVING COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave')) > 0
       ORDER BY incident_count DESC
       `,
       {
-        replacements: { cur_start: curStartStr, cur_end: curEndStr },
+        replacements: { cur_start: curStartStr, cur_end: curEndStr, ...replacements },
         type: db.QueryTypes.SELECT,
       }
     );
@@ -1516,13 +1735,14 @@ const getAttendanceStats = async (req, res) => {
       LEFT JOIN attendance a ON a.employee_id = e.id
         AND a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
       WHERE e.status = 'active'
+        ${scopingClause}
       GROUP BY e.id, e.employee_code, e.full_name, e.avatar_url, d.id, d.department_name
       HAVING COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) > 0
       ORDER BY late_count DESC, total_late_minutes DESC
       LIMIT 50
       `,
       {
-        replacements: { cur_start: curStartStr, cur_end: curEndStr, tol_min: tolMin },
+        replacements: { ...replacements, tol_min: tolMin },
         type: db.QueryTypes.SELECT,
       }
     );
@@ -1629,6 +1849,15 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
     const { month, year } = req.query;
     let monthYear = `${String(month).padStart(2, '0')}-${year}`;
 
+    const { role, department_id } = req.user;
+    let scopingClause = '';
+    let replacements = { monthYear };
+
+    if (role === 'MANAGER') {
+      scopingClause = 'AND pos.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const query = `
       SELECT 
         d.id AS department_id,
@@ -1645,12 +1874,13 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
       LEFT JOIN position pos ON e.position_id = pos.id
       LEFT JOIN department d ON pos.department_id = d.id
       WHERE p.month_year = :monthYear
+        ${scopingClause}
       GROUP BY d.id, d.department_name
       ORDER BY total_net_salary DESC
     `;
 
     const result = await db.query(query, {
-      replacements: { monthYear },
+      replacements,
       type: db.QueryTypes.SELECT
     });
 

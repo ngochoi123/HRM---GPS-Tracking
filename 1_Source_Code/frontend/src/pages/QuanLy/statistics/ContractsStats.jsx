@@ -142,7 +142,7 @@ export default function ContractStatistics() {
     }
   };
 
-  const handleRenewSubmit = async (e) => {
+  const handleRenewSubmit = async () => {
     // 1. Ràng buộc UI Ngày tháng
     const today = new Date();
     today.setHours(0, 0, 0, 0);

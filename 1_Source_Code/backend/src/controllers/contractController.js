@@ -13,34 +13,50 @@ const contractController = {
       const startDate = `${refYear}-${String(refMonth).padStart(2, '0')}-01`;
       const endDate = `(DATE '${startDate}' + INTERVAL '1 month' - INTERVAL '1 day')`;
 
+      const { role, department_id } = req.user;
+      let scopingClause = '';
+      let replacements = { refMonth, refYear };
+
+      if (role === 'MANAGER') {
+        scopingClause = 'JOIN employee e ON c.employee_id = e.id LEFT JOIN position p ON e.position_id = p.id WHERE p.department_id = :deptId';
+        replacements.deptId = department_id;
+      }
+
       const query = `
         SELECT
           -- Tổng số HĐ có hiệu lực trong khoảng thời gian này
-          COUNT(*) FILTER (
-            WHERE start_date <= ${endDate} 
-            AND (end_date >= DATE '${startDate}' OR end_date IS NULL)
+          COUNT(c.*) FILTER (
+            WHERE c.start_date <= ${endDate} 
+            AND (c.end_date >= DATE '${startDate}' OR c.end_date IS NULL)
           ) AS total_active,
           -- Số HĐ hết hạn đúng trong tháng này
-          COUNT(*) FILTER (
-            WHERE EXTRACT(MONTH FROM end_date) = :refMonth 
-            AND EXTRACT(YEAR FROM end_date) = :refYear
+          COUNT(c.*) FILTER (
+            WHERE EXTRACT(MONTH FROM c.end_date) = :refMonth 
+            AND EXTRACT(YEAR FROM c.end_date) = :refYear
           ) AS expiring_soon,
           -- Số HĐ thử việc có hiệu lực trong tháng này
-          COUNT(*) FILTER (
-            WHERE contract_type = 'probation'
-            AND start_date <= ${endDate}
-            AND (end_date >= DATE '${startDate}' OR end_date IS NULL)
+          COUNT(c.*) FILTER (
+            WHERE c.contract_type = 'probation'
+            AND c.start_date <= ${endDate}
+            AND (c.end_date >= DATE '${startDate}' OR c.end_date IS NULL)
           ) AS probation_count
-        FROM contract;
+        FROM contract c
+        ${scopingClause};
       `;
       
-      const employeeCountQuery = `SELECT COUNT(*) as count FROM employee WHERE status = 'active'`;
+      let empCountQuery = `SELECT COUNT(*) as count FROM employee WHERE status = 'active'`;
+      if (role === 'MANAGER') {
+        empCountQuery = `SELECT COUNT(e.*) as count FROM employee e LEFT JOIN position p ON e.position_id = p.id WHERE e.status = 'active' AND p.department_id = :deptId`;
+      }
 
       const overviewResult = await db.query(query, { 
-        replacements: { refMonth, refYear },
+        replacements,
         type: db.QueryTypes.SELECT 
       });
-      const empCountResult = await db.query(employeeCountQuery, { type: db.QueryTypes.SELECT });
+      const empCountResult = await db.query(empCountQuery, { 
+        replacements,
+        type: db.QueryTypes.SELECT 
+      });
 
       const totalActive = parseInt(overviewResult[0]?.total_active || 0);
       const activeEmployees = parseInt(empCountResult[0]?.count || 1);
@@ -67,19 +83,32 @@ const contractController = {
       const startDate = `${refYear}-${String(refMonth).padStart(2, '0')}-01`;
       const endDate = `(DATE '${startDate}' + INTERVAL '1 month' - INTERVAL '1 day')`;
 
+      const { role, department_id } = req.user;
+      let scopingClause = '';
+      let replacements = {};
+
+      if (role === 'MANAGER') {
+        scopingClause = 'JOIN employee e ON c.employee_id = e.id LEFT JOIN position p ON e.position_id = p.id WHERE p.department_id = :deptId';
+        replacements.deptId = department_id;
+      }
+
       const query = `
         SELECT
-          contract_type as label_raw,
-          COUNT(*) as count,
-          ROUND(COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER(), 0), 1) as percentage
-        FROM contract
-        WHERE start_date <= ${endDate}
-          AND (end_date >= DATE '${startDate}' OR end_date IS NULL)
-        GROUP BY contract_type
+          c.contract_type as label_raw,
+          COUNT(c.*) as count,
+          ROUND(COUNT(c.*) * 100.0 / NULLIF(SUM(COUNT(c.*)) OVER(), 0), 1) as percentage
+        FROM contract c
+        ${scopingClause}
+        ${role === 'MANAGER' ? 'AND' : 'WHERE'} c.start_date <= ${endDate}
+          AND (c.end_date >= DATE '${startDate}' OR c.end_date IS NULL)
+        GROUP BY c.contract_type
         ORDER BY count DESC;
       `;
       
-      const result = await db.query(query, { type: db.QueryTypes.SELECT });
+      const result = await db.query(query, { 
+        replacements,
+        type: db.QueryTypes.SELECT 
+      });
 
       const mapLabel = {
         'indefinite': 'Vô thời hạn',
@@ -116,6 +145,13 @@ const contractController = {
         dateFilter = `c.end_date <= CURRENT_DATE + INTERVAL '30 days' AND c.end_date >= CURRENT_DATE`;
       }
 
+      const { role, department_id } = req.user;
+      let scopingClause = '';
+      
+      if (role === 'MANAGER') {
+        scopingClause = `AND d.id = :deptId`;
+      }
+
       const query = `
         SELECT
           c.id,
@@ -136,11 +172,16 @@ const contractController = {
         LEFT JOIN department d ON p.department_id = d.id
         WHERE ${dateFilter}
           AND c.is_active = true
+          ${scopingClause}
         ORDER BY c.end_date ASC;
       `;
 
       const result = await db.query(query, { 
-        replacements: { month: parseInt(month), year: parseInt(year) },
+        replacements: { 
+          month: parseInt(month), 
+          year: parseInt(year),
+          deptId: department_id 
+        },
         type: db.QueryTypes.SELECT 
       });
       res.status(200).json(result);

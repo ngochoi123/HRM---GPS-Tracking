@@ -56,7 +56,6 @@ const SidebarQuanLy = () => {
   const managementItems = [
     { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
-    { path: '/QuanLy/Payroll/payroll', icon: <FileSpreadsheet size={20} />, label: 'Bảng Lương' }, 
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];  
@@ -155,16 +154,8 @@ const SidebarQuanLy = () => {
                 <span style={{ marginLeft: '32px' }}>- Đơn từ & phê duyệt</span>
               </Link>
 
-              <Link to="/QuanLy/statistics/contracts" className="menu-item">
-                <span style={{ marginLeft: '32px' }}>- Hợp đồng lao động</span>
-              </Link>
-
               <Link to="/QuanLy/statistics/changes" className="menu-item">
                 <span style={{ marginLeft: '32px' }}>- Biến động nhân sự</span>
-              </Link>
-
-              <Link to="/QuanLy/statistics/salary" className="menu-item">
-                <span style={{ marginLeft: '32px' }}>- Lương & chi phí</span>
               </Link>
 
               <Link to="/QuanLy/statistics/attendance" className="menu-item">

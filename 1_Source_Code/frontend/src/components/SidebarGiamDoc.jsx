@@ -21,6 +21,7 @@ const SidebarGiamDoc = () => {
   const menuItems = [
     { path: '/GiamDoc/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
     { path: '/GiamDoc/departments', icon: <Building size={20} />, label: 'Phòng ban' },
+    { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
     { path: '/GiamDoc/contracts', icon: <FileText size={20} />, label: 'Hợp đồng' },
     { path: '/GiamDoc/branches', icon: <MapPin size={20} />, label: 'Chi nhánh' },
     { path: '/GiamDoc/positions', icon: <Briefcase size={20} />, label: 'Chức vụ' },

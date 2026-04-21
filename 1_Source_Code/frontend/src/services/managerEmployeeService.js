@@ -2,9 +2,10 @@ import axiosClient from '../api/axiosClient';
 
 // Service quản lý Nhân viên cho vai trò Manager
 export const managerEmployeeService = {
-  // Danh sách nhân viên thuộc phạm vi quản lý
-  getEmployees: () => {
-    return axiosClient.get('/manager/employees');
+  // Danh sách nhân viên thuộc phạm vi quản lý (Manager: tự động scope, Director: có thể lọc theo departmentId)
+  getEmployees: (departmentId = null) => {
+    const params = departmentId ? { departmentId } : {};
+    return axiosClient.get('/manager/employees', { params });
   },
 
   // Chi tiết nhân viên

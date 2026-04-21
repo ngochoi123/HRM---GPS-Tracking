@@ -28,5 +28,19 @@ export const adminUserService = {
   resetUserPassword: (email) => {
     return axiosClient.post('/admin/force-reset-password', { email });
   },
+
+  // --- HIERARCHY / CASCADING DROPDOWN API ---
+  getBranches: () => {
+    return axiosClient.get('/admin/hierarchy/branches');
+  },
+  getDepartments: (branchId) => {
+    return axiosClient.get(`/admin/hierarchy/departments/${branchId}`);
+  },
+  getPositions: (departmentId) => {
+    return axiosClient.get(`/admin/hierarchy/positions/${departmentId}`);
+  },
+  checkManager: (departmentId) => {
+    return axiosClient.get(`/admin/hierarchy/departments/${departmentId}/manager-check`);
+  },
 };
 

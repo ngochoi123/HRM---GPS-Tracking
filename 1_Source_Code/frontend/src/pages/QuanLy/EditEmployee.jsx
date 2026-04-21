@@ -7,8 +7,13 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // State lưu dữ liệu thật cho Combobox
-  const [options, setOptions] = useState({ departments: [], positions: [], managers: [] });
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+  }, []);
+
   // Ép kiểu String() để so sánh UUID chuẩn 100% không bị hụt data
   const filteredPositions = options.positions.filter(
     pos => String(pos.department_id) === String(formData.department_id)
@@ -148,7 +153,13 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
                 {/* COMBOBOX: PHÒNG BAN */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-semibold text-slate-700">Phòng ban</label>
-                  <select name="department_id" value={formData.department_id} onChange={handleChange} className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none">
+                  <select 
+                    name="department_id" 
+                    value={formData.department_id} 
+                    onChange={handleChange} 
+                    disabled={user?.role === 'MANAGER'}
+                    className={`px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none ${user?.role === 'MANAGER' ? 'bg-slate-50 cursor-not-allowed text-slate-500' : ''}`}
+                  >
                     <option value="">-- Chọn phòng ban --</option>
                     {options.departments.map(dept => (
                       <option key={dept.id} value={dept.id}>{dept.department_name}</option>

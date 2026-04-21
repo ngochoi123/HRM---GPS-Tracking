@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const ctrl = require("../controllers/directorController");
+const authenticateToken = require('../middlewares/authMiddleware');
+
+router.use(authenticateToken);
 
 // ===== DASHBOARD =====
 router.get("/summary", ctrl.getSummary);
@@ -15,6 +18,7 @@ router.get("/dashboard/overview", ctrl.getDashboardOverview); // Route mới cho
 // ===== DEPARTMENT =====
 router.get("/departments", ctrl.getDepartments);
 router.get("/departments/:id", ctrl.getDepartmentById);
+router.get("/departments/:id/has-manager", ctrl.checkDepartmentManager);
 router.get("/departments/:id/employees", ctrl.getEmployeesByDepartment);
 router.post("/departments", ctrl.createDepartment);
 router.put("/departments/:id", ctrl.updateDepartment);

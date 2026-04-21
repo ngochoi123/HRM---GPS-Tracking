@@ -1,9 +1,18 @@
-﻿const db = require("../config/database");
+const db = require("../config/database");
 const { QueryTypes } = require("sequelize");
 
 // ================= DASHBOARD =================
 const getSummary = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+    let whereClause = "WHERE e.status = 'active'";
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      whereClause += ' AND p.department_id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const result = await db.query(`
       SELECT 
         COUNT(e.id)::int AS total,
@@ -11,12 +20,14 @@ const getSummary = async (req, res) => {
           WHERE a.status IN ('on_time','late','early_leave')
         )::int AS present
       FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN attendance a 
         ON a.employee_id = e.id
-        AND a.attendance_date >= CURRENT_DATE - INTERVAL '1 day'
-      WHERE e.status = 'active'
-    `);
-    res.json(result.rows[0]);
+        AND a.attendance_date = CURRENT_DATE
+      ${whereClause}
+    `, { replacements, type: QueryTypes.SELECT });
+    
+    res.json(result[0] || { total: 0, present: 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -24,6 +35,15 @@ const getSummary = async (req, res) => {
 
 const getDepartmentsStats = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+    let scopingClause = "";
+    let replacements = {};
+
+    if (role === 'MANAGER') {
+      scopingClause = 'WHERE d.id = :deptId';
+      replacements.deptId = department_id;
+    }
+
     const result = await db.query(`
       SELECT 
         d.id AS department_id,
@@ -41,17 +61,28 @@ const getDepartmentsStats = async (req, res) => {
       LEFT JOIN attendance a 
         ON a.employee_id = e.id
         AND a.attendance_date = CURRENT_DATE
+      ${scopingClause}
       GROUP BY d.id, d.department_name
       ORDER BY d.department_name
-    `);
-    res.json(result.rows);
-  } catch {
+    `, { replacements, type: QueryTypes.SELECT });
+    res.json(result);
+  } catch (err) {
+    console.error("error getDepartmentsStats:", err);
     res.status(500).json({ error: "Lỗi departments stats" });
   }
 };
 
 const getManagers = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+
+    // Quản lý chỉ xem được trưởng phòng của mình (chính họ)
+    if (role === 'MANAGER' && !department_id) {
+       return res.json([]);
+    }
+
+    const whereClause = role === 'MANAGER' ? 'WHERE d.id = :deptId' : 'WHERE 1=1';
+
     const result = await db.query(`
       SELECT 
         d.department_name,
@@ -63,44 +94,65 @@ const getManagers = async (req, res) => {
       LEFT JOIN attendance a 
         ON a.employee_id = e.id
         AND a.attendance_date = CURRENT_DATE
+      ${whereClause}
       ORDER BY d.department_name
-    `);
-    res.json(result.rows);
-  } catch {
+    `, { replacements: { deptId: department_id }, type: QueryTypes.SELECT });
+    res.json(result);
+  } catch (err) {
+    console.error("error getManagers:", err);
     res.status(500).json({ error: "Lỗi managers" });
   }
 };
 
 const getRequests = async (req, res) => {
   try {
+    const { role, department_id } = req.user;
+
+    // Scoping query for requests
+    const scopingClause = role === 'MANAGER' 
+      ? 'AND EXISTS (SELECT 1 FROM employee emp JOIN position p ON emp.position_id = p.id WHERE emp.id = lr.employee_id AND p.department_id = :deptId)'
+      : 'AND EXISTS (SELECT 1 FROM employee appr JOIN position ap ON appr.position_id = ap.id WHERE appr.id = lr.approver_id AND ap.level = \'director\')';
+
+    const scopingClauseOT = role === 'MANAGER' 
+      ? 'AND EXISTS (SELECT 1 FROM employee emp JOIN position p ON emp.position_id = p.id WHERE emp.id = ot.employee_id AND p.department_id = :deptId)'
+      : 'AND EXISTS (SELECT 1 FROM employee appr JOIN position ap ON appr.position_id = ap.id WHERE appr.id = ot.approver_id AND ap.level = \'director\')';
+
     const result = await db.query(`
       SELECT lr.id, e.full_name, 'leave' AS type, lr.created_at
       FROM leave_request lr
       JOIN employee e ON e.id = lr.employee_id
-      WHERE lr.status = 'pending'
+      WHERE lr.status = 'pending' ${scopingClause}
       UNION ALL
       SELECT ot.id, e.full_name, 'overtime', ot.created_at
       FROM overtime_request ot
       JOIN employee e ON e.id = ot.employee_id
-      WHERE ot.status = 'pending'
+      WHERE ot.status = 'pending' ${scopingClauseOT}
       ORDER BY created_at DESC
       LIMIT 6
-    `);
-    res.json(result.rows);
-  } catch {
+    `, { replacements: { deptId: department_id }, type: QueryTypes.SELECT });
+    res.json(result);
+  } catch (err) {
+    console.error("error getRequests:", err);
     res.status(500).json({ error: "Lỗi requests" });
   }
 };
 
 const getSalary = async (req, res) => {
   try {
+    const { role } = req.user;
+    if (role === 'MANAGER') {
+      return res.status(403).json({ success: false, message: "Quyền truy cập bị từ chối: Quản lý không có quyền xem thống kê lương." });
+    }
+
     const result = await db.query(`
       SELECT COALESCE(SUM(net_salary),0)::float AS total_salary
       FROM payroll
       WHERE month_year = TO_CHAR(CURRENT_DATE, 'MM-YYYY')
-    `);
-    res.json(result.rows[0]);
-  } catch {
+        AND status = 'approved'
+    `, { type: db.QueryTypes.SELECT });
+    res.json(result[0] || { total_salary: 0 });
+  } catch (err) {
+    console.error("error getSalary:", err);
     res.status(500).json({ error: "Lỗi salary" });
   }
 };
@@ -177,6 +229,27 @@ const getDepartmentById = async (req, res) => {
   }
 };
 
+const checkDepartmentManager = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await db.query(
+      `SELECT e.id, e.full_name 
+       FROM department d
+       JOIN employee e ON d.manager_id = e.id
+       WHERE d.id = :id AND d.manager_id IS NOT NULL`,
+      { replacements: { id }, type: db.QueryTypes.SELECT }
+    );
+
+    if (result) {
+      return res.json({ hasManager: true, managerName: result.full_name });
+    }
+    res.json({ hasManager: false });
+  } catch (err) {
+    console.error("Error checkDepartmentManager:", err);
+    res.status(500).json({ success: false, message: "Lỗi kiểm tra trưởng phòng" });
+  }
+};
+
 const getEmployeesByDepartment = async (req, res) => {
   try {
     const data = await db.query(`
@@ -247,6 +320,20 @@ const createDepartment = async (req, res) => {
       is_active
     } = req.body;
 
+    // ✅ Validation: 1 Manager / 1 Department
+    if (manager_id) {
+      const [existingManager] = await db.query(
+        `SELECT id, department_name FROM department WHERE manager_id = :manager_id`,
+        { replacements: { manager_id }, type: QueryTypes.SELECT }
+      );
+      if (existingManager) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Nhân viên này đang là quản lý của phòng ban: ${existingManager.department_name}` 
+        });
+      }
+    }
+
     const code = department_code || `PB_${Date.now()}`;
 
     const data = await db.query(`
@@ -289,6 +376,7 @@ const createDepartment = async (req, res) => {
 
 const updateDepartment = async (req, res) => {
   try {
+    const { id } = req.params;
     const {
       department_name,
       department_code,
@@ -297,6 +385,20 @@ const updateDepartment = async (req, res) => {
       manager_id,
       is_active
     } = req.body;
+
+    // ✅ Validation: 1 Manager / 1 Department
+    if (manager_id) {
+      const [existingManager] = await db.query(
+        `SELECT id, department_name FROM department WHERE manager_id = :manager_id AND id != :id`,
+        { replacements: { manager_id, id }, type: QueryTypes.SELECT }
+      );
+      if (existingManager) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Nhân viên này đang là quản lý của phòng ban khác: ${existingManager.department_name}` 
+        });
+      }
+    }
 
     await db.query(`
       UPDATE department
@@ -1057,7 +1159,11 @@ const deletePosition = async (req, res) => {
 
 const getContracts = async (req, res) => {
   try {
-    // 👉 ĐÃ THÊM: c.base_salary, c.allowances
+    const { role } = req.user;
+    if (role === 'MANAGER') {
+      return res.status(403).json({ success: false, message: "Quyền truy cập bị từ chối: Quản lý không có quyền xem thống kê hợp đồng." });
+    }
+
     const query = `
       SELECT 
         c.id, 
@@ -2102,6 +2208,7 @@ module.exports = {
   getDepartments,
   getDepartmentById,
   getEmployeesByDepartment,
+  checkDepartmentManager,
   createDepartment,
   updateDepartment,
   deleteDepartment,
