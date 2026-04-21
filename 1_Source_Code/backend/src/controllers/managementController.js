@@ -805,25 +805,34 @@ const createRequestApprovalNotification = async ({ transaction, type, requestRow
 };
 
 const updateApprovalStatus = async (req, res) => {
-  const tx = await db.transaction();
+  const transaction = await db.transaction();
+
   try {
     const { type, id } = req.params;
-    const { status, approverId } = req.body; // approved | rejected
+    const { status, approverId, rejectReason } = req.body;
 
     if (!['approved', 'rejected'].includes(status)) {
-      await tx.rollback();
+      await transaction.rollback();
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
     if (!approverId) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Thiếu thông tin người duyệt' });
     }
 
     let query = '';
-    let detailQuery = '';
+    let detailQuery = null;
 
+    let replacements = {
+      id,
+      status,
+      approver_id: approverId,
+      reject_reason: status === 'rejected' ? rejectReason : null
+    };
+
+    // ===== LEAVE =====
     if (type === 'leave') {
-      requestLabel = 'Đơn nghỉ phép';
       query = `
         UPDATE leave_request
         SET status = :status,
@@ -833,6 +842,7 @@ const updateApprovalStatus = async (req, res) => {
           AND status = 'pending'
         RETURNING *;
       `;
+
       detailQuery = `
         SELECT id, employee_id, leave_type, start_datetime, end_datetime, reason
         FROM leave_request
@@ -841,8 +851,8 @@ const updateApprovalStatus = async (req, res) => {
       `;
     }
 
+    // ===== OT =====
     else if (type === 'overtime') {
-      requestLabel = 'Đơn tăng ca';
       query = `
         UPDATE overtime_request
         SET status = :status,
@@ -852,6 +862,7 @@ const updateApprovalStatus = async (req, res) => {
           AND status = 'pending'
         RETURNING *;
       `;
+
       detailQuery = `
         SELECT id, employee_id, ot_date, start_time, end_time, reason
         FROM overtime_request
@@ -859,68 +870,76 @@ const updateApprovalStatus = async (req, res) => {
         LIMIT 1
       `;
     }
+
+    // ===== EXPLANATION =====
     else if (type === 'explanation') {
       query = `
         UPDATE attendance_explanation_request
         SET status = :status,
+            reject_reason = :reject_reason,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
+          AND approver_id = :approver_id
+          AND status = 'pending'
         RETURNING *;
       `;
     }
 
     else {
-      await tx.rollback();
+      await transaction.rollback();
       return res.status(400).json({ message: 'Type không hợp lệ' });
     }
 
-    const transaction = await db.transaction();
+    // ===== LẤY DETAIL (nếu có) =====
+    let requestRow = null;
 
-    try {
+    if (detailQuery) {
       const detailRows = await db.query(detailQuery, {
         replacements: { id },
         type: db.QueryTypes.SELECT,
         transaction
       });
 
-      const requestRow = detailRows?.[0];
+      requestRow = detailRows?.[0];
+
       if (!requestRow) {
         await transaction.rollback();
-        return res.status(404).json({ message: 'Không tìm thấy đơn cần xử lý' });
+        return res.status(404).json({ message: 'Không tìm thấy đơn' });
       }
+    }
 
-      const [result] = await db.query(query, {
-        replacements: { id, status, approver_id: approverId },
-        transaction
+    // ===== UPDATE =====
+    const [result] = await db.query(query, {
+      replacements,
+      transaction
+    });
+
+    if (!result?.[0]) {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: 'Không có quyền hoặc đơn đã xử lý'
       });
+    }
 
-      if (!result?.[0]) {
-        await transaction.rollback();
-        return res.status(403).json({
-          message: 'Bạn không có quyền xử lý đơn này hoặc đơn đã được cập nhật trước đó'
-        });
-      }
-
+    // ===== NOTI =====
+    if (requestRow) {
       await createRequestApprovalNotification({
         transaction,
         type,
         requestRow,
         isApproved: status === 'approved'
       });
-
-      await transaction.commit();
-
-      res.json({
-        message: 'Cập nhật thành công',
-        data: result[0]
-      });
-    } catch (innerError) {
-      await transaction.rollback();
-      throw innerError;
     }
 
+    await transaction.commit();
+
+    res.json({
+      message: 'Cập nhật thành công',
+      data: result[0]
+    });
+
   } catch (error) {
-    if (tx && !tx.finished) await tx.rollback();
+    await transaction.rollback();
     console.error("❌ updateApprovalStatus:", error);
     res.status(500).json({ message: "Lỗi server" });
   }

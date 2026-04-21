@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from "react-router-dom";
 import { Calendar, Search, Clock3, CalendarDays, AlertTriangle, Link2, CheckCircle2, PlayCircle } from 'lucide-react';
 import './AttendanceHistoryModal.css';
 
@@ -8,6 +9,7 @@ const weekdayVi = (date) => {
   const day = d.getDay();
   return day === 0 ? 'CN' : `Thứ ${day + 1}`;
 };
+
 
 const fmtDateVi = (date) => new Date(date).toLocaleDateString('vi-VN');
 
@@ -82,6 +84,34 @@ export default function AttendanceHistoryModal({
   const workingDaysInMonth = summary?.workingDaysInMonth ?? null;
   const lateOrEarlyCount = summary?.lateOrEarlyCount ?? 0;
   const compliancePercent = summary?.compliancePercent ?? 0;
+  const navigate = useNavigate();
+const handleExplain = (row) => {
+  const baseData = {
+    date: row.attendance_date,
+    checkIn: row.check_in_time,
+    checkOut: row.check_out_time,
+  };
+
+  let type = "";
+
+  switch (row.status) {
+  case "absent":
+    type = "system_error";
+    break;
+  case "late":
+    type = "late_arrival";
+    break;
+  case "early_leave":
+    type = "early_leave";
+    break;
+  default:
+    return;
+}
+
+  navigate("/NhanVien/requests/ae_request", {
+    state: { ...baseData, type },
+  });
+};
 
   if (!open) return null;
 
@@ -229,9 +259,22 @@ export default function AttendanceHistoryModal({
                         <td>{fmtTime(r.check_out_time)}</td>
                         <td style={{ fontWeight: 900 }}>{fmtHour(r.total_work_hours)}</td>
                         <td>
-                          <span className={`ahm-pill ${s.tone}`}>
-                            {s.icon} {s.text}
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px",justifyContent:"space-between" }}>
+                        <span className={`ahm-pill ${s.tone}`}>
+                          {s.icon} {s.text}
+                        </span>
+
+                        {(r.status === "absent" ||
+                          r.status === "late" ||
+                          r.status === "early_leave") && (
+                          <button
+                            className="ahm-report-btn"
+                            onClick={() => handleExplain(r)}
+                          >
+                            Giải trình
+                          </button>
+                        )}
+                      </div>
                         </td>
                       </tr>
                     );

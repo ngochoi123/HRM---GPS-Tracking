@@ -426,3 +426,18 @@
   }
 }
 
+.ahm-report-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: #eb2525;
+  color: white;
+  transition: 0.2s;
+}
+
+.ahm-report-btn:hover {
+  background: #d98e75;
+}

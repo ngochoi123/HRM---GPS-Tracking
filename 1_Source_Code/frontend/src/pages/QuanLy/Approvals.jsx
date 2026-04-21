@@ -48,6 +48,10 @@ const Approvals = () => {
   //đơn chờ duyệt
   const totalPending = requests.length;
 
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectTarget, setRejectTarget] = useState(null);
+
 
 
   const leaveTypes = {
@@ -116,15 +120,15 @@ const Approvals = () => {
     }
   };
 
-  const handleReject = async (type, id) => {
-    try {
-      await managerApprovals.rejectRequest(type, id);
-      setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
-      alert("Đã từ chối đơn!");
-    } catch (err) {
-      alert("Thao tác thất bại");
-    }
-  };
+  const handleReject = async (type, id, reason = "") => {
+  try {
+    await managerApprovals.rejectRequest(type, id, user.id, reason);
+    setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
+    alert("Đã từ chối đơn!");
+  } catch (err) {
+    alert("Thao tác thất bại");
+  }
+};
 const handleApproveAll = async () => {
   if (requests.length === 0) return;
 
@@ -333,7 +337,19 @@ const handleApproveAll = async () => {
               <div className="card-action-section">
                 <button className="btn-icon-view" onClick={() => setSelectedRequest(req)}><MdOutlineRemoveRedEye size={20} /></button>
                 <div className="action-buttons">
-                  <button className="btn-text-reject" onClick={() => handleReject(req.type, req.id)}>Từ chối</button>
+                  <button
+                    className="btn-text-reject"
+                    onClick={() => {
+                      if (req.type === "explanation") {
+                        setRejectTarget(req);
+                        setShowRejectModal(true);
+                      } else {
+                        handleReject(req.type, req.id);
+                      }
+                    }}
+                  >
+                    Từ chối
+                  </button>
                   <button className="btn-approve-primary" onClick={() => handleApprove(req.type, req.id)}>Phê duyệt</button>
                 </div>
               </div>
@@ -571,6 +587,51 @@ const handleApproveAll = async () => {
             </div>
           </div>
         )}
+{showRejectModal && (
+  <div className="asp-modal-overlay" onClick={() => setShowRejectModal(false)}>
+    <div className="asp-modal-content" onClick={(e) => e.stopPropagation()}>
+      <h3>Lý do từ chối</h3>
+
+      <textarea
+        className="asp-modal-textarea"
+        value={rejectReason}
+        onChange={(e) => setRejectReason(e.target.value)}
+        placeholder="Nhập lý do chi tiết tại đây..."
+      />
+
+      <div className="asp-modal-actions">
+        <button 
+          className="asp-btn-cancel" 
+          onClick={() => setShowRejectModal(false)}
+        >
+          Hủy
+        </button>
+
+        <button
+          className="asp-btn-confirm"
+          onClick={() => {
+            if (!rejectReason.trim()) {
+              alert("Vui lòng nhập lý do");
+              return;
+            }
+
+            handleReject(
+              rejectTarget.type,
+              rejectTarget.id,
+              rejectReason
+            );
+
+            setShowRejectModal(false);
+            setRejectReason("");
+            setRejectTarget(null);
+          }}
+        >
+          Xác nhận từ chối
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

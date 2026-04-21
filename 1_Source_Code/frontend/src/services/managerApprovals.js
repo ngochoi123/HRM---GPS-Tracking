@@ -14,10 +14,11 @@ export const managerApprovals={
   },
 
   //  Từ chối đơn
-  rejectRequest: (type, id, approverId) => {
+  rejectRequest: (type, id, approverId, rejectReason) => {
     return axiosClient.put(`/manager/approval/${type}/${id}`, {
       status: 'rejected',
-      approverId
+      approverId,
+       rejectReason
     });
   },
   getApprovalHistory: (managerId) => {
