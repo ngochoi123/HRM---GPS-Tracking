@@ -126,114 +126,6 @@ const getEmployeeById = async (req, res) => {
   }
 };
 
-const updateEmployee = async (req, res) => {
-  const t = await db.transaction();
-  try {
-    const { id } = req.params;
-    const { role, department_id: callerDeptId } = req.user;
-
-    const { 
-      full_name, phone_number, personal_email, current_address, 
-      identity_card_number, date_of_birth, gender, 
-      bank_account_number, bank_name, status,
-      work_email, position_id, join_date, direct_manager_id
-    } = req.body;
-
-    // 1. RBAC: Manager chỉ được cập nhật nhân viên trong phòng mình
-    if (role === 'MANAGER') {
-      const empCheck = await db.query(
-        `SELECT e.id FROM employee e
-         JOIN position p ON e.position_id = p.id
-         WHERE e.id = :id AND p.department_id = :deptId`,
-        { replacements: { id, deptId: callerDeptId }, type: db.QueryTypes.SELECT, transaction: t }
-      );
-      if (empCheck.length === 0) {
-        await t.rollback();
-        return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật nhân viên này!' });
-      }
-    }
-
-    // 2. Cập nhật thông tin nhân viên
-    await db.query(`
-      UPDATE employee
-      SET full_name = :full_name,
-          phone_number = :phone_number,
-          personal_email = :personal_email,
-          address = :address,
-          identity_card_number = :identity_card_number,
-          date_of_birth = :date_of_birth,
-          gender = :gender,
-          bank_account_number = :bank_account_number,
-          bank_name = :bank_name,
-          status = :status,
-          work_email = :work_email,
-          position_id = :position_id,
-          join_date = :join_date,
-          direct_manager_id = :direct_manager_id,
-          updated_at = NOW()
-      WHERE id = :id
-    `, {
-      replacements: { 
-        id,
-        full_name: full_name || null, 
-        phone_number: phone_number || null, 
-        personal_email: personal_email || null, 
-        address: current_address || null,
-        identity_card_number: identity_card_number || null, 
-        date_of_birth: date_of_birth || null, 
-        gender: (gender !== undefined && gender !== '') ? gender : null, 
-        bank_account_number: bank_account_number || null, 
-        bank_name: bank_name || null, 
-        status: status || 'active',
-        work_email: work_email || null,
-        position_id: position_id || null, 
-        join_date: join_date || null,
-        direct_manager_id: direct_manager_id || null
-      },
-      type: db.QueryTypes.UPDATE,
-      transaction: t
-    });
-
-    // 3. Nếu position_id được cập nhật, kiểm tra xem có phải level 'manager' không
-    if (position_id) {
-      const posRows = await db.query(
-        `SELECT level, department_id FROM position WHERE id = :position_id`,
-        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
-      );
-      const pos = posRows[0];
-
-      if (pos && pos.level === 'manager' && pos.department_id) {
-        const deptId = pos.department_id;
-
-        // 3a. Cập nhật manager_id trong bảng department
-        await db.query(
-          `UPDATE department SET manager_id = :empId WHERE id = :deptId`,
-          { replacements: { empId: id, deptId }, type: db.QueryTypes.UPDATE, transaction: t }
-        );
-
-        // 3b. Cascade: cập nhật direct_manager_id cho toàn bộ nhân viên trong phòng ban
-        await db.query(
-          `UPDATE employee
-           SET direct_manager_id = :empId
-           FROM position p
-           WHERE employee.position_id = p.id
-             AND p.department_id = :deptId
-             AND employee.id != :empId
-             AND employee.status = 'active'`,
-          { replacements: { empId: id, deptId }, type: db.QueryTypes.UPDATE, transaction: t }
-        );
-      }
-    }
-
-    await t.commit();
-    res.status(200).json({ success: true, message: 'Cập nhật hồ sơ thành công!' });
-
-  } catch (error) {
-    if (!t.finished) await t.rollback();
-    console.error('Lỗi API updateEmployee:', error);
-    res.status(500).json({ success: false, message: 'Lỗi Server khi cập nhật: ' + error.message });
-  }
-};
 const getFormOptions = async (req, res) => {
   try {
     const { role, department_id } = req.user;
@@ -274,177 +166,13 @@ const getFormOptions = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi Server khi tạo dữ liệu form' });
   }
 };
+/*
 const createEmployee = async (req, res) => {
-  const t = await db.transaction();
-
-  try {
-    const { 
-      full_name, phone_number, personal_email, address, 
-      identity_card_number, date_of_birth, gender, 
-      bank_account_number, bank_name, status,
-      work_email, position_id, join_date, direct_manager_id, // ðŸ‘‰ ÄÃ£ xÃ³a department_id á»Ÿ Ä‘Ã¢y
-      username, password, send_email 
-    } = req.body;
-
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const employee_code = `NV-${new Date().getFullYear()}-${randomSuffix}`;
-
-    const insertEmpQuery = `
-      INSERT INTO employee (
-        employee_code, full_name, phone_number, personal_email, address, 
-        identity_card_number, date_of_birth, gender, bank_account_number, bank_name, 
-        status, work_email, position_id, join_date, direct_manager_id
-      ) VALUES (
-        :employee_code, :full_name, :phone_number, :personal_email, :address, 
-        :identity_card_number, :date_of_birth, :gender, :bank_account_number, :bank_name, 
-        :status, :work_email, :position_id, :join_date, :direct_manager_id
-      ) RETURNING id;
-    `;
-
-    const empResult = await db.query(insertEmpQuery, {
-      replacements: {
-        employee_code, full_name, 
-        phone_number: phone_number || null, 
-        personal_email: personal_email || null, 
-        address: address || null,
-        identity_card_number: identity_card_number || null, 
-        date_of_birth: date_of_birth || null, 
-        gender: (gender !== undefined && gender !== '') ? gender : null, 
-        bank_account_number: bank_account_number || null, 
-        bank_name: bank_name || null, 
-        status: status || 'active',
-        work_email: work_email || null,
-        position_id: position_id || null, 
-  
-        join_date: join_date || null,
-        direct_manager_id: direct_manager_id || null
-      },
-      type: db.QueryTypes.INSERT,
-      transaction: t
-    });
-
-    const newEmployeeId = empResult[0][0].id;
-
-    const saltRounds = 10;
-    const password_hash = await bcrypt.hash(password, saltRounds);
-
-    // Kiểm tra level của chức vụ để gán role_code phù hợp
-    let roleCode = 'EMPLOYEE';
-    let newDeptId = null;
-    if (position_id) {
-      const posRows = await db.query(
-        `SELECT level, department_id FROM position WHERE id = :position_id`,
-        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
-      );
-      const pos = posRows[0];
-      if (pos) {
-        if (pos.level === 'manager') roleCode = 'MANAGER';
-        if (pos.level === 'director') roleCode = 'DIRECTOR';
-        newDeptId = pos.department_id;
-      }
-    }
-
-    // --- Auto-assign direct_manager_id ---
-    // Nếu form không truyền direct_manager_id và nhân viên KHÔNG phải manager,
-    // tự động lấy manager_id hiện tại của phòng ban
-    let resolvedManagerId = direct_manager_id || null;
-    if (!resolvedManagerId && roleCode !== 'MANAGER' && newDeptId) {
-      const deptRows = await db.query(
-        `SELECT manager_id FROM department WHERE id = :deptId`,
-        { replacements: { deptId: newDeptId }, type: db.QueryTypes.SELECT, transaction: t }
-      );
-      if (deptRows[0]?.manager_id) {
-        resolvedManagerId = deptRows[0].manager_id;
-      }
-    }
-
-    // Cập nhật lại direct_manager_id cho nhân viên vừa tạo nếu cần
-    if (resolvedManagerId && resolvedManagerId !== (direct_manager_id || null)) {
-      await db.query(
-        `UPDATE employee SET direct_manager_id = :mgr WHERE id = :empId`,
-        { replacements: { mgr: resolvedManagerId, empId: newEmployeeId }, type: db.QueryTypes.UPDATE, transaction: t }
-      );
-    }
-
-    const insertUserQuery = `
-      INSERT INTO user_account (
-        employee_id, username, password_hash, role_code, require_pass_change
-      ) VALUES (
-        :employee_id, :username, :password_hash, :role_code, true
-      )
-    `;
-
-    await db.query(insertUserQuery, {
-      replacements: {
-        employee_id: newEmployeeId,
-        username: username,
-        password_hash: password_hash,
-        role_code: roleCode
-      },
-      type: db.QueryTypes.INSERT,
-      transaction: t
-    });
-
-    // Nếu là Trưởng phòng mới: cập nhật department.manager_id và cascade direct_manager_id cho CẢ PHÒNG
-    if (roleCode === 'MANAGER' && newDeptId) {
-      await db.query(
-        `UPDATE department SET manager_id = :empId WHERE id = :deptId`,
-        { replacements: { empId: newEmployeeId, deptId: newDeptId }, type: db.QueryTypes.UPDATE, transaction: t }
-      );
-      // Cascade: gán tất cả nhân viên (active) trong phòng sang trưởng phòng mới
-      await db.query(
-        `UPDATE employee
-         SET direct_manager_id = :empId
-         FROM position p
-         WHERE employee.position_id = p.id
-           AND p.department_id = :deptId
-           AND employee.id != :empId
-           AND employee.status = 'active'`,
-        { replacements: { empId: newEmployeeId, deptId: newDeptId }, type: db.QueryTypes.UPDATE, transaction: t }
-      );
-    }
-
-    await t.commit();
-
-if (send_email === true || send_email === 'true') {
-      try {
-        const targetEmail = personal_email || work_email || username; 
-
-        await sendAccountEmail(
-          targetEmail, 
-          full_name, 
-          username, 
-          password
-        );
-        
-        console.log(`Đã gửi email cấp tài khoản tới: ${targetEmail}`);
-        
-        return res.status(201).json({ success: true, message: 'Thêm nhân viên và gửi email cấp tài khoản thành công!' });
-      } catch (emailError) {
-        console.error('Lỗi gửi email:', emailError);
-        return res.status(201).json({ 
-          success: true, 
-          message: 'Đã thêm nhân viên thành công, nhưng cấu hình gửi Email đang bị lỗi. Vui lòng cấp lại pass sau.' 
-        });
-      }
-    }
-
-    return res.status(201).json({ success: true, message: 'Thêm nhân viên và cấp tài khoản thành công!' });
-
-  } catch (error) {
-    try {
-        await t.rollback();
-    } catch (rbError) {
-        console.error('Lỗi rollback:', rbError);
-    }
-    
-    console.error('Lỗi API createEmployee:', error);
-    if (error.original && error.original.code === '23505') {
-      return res.status(400).json({ success: false, message: 'Email/Username này đã tồn tại trong hệ thống!' });
-    }
-    res.status(500).json({ success: false, message: 'Lỗi Server khi thêm nhân viên' });
-  }
+  // Logic moved to EmployeeController.js
 };
+*/
+
+  // Legacy employee creation and update logic has been moved to EmployeeController.js
 const deleteEmployee = async (req, res) => {
   const t = await db.transaction();
 
@@ -1960,9 +1688,9 @@ const quickApprovePayroll = async (req, res) => {
 module.exports = {
   getEmployees,
   getEmployeeById,
-  updateEmployee,
+  // updateEmployee, // Moved to EmployeeController.js
   getFormOptions ,
-  createEmployee,
+  // createEmployee, // Moved to EmployeeController.js
   deleteEmployee,
   getPresentEmployees,
   getAbsentEmployees,

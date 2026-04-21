@@ -23,6 +23,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const managementController = require('../controllers/managementController');
+const employeeController = require('../controllers/EmployeeController');
 const decisionController = require('../controllers/decisionController');
 const contractController = require('../controllers/contractController');
 const authenticateToken = require('../middlewares/authMiddleware');
@@ -33,8 +34,8 @@ router.use(authenticateToken);
 router.get('/form-options', managementController.getFormOptions);
 router.get('/employees', managementController.getEmployees);
 router.get('/employees/:id', managementController.getEmployeeById);
-router.put('/employees/:id', managementController.updateEmployee);
-router.post('/employees', managementController.createEmployee);
+router.put('/employees/:id', employeeController.updateEmployee);
+router.post('/employees', employeeController.createEmployee);
 router.delete('/employees/:id', managementController.deleteEmployee);
 router.get('/dashboard/present', managementController.getPresentEmployees);
 router.get('/dashboard/absent', managementController.getAbsentEmployees);

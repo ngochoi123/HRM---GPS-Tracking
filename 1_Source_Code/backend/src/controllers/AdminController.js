@@ -1,5 +1,7 @@
 const db = require('../config/database');
 const { sendAccountEmail } = require('../services/emailService');
+const { Employee, UserAccount, Position, Department } = require('../models');
+const bcrypt = require('bcrypt');
 
 // ==========================================
 // 1. LẤY DANH SÁCH USER
@@ -44,7 +46,7 @@ const createUser = async (req, res) => {
   }
   // ------------------------------------------------
 
-  const t = await db.transaction();
+  const transaction = await db.transaction();
 
   try {
     let finalEmployeeId = employeeId ? employeeId : null;
@@ -53,39 +55,60 @@ const createUser = async (req, res) => {
       // Gen mã nhân viên tự động
       const randomEmpCode = 'EMP-' + Math.floor(100000 + Math.random() * 900000);
 
-      const insertEmpQuery = `
-        INSERT INTO employee (employee_code, full_name, work_email, position_id)
-        VALUES (:empCode, :fullName, :email, :positionId)
-        RETURNING id;
-      `;
-      const [empResult] = await db.query(insertEmpQuery, {
-        replacements: { 
-          empCode: randomEmpCode, 
-          fullName: fullName, 
-          email: email || null, 
-          positionId: positionId || null 
-        },
-        transaction: t
-      });
-      finalEmployeeId = empResult[0].id;
+      // Sử dụng model Employee
+      const newEmployee = await Employee.create({
+        employee_code: randomEmpCode,
+        full_name: fullName,
+        work_email: email || null,
+        position_id: positionId || null,
+        status: 'active'
+      }, { transaction });
+
+      finalEmployeeId = newEmployee.id;
+
+      // Xử lý logic hierarchy nếu đây là Manager mới (Tương tự EmployeeController)
+      if (positionId) {
+        const pos = await Position.findByPk(positionId, { transaction });
+        if (pos && pos.level === 'manager') {
+          // Cập nhật department.manager_id
+          await Department.update(
+            { manager_id: finalEmployeeId },
+            { where: { id: pos.department_id }, transaction }
+          );
+
+          // Cascade direct_manager_id cho nhân viên trong phòng
+          await Employee.update(
+            { direct_manager_id: finalEmployeeId },
+            { 
+              where: { 
+                position_id: {
+                  [db.Sequelize.Op.in]: db.Sequelize.literal(`(SELECT id FROM position WHERE department_id = '${pos.department_id}')`)
+                },
+                id: { [db.Sequelize.Op.ne]: finalEmployeeId },
+                status: 'active'
+              }, 
+              transaction 
+            }
+          );
+        }
+      }
     }
 
-    const insertUserQuery = `
-      INSERT INTO user_account (employee_id, username, password_hash, role_code, status, require_pass_change)
-      VALUES (:finalEmployeeId, :username, crypt(:password, gen_salt('bf')), :role, :status, true)
-      RETURNING id, username;
-    `;
-    const [userResult] = await db.query(insertUserQuery, {
-      replacements: { 
-        finalEmployeeId, username, password, 
-        role: finalRole, // 👉 Dùng finalRole đã được viết hoa và kiểm tra
-        status: status ? status.toLowerCase() : 'active' 
-      },
-      transaction: t
-    });
+    // Tạo tài khoản UserAccount bằng Sequelize
+    const salt = await bcrypt.gen_salt(10);
+    const password_hash = await bcrypt.hash(password, salt);
+
+    await UserAccount.create({
+      employee_id: finalEmployeeId,
+      username: username,
+      password_hash: password_hash,
+      role_code: finalRole,
+      status: status ? status.toLowerCase() : 'active',
+      require_pass_change: true
+    }, { transaction });
 
     // BƯỚC 3: XÁC NHẬN LƯU VÀO DATABASE
-    await t.commit(); 
+    await transaction.commit(); 
 
     // BƯỚC 4: GỬI EMAIL (Tách ra try-catch riêng để không ảnh hưởng luồng chính)
     if (sendEmail === true && email) {

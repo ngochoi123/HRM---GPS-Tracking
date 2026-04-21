@@ -1,5 +1,6 @@
 const db = require('../config/database');
-const { QueryTypes } = require('sequelize');
+const { QueryTypes, Op } = require('sequelize');
+const { Employee, Department, Position, UserAccount, sequelize } = require('../models');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const {
   normalizeWorkLocation,
@@ -555,10 +556,10 @@ exports.getContract = async (req, res) => {
 
 // ==========================================================
 // 🔴 TẠO NHÂN VIÊN MỚI (Admin/Manager use only)
-// Logic: Transaction + Manager Check + Auto direct_manager_id
+// Logic: Sequelize Transaction + Manager Promotion Cascade
 // ==========================================================
 exports.createEmployee = async (req, res) => {
-  const t = await db.transaction();
+  const t = await sequelize.transaction();
 
   try {
     const { 
@@ -569,174 +570,223 @@ exports.createEmployee = async (req, res) => {
       username, password, send_email 
     } = req.body;
 
-    // 1. Validate dữ liệu cơ bản
     if (!full_name || !position_id || !username || !password) {
       await t.rollback();
-      return res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc (Họ tên, Chức vụ, Tài khoản)!' });
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc!' });
     }
 
-    // 2. Kiểm tra thông tin Chức vụ & Manager Lock
-    const positionQuery = `
-      SELECT level, department_id, position_name 
-      FROM position 
-      WHERE id = :position_id
-    `;
-    const positions = await db.query(positionQuery, {
-      replacements: { position_id },
-      type: QueryTypes.SELECT,
-      transaction: t
-    });
-
-    if (positions.length === 0) {
+    // 1. Lấy thông tin chức vụ
+    const position = await Position.findByPk(position_id, { transaction: t });
+    if (!position) {
       await t.rollback();
       return res.status(404).json({ success: false, message: 'Chức vụ không tồn tại!' });
     }
 
-    const targetPos = positions[0];
-    const isManagerLevel = targetPos.level === 'manager';
+    const isManagerLevel = position.level === 'manager';
 
-    if (isManagerLevel) {
-      // 🕵️ Double Check: Phòng ban đã có trưởng phòng chưa?
-      const managerCheckQuery = `
-        SELECT e.id, e.full_name 
-        FROM employee e
-        JOIN position p ON e.position_id = p.id
-        WHERE p.department_id = :dept_id 
-          AND p.level = 'manager' 
-          AND e.status = 'active'
-        LIMIT 1
-      `;
-      const existingManagers = await db.query(managerCheckQuery, {
-        replacements: { dept_id: targetPos.department_id },
-        type: QueryTypes.SELECT,
-        transaction: t
-      });
-
-      if (existingManagers.length > 0) {
-        await t.rollback();
-        return res.status(400).json({ 
-          success: false, 
-          message: `Phòng ban "${targetPos.position_name}" đã có Trưởng phòng (${existingManagers[0].full_name}). Vui lòng cách chức trưởng phòng cũ trước khi bổ nhiệm người mới.` 
-        });
-      }
-    }
-
-    // 3. Tạo mã nhân viên
+    // 2. Tạo mã nhân viên
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const employee_code = `NV-${new Date().getFullYear()}-${randomSuffix}`;
 
-    // 4. Insert Employee
-    const insertEmpQuery = `
-      INSERT INTO employee (
-        employee_code, full_name, phone_number, personal_email, address, 
-        identity_card_number, date_of_birth, gender, bank_account_number, bank_name, 
-        status, work_email, position_id, join_date
-      ) VALUES (
-        :employee_code, :full_name, :phone_number, :personal_email, :address, 
-        :identity_card_number, :date_of_birth, :gender, :bank_account_number, :bank_name, 
-        :status, :work_email, :position_id, :join_date
-      ) RETURNING id;
-    `;
+    // 3. Tạo nhân viên
+    const newEmployee = await Employee.create({
+      employee_code,
+      full_name,
+      phone_number,
+      personal_email,
+      work_email,
+      address,
+      identity_card_number,
+      date_of_birth,
+      gender: (gender !== undefined && gender !== '') ? gender : null,
+      bank_account_number,
+      bank_name,
+      status: status || 'active',
+      position_id,
+      join_date: join_date || null
+    }, { transaction: t });
 
-    const [empResult] = await db.query(insertEmpQuery, {
-      replacements: {
-        employee_code, full_name, 
-        phone_number: phone_number || null, 
-        personal_email: personal_email || null, 
-        address: address || null,
-        identity_card_number: identity_card_number || null, 
-        date_of_birth: date_of_birth || null, 
-        gender: (gender !== undefined && gender !== '') ? gender : null, 
-        bank_account_number: bank_account_number || null, 
-        bank_name: bank_name || null, 
-        status: status || 'active',
-        work_email: work_email || null,
-        position_id, 
-        join_date: join_date || null
-      },
-      type: QueryTypes.INSERT,
-      transaction: t
-    });
-
-    const newEmployeeId = empResult[0].id;
-
-    // 5. Insert User Account
+    // 4. Tạo tài khoản người dùng
     const saltRounds = 10;
     const password_hash = await bcrypt.hash(password, saltRounds);
+    const roleCode = isManagerLevel ? 'MANAGER' : (position.level === 'director' ? 'DIRECTOR' : 'EMPLOYEE');
 
-    const insertUserQuery = `
-      INSERT INTO user_account (
-        employee_id, username, password_hash, role_code, require_pass_change, status
-      ) VALUES (
-        :employee_id, :username, :password_hash, :role_code, true, 'active'
-      )
-    `;
+    await UserAccount.create({
+      employee_id: newEmployee.id,
+      username,
+      password_hash,
+      role_code: roleCode,
+      status: 'active'
+    }, { transaction: t });
 
-    // Mặc định role_code theo level: nếu là manager thì role là MANAGER, nếu không mặc định EMPLOYEE
-    const roleCode = isManagerLevel ? 'MANAGER' : 'EMPLOYEE';
+    // 5. 🚀 LOGIC PHÂN CẤP TỰ ĐỘNG
+    if (isManagerLevel && position.department_id) {
+      // BƯỚC 1: Cập nhật manager_id cho phỏng ban
+      await Department.update(
+        { manager_id: newEmployee.id },
+        { where: { id: position.department_id }, transaction: t }
+      );
 
-    await db.query(insertUserQuery, {
-      replacements: {
-        employee_id: newEmployeeId,
-        username: username,
-        password_hash: password_hash,
-        role_code: roleCode
-      },
-      type: QueryTypes.INSERT,
-      transaction: t
-    });
-
-    // 6. 🚀 AUTO-UPDATE DIRECT MANAGER (Nếu là Manager mới)
-    if (isManagerLevel && targetPos.department_id) {
-      const updateTeamQuery = `
-        UPDATE employee 
-        SET direct_manager_id = :newManagerId 
-        FROM position p
-        WHERE employee.position_id = p.id 
-          AND p.department_id = :deptId 
-          AND employee.id != :newManagerId
-          AND employee.status = 'active'
-      `;
-      await db.query(updateTeamQuery, {
-        replacements: { 
-          newManagerId: newEmployeeId, 
-          deptId: targetPos.department_id 
-        },
-        type: QueryTypes.UPDATE,
+      // BƯỚC 2: Cập nhật direct_manager_id cho toàn bộ nhân viên trong phòng
+      // Lấy danh sách position_id của phòng ban này
+      const deptPositions = await Position.findAll({
+        where: { department_id: position.department_id },
+        attributes: ['id'],
         transaction: t
       });
+      const positionIds = deptPositions.map(p => p.id);
+
+      await Employee.update(
+        { direct_manager_id: newEmployee.id },
+        { 
+          where: { 
+            position_id: { [Op.in]: positionIds },
+            id: { [Op.ne]: newEmployee.id },
+            status: 'active'
+          },
+          transaction: t 
+        }
+      );
+    } else if (!isManagerLevel && position.department_id) {
+        // Nếu là nhân viên bình thường, tự động gán direct_manager_id từ trưởng phòng hiện tại
+        const dept = await Department.findByPk(position.department_id, { transaction: t });
+        if (dept && dept.manager_id) {
+            newEmployee.direct_manager_id = dept.manager_id;
+            await newEmployee.save({ transaction: t });
+        }
     }
 
     await t.commit();
 
-    // 7. Gửi Email thông báo (Async - Không block response)
+    // 6. Gửi Email (Async)
     if (send_email === true || send_email === 'true') {
-      const targetEmail = personal_email || work_email;
-      if (targetEmail) {
-        sendAccountEmail(targetEmail, full_name, username, password).catch(err => {
-          console.error("❌ Lỗi gửi email sau khi tạo NV:", err.message);
-        });
+      const email = personal_email || work_email;
+      if (email) {
+        sendAccountEmail(email, full_name, username, password).catch(console.error);
       }
     }
 
     return res.status(201).json({ 
       success: true, 
-      message: isManagerLevel 
-        ? 'Bổ nhiệm Trưởng phòng mới và cập nhật quản lý trực tiếp thành công!' 
-        : 'Thêm nhân viên và cấp tài khoản thành công!',
-      data: { employee_id: newEmployeeId, employee_code }
+      message: 'Thêm nhân viên và thiết lập phân cấp thành công!',
+      data: { id: newEmployee.id, code: employee_code }
     });
 
   } catch (error) {
     if (!t.finished) await t.rollback();
-    console.error('❌ Error createEmployee:', error);
-    
-    // Bắt lỗi Unique Constraint (Username/Email)
-    if (error.original && error.original.code === '23505') {
-      return res.status(400).json({ success: false, message: 'Tên đăng nhập hoặc Email đã tồn tại trong hệ thống!' });
+    console.error('createEmployee Error:', error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ success: false, message: 'Tên đăng nhập hoặc mã nhân viên đã tồn tại!' });
+    }
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
+// ==========================================================
+// 🔵 CẬP NHẬT NHÂN VIÊN (rbac checked in middleware if needed)
+// Logic: Xử lý thăng chức/chuyển phòng ban + Phân cấp hierarchy
+// ==========================================================
+exports.updateEmployee = async (req, res) => {
+  const { id } = req.params;
+  const t = await sequelize.transaction();
+
+  try {
+    const employee = await Employee.findByPk(id, { transaction: t });
+    if (!employee) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên!' });
     }
 
-    res.status(500).json({ success: false, message: 'Lỗi máy chủ khi tạo nhân viên', error: error.message });
+    const { 
+      full_name, phone_number, personal_email, work_email,
+      address, identity_card_number, date_of_birth, gender,
+      bank_account_number, bank_name, status,
+      position_id, join_date, direct_manager_id
+    } = req.body;
+
+    const oldPositionId = employee.position_id;
+    const isPositionChanged = position_id && position_id !== oldPositionId;
+
+    // 1. Cập nhật thông tin cơ bản
+    await employee.update({
+      full_name: full_name || employee.full_name,
+      phone_number: phone_number !== undefined ? phone_number : employee.phone_number,
+      personal_email: personal_email || employee.personal_email,
+      work_email: work_email || employee.work_email,
+      address: address || employee.address,
+      identity_card_number: identity_card_number || employee.identity_card_number,
+      date_of_birth: date_of_birth || employee.date_of_birth,
+      gender: gender !== undefined ? gender : employee.gender,
+      bank_account_number: bank_account_number || employee.bank_account_number,
+      bank_name: bank_name || employee.bank_name,
+      status: status || employee.status,
+      position_id: position_id || employee.position_id,
+      join_date: join_date || employee.join_date,
+      direct_manager_id: direct_manager_id !== undefined ? direct_manager_id : employee.direct_manager_id
+    }, { transaction: t });
+
+    // 2. Logic thăng chức / đổi trưởng phòng
+    if (isPositionChanged) {
+      const newPosition = await Position.findByPk(position_id, { transaction: t });
+      if (newPosition && newPosition.level === 'manager') {
+        const deptId = newPosition.department_id;
+        
+        // BƯỚC 1: Cập nhật manager_id cho phòng ban mới
+        await Department.update(
+          { manager_id: employee.id },
+          { where: { id: deptId }, transaction: t }
+        );
+
+        // BƯỚC 2: Cascade direct_manager_id cho nhân viên trong phòng
+        const deptPositions = await Position.findAll({
+          where: { department_id: deptId },
+          attributes: ['id'],
+          transaction: t
+        });
+        const positionIds = deptPositions.map(p => p.id);
+
+        await Employee.update(
+          { direct_manager_id: employee.id },
+          { 
+            where: { 
+              position_id: { [Op.in]: positionIds },
+              id: { [Op.ne]: employee.id },
+              status: 'active'
+            },
+            transaction: t 
+          }
+        );
+
+        // Cập nhật Role code trong UserAccount
+        await UserAccount.update(
+          { role_code: 'MANAGER' },
+          { where: { employee_id: employee.id }, transaction: t }
+        );
+      } else if (newPosition && newPosition.level !== 'manager') {
+          // Nếu bị giáng chức hoặc chuyển ra khỏi vị trí Trưởng phòng
+          // Cần kiểm tra xem họ có đang là trưởng phòng cũ của phòng ban nào không
+          await Department.update(
+            { manager_id: null },
+            { where: { manager_id: employee.id }, transaction: t }
+          );
+          
+          // Gán lại manager mới cho chính họ (từ trưởng phòng mới của phòng ban họ vừa vào)
+          if (newPosition.department_id) {
+              const dept = await Department.findByPk(newPosition.department_id, { transaction: t });
+              if (dept && dept.manager_id) {
+                  await employee.update({ direct_manager_id: dept.manager_id }, { transaction: t });
+              }
+          }
+      }
+    }
+
+    await t.commit();
+    res.status(200).json({ success: true, message: 'Cập nhật nhân viên và phân cấp thành công!' });
+
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    console.error('updateEmployee Error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
 };
 
