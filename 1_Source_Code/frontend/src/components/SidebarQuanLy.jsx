@@ -55,6 +55,7 @@ const SidebarQuanLy = () => {
 
   const managementItems = [
     { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
+    { path: '/QuanLy/Payroll/payroll', icon: <FileSpreadsheet size={20} />, label: 'Quản lý bảng lương' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },

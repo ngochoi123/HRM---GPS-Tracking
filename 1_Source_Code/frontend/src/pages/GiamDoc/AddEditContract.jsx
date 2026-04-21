@@ -124,6 +124,15 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 👉 VALIDATION: Ngày kết thúc phải sau ngày bắt đầu
+    if (formData.contract_type !== 'indefinite' && formData.end_date) {
+      if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+        alert('Lỗi: Ngày kết thúc hợp đồng phải sau ngày bắt đầu!');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       // 👉 FIX: Đổi tên base_salary_min thành basic_salary để khớp với Backend
@@ -250,7 +259,11 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-bold text-slate-700">Ngày kết thúc</label>
-                <input type="date" name="end_date" value={formData.end_date} onChange={handleChange} className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none text-slate-700" />
+                <input 
+                  type="date" name="end_date" value={formData.end_date} 
+                  onChange={handleChange} min={formData.start_date}
+                  className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none text-slate-700" 
+                />
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Eye, FileSpreadsheet, Send, Download, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
@@ -40,6 +40,9 @@ const payrollStatusLabelMap = {
 };
 
 const Payroll = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isManager = user.role === 'MANAGER';
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -144,7 +147,7 @@ const Payroll = () => {
         setSelected(null);
       }
 
-      const res = await payrollService.getCalculation(formattedMonthYear, null);
+      const res = await payrollService.getCalculation(formattedMonthYear, isManager ? user.department_id : null);
       if (fetchRequestRef.current !== requestId) {
         return;
       }

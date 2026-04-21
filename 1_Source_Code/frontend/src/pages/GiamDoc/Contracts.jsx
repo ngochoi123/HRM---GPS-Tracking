@@ -12,6 +12,8 @@ export default function ContractManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState('ALL');
 
   // 👉 States quản lý Form & View
   const [isAdding, setIsAdding] = useState(false);
@@ -35,8 +37,10 @@ export default function ContractManagement() {
   }, []);
 
   // Format Tiền
+  // Format Tiền chuẩn VNĐ
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+    if (!amount && amount !== 0) return "0 VNĐ";
+    return amount.toLocaleString('vi-VN') + " VNĐ";
   };
 
   // Cấu hình Badge
@@ -94,12 +98,20 @@ export default function ContractManagement() {
   }
 
   // Lọc dữ liệu
+  // 👉 Tự động trích xuất danh sách Chi nhánh/Phòng ban duy nhất để lọc
+  const uniqueBranches = ['ALL', ...new Set(contracts.map(c => c.branchName).filter(Boolean))];
+  const uniqueDepartments = ['ALL', ...new Set(contracts.map(c => c.departmentName).filter(Boolean))];
+
+  // Lọc dữ liệu
   const filteredContracts = contracts.filter(c => {
     const matchSearch = c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         c.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchType = typeFilter === 'ALL' || c.typeCode === typeFilter;
     const matchStatus = statusFilter === 'ALL' || c.status === statusFilter;
-    return matchSearch && matchType && matchStatus;
+    const matchBranch = branchFilter === 'ALL' || c.branchName === branchFilter;
+    const matchDept = departmentFilter === 'ALL' || c.departmentName === departmentFilter;
+
+    return matchSearch && matchType && matchStatus && matchBranch && matchDept;
   });
 
   return (
@@ -113,7 +125,7 @@ export default function ContractManagement() {
               <FileText className="text-cyan-500" size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Danh sách Hợp đồng lao động</h1>
+              <h2 className="text-2xl font-bold text-slate-800 uppercase tracking-tight">Danh sách hợp đồng lao động</h2>
               <p className="text-sm text-slate-500 mt-1">Quản lý thông tin, thời hạn và trạng thái hợp đồng của toàn bộ nhân sự.</p>
             </div>
           </div>
@@ -129,19 +141,30 @@ export default function ContractManagement() {
         </div>
 
         {/* FILTER BAR */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="flex-1 relative">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex-1 min-w-[300px] relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input type="text" placeholder="Tìm theo mã HĐ, tên nhân viên..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-cyan-400 transition-all shadow-sm" />
           </div>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full md:w-56 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
+
+          <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm min-w-[160px]">
+            <option value="ALL">Tất cả chi nhánh</option>
+            {uniqueBranches.filter(b => b !== 'ALL').map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+
+          <select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm min-w-[160px]">
+            <option value="ALL">Tất cả phòng ban</option>
+            {uniqueDepartments.filter(d => d !== 'ALL').map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
             <option value="ALL">Tất cả loại HĐ</option>
             <option value="indefinite">Vô thời hạn</option>
             <option value="probation">Thử việc</option>
             <option value="fixed_1y">Xác định TH (1 năm)</option>
             <option value="fixed_3y">Xác định TH (3 năm)</option>
           </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full md:w-48 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:border-cyan-400 shadow-sm">
             <option value="ALL">Tất cả trạng thái</option>
             <option value="active">Còn hiệu lực</option>
             <option value="expiring_soon">Sắp hết hạn</option>
@@ -158,6 +181,7 @@ export default function ContractManagement() {
                   <th className="py-4 px-6">MÃ HĐ</th>
                   <th className="py-4 px-6">NHÂN VIÊN</th>
                   <th className="py-4 px-6">LOẠI HỢP ĐỒNG</th>
+                  <th className="py-4 px-6 text-center">CHI NHÁNH / PHÒNG BAN</th>
                   <th className="py-4 px-6">THỜI HẠN</th>
                   <th className="py-4 px-6 text-right">LƯƠNG CƠ BẢN</th>
                   <th className="py-4 px-6 text-center">TRẠNG THÁI</th>
@@ -186,6 +210,12 @@ export default function ContractManagement() {
                         </div>
                       </td>
                       <td className="py-4 px-6">{getTypeBadge(c.typeCode, c.typeName)}</td>
+                      <td className="py-4 px-6 text-center">
+                        <div className="inline-flex flex-col items-center">
+                          <span className="text-xs font-bold text-slate-700">{c.branchName}</span>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wide px-1.5 py-0.5 bg-slate-50 rounded-md border border-slate-100 mt-1">{c.departmentName}</span>
+                        </div>
+                      </td>
                       <td className="py-4 px-6">
                         <p className={`text-sm font-bold ${!c.isActive ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                           {formatDate(c.startDate)} - {c.endDate ? formatDate(c.endDate) : 'Không xác định'}

@@ -1548,20 +1548,38 @@ const getPayrollOverview = async (req, res) => {
     const { month, year } = req.query; // e.g. 08, 2023
     let monthYear = `${String(month).padStart(2, '0')}-${year}`;
 
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực' });
+    }
+    const { role, department_id: userDeptId } = req.user;
+    let scopingClause = '';
+    let scopingJoin = '';
+    let replacements = { monthYear };
+
+    if (role === 'MANAGER') {
+      scopingJoin = `
+        JOIN employee e ON pr.employee_id = e.id
+        JOIN position pos ON e.position_id = pos.id
+      `;
+      scopingClause = 'AND pos.department_id = :userDeptId';
+      replacements.userDeptId = userDeptId;
+    }
+
     const query = `
           SELECT 
-            COALESCE(SUM(net_salary), 0) AS total_net_salary,
-            -- Thêm dòng này để tính chính xác Tổng Quỹ Lương (Gross):
-            COALESCE(SUM(net_salary + total_deduction), 0) AS total_gross_salary, 
-            COALESCE(SUM(net_salary - total_allowance + total_deduction), 0) AS total_base_salary,
-            COALESCE(SUM(total_allowance), 0) AS total_allowance,
-            COALESCE(SUM(total_deduction), 0) AS total_deduction
-          FROM payroll
-          WHERE month_year = :monthYear
+            COALESCE(SUM(pr.net_salary), 0) AS total_net_salary,
+            COALESCE(SUM(pr.net_salary + pr.total_deduction), 0) AS total_gross_salary, 
+            COALESCE(SUM(pr.net_salary - pr.total_allowance + pr.total_deduction), 0) AS total_base_salary,
+            COALESCE(SUM(pr.total_allowance), 0) AS total_allowance,
+            COALESCE(SUM(pr.total_deduction), 0) AS total_deduction
+          FROM payroll pr
+          ${scopingJoin}
+          WHERE pr.month_year = :monthYear
+          ${scopingClause}
         `;
 
     const result = await db.query(query, {
-      replacements: { monthYear },
+      replacements,
       type: db.QueryTypes.SELECT
     });
 
@@ -1577,6 +1595,9 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
     const { month, year } = req.query;
     let monthYear = `${String(month).padStart(2, '0')}-${year}`;
 
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực' });
+    }
     const { role, department_id } = req.user;
     let scopingClause = '';
     let replacements = { monthYear };
@@ -1621,9 +1642,19 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
 
 const getEmployeesByDepartmentPayroll = async (req, res) => {
   try {
-    const { departmentId } = req.params;
+    let { departmentId } = req.params;
     const { month, year } = req.query;
     let monthYear = `${String(month).padStart(2, '0')}-${year}`;
+
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực' });
+    }
+    const { role, department_id: userDeptId } = req.user;
+    
+    // Enforcement: Manager chỉ được xem phòng ban của mình
+    if (role === 'MANAGER') {
+      departmentId = userDeptId;
+    }
 
     const query = `
       SELECT 
@@ -1658,19 +1689,42 @@ const getEmployeesByDepartmentPayroll = async (req, res) => {
 const quickApprovePayroll = async (req, res) => {
   try {
     const { payrollIds } = req.body;
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực' });
+    }
+    const { role, department_id: userDeptId } = req.user;
+
     if (!payrollIds || !payrollIds.length) {
       return res.status(400).json({ message: 'Không có bảng lương nào được chọn' });
     }
 
+    let scopingClause = '';
+    let scopingJoin = '';
+    let replacements = { payrollIds };
+
+    if (role === 'MANAGER') {
+      scopingJoin = `
+        JOIN employee e ON pr.employee_id = e.id
+        JOIN position pos ON e.position_id = pos.id
+      `;
+      scopingClause = 'AND pos.department_id = :userDeptId';
+      replacements.userDeptId = userDeptId;
+    }
+
     const query = `
-      UPDATE payroll
+      UPDATE payroll pr
       SET status = 'approved'
-      WHERE id IN (:payrollIds) AND status != 'approved'
-      RETURNING id, status
+      FROM employee e
+      JOIN position pos ON e.position_id = pos.id
+      WHERE pr.employee_id = e.id
+        AND pr.id IN (:payrollIds) 
+        AND pr.status != 'approved'
+        ${role === 'MANAGER' ? 'AND pos.department_id = :userDeptId' : ''}
+      RETURNING pr.id, pr.status
     `;
 
     const result = await db.query(query, {
-      replacements: { payrollIds },
+      replacements,
       type: db.QueryTypes.UPDATE
     });
 

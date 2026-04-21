@@ -1176,10 +1176,14 @@ const getContracts = async (req, res) => {
         c.is_active,
         e.id AS employee_id,
         e.full_name AS employee_name, 
-        p.position_name
+        p.position_name,
+        d.department_name,
+        b.branch_name
       FROM contract c
       JOIN employee e ON c.employee_id = e.id
       LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      LEFT JOIN branch b ON d.branch_id = b.id
       ORDER BY c.created_at DESC;
     `;
 
@@ -1225,7 +1229,9 @@ const getContracts = async (req, res) => {
         daysLeft: daysLeft,
         isActive: c.is_active,
         baseSalary: c.base_salary, // 👉 Gửi xuống FE để form Edit đọc
-        allowances: c.allowances || [] // 👉 Gửi xuống FE để form Edit đọc
+        allowances: c.allowances || [], // 👉 Gửi xuống FE để form Edit đọc
+        departmentName: c.department_name || 'Chưa phân bổ',
+        branchName: c.branch_name || 'Hệ thống'
       };
     });
 

@@ -136,6 +136,19 @@ const resolveStatusAfterEdit = (checkInDt, checkOutDt) => {
 
 const calculatePayroll = async (req, res) => {
     const { monthYear, departmentId } = req.query;
+
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực (req.user)' });
+    }
+
+    const { role, department_id: userDeptId } = req.user;
+
+    // Server-side enforcement: Manager chỉ được xem phòng ban của mình
+    let targetDeptId = departmentId;
+    if (role === 'MANAGER') {
+        targetDeptId = userDeptId;
+    }
+
     let tx;
 
     try {
@@ -161,9 +174,9 @@ const calculatePayroll = async (req, res) => {
         `;
 
         const replacements = {};
-        if (departmentId) {
+        if (targetDeptId) {
             empQuery += ` AND d.id = :deptId`;
-            replacements.deptId = departmentId;
+            replacements.deptId = targetDeptId;
         }
 
         const employees = await db.query(empQuery, {
@@ -412,6 +425,10 @@ const calculatePayroll = async (req, res) => {
 };
 
 const correctAttendance = async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực (req.user)' });
+    }
+    const { role, department_id: userDeptId } = req.user;
     let tx;
     try {
         const { employeeId, attendanceDate, checkIn, checkOut, attendanceId } = req.body || {};
@@ -465,8 +482,22 @@ const correctAttendance = async (req, res) => {
         tx = await db.transaction();
 
         const [empRow] = await db.query(
-            `SELECT id FROM employee WHERE id = :eid LIMIT 1`,
-            { replacements: { eid: employeeId }, type: db.QueryTypes.SELECT, transaction: tx }
+            `
+            SELECT e.id 
+            FROM employee e
+            JOIN position p ON e.position_id = p.id
+            WHERE e.id = :eid 
+            ${role === 'MANAGER' ? 'AND p.department_id = :userDeptId' : ''}
+            LIMIT 1
+            `,
+            { 
+                replacements: { 
+                    eid: employeeId,
+                    userDeptId: userDeptId
+                }, 
+                type: db.QueryTypes.SELECT, 
+                transaction: tx 
+            }
         );
         if (!empRow) {
             await tx.rollback();
@@ -593,6 +624,10 @@ const correctAttendance = async (req, res) => {
 };
 
 const submitPayrollToDirector = async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Unauthorized: Không tìm thấy thông tin xác thực (req.user)' });
+    }
+    const { role, department_id: userDeptId } = req.user;
     const tx = await db.transaction();
     try {
         const monthYearRaw = typeof req.body?.monthYear === 'string' ? req.body.monthYear.trim() : '';
@@ -624,13 +659,16 @@ const submitPayrollToDirector = async (req, res) => {
                 e.employee_code
             FROM payroll pr
             JOIN employee e ON e.id = pr.employee_id
+            JOIN position pos ON e.position_id = pos.id
             WHERE pr.month_year = :monthYear
               AND e.employee_code IN (:employeeCodes)
+              ${role === 'MANAGER' ? 'AND pos.department_id = :userDeptId' : ''}
             `,
             {
                 replacements: {
                     monthYear: monthYearRaw,
                     employeeCodes,
+                    userDeptId: userDeptId
                 },
                 type: db.QueryTypes.SELECT,
                 transaction: tx,
