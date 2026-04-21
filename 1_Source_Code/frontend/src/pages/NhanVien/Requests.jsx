@@ -84,6 +84,29 @@ const handleCloseAllModals = () => {
   setSelectedRequest(null);
 };
 
+const countWorkDays = (start, end) => {
+  if (!start || !end) return 0;
+
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  let count = 0;
+  let current = new Date(startDate);
+
+  while (current <= endDate) {
+    if (isValidLeaveDay(current)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+};
+
+
   // Mapping loại đơn từ Database sang Tiếng Việt
 const getLeaveTypeText = (type) => {
   const types = {
@@ -95,6 +118,10 @@ const getLeaveTypeText = (type) => {
     bereavement: "Nghỉ tang"
   };
   return types[type] || type;
+};
+const isValidLeaveDay = (date) => {
+  const day = date.getDay();
+  return day !== 0; // chỉ loại Chủ nhật
 };
 
 const LEAVE_LIMIT = 12;
@@ -127,7 +154,7 @@ return r.leave_type === "annual" && r.status === "approved";
         const day = current.getDay(); // 0: Chủ nhật, 6: Thứ bảy
 
         // Kiểm tra đúng năm và không phải cuối tuần
-        if (year === currentYear && day !== 0 && day !== 6) {
+        if (year === currentYear && day !== 0) {
           count++;
         }
         current.setDate(current.getDate() + 1);
@@ -174,26 +201,8 @@ const getLatestMonthYear = () => {
 const calculateTotalDays = (start, end) => {
   if (!start || !end) return "0 ngày";
 
-  let startDate = new Date(start);
-  let endDate = new Date(end);
-
-  // reset giờ để tránh lệch timezone
-  startDate.setHours(0, 0, 0, 0);
-  endDate.setHours(0, 0, 0, 0);
-
-  let count = 0;
-
-  while (startDate <= endDate) {
-    const day = startDate.getDay(); // 0 = Chủ nhật
-
-    if (day !== 0) {
-      count++;
-    }
-
-    startDate.setDate(startDate.getDate() + 1);
-  }
-
-  return `${count} ngày`;
+  const days = countWorkDays(start, end);
+  return `${days} ngày`;
 };
 
   useEffect(() => {
@@ -235,6 +244,66 @@ const calculateTotalDays = (start, end) => {
       })
     .catch((err) => console.error(err));
   }, [view,user?.id]);
+
+
+const getUsedDaysByType = (type) => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  return requests
+    .filter((r) => r.leave_type === type && r.status === "approved")
+    .reduce((total, r) => {
+      const start = new Date(r.start_datetime);
+      const end = new Date(r.end_datetime);
+
+      let count = 0;
+      let cur = new Date(start);
+      cur.setHours(0, 0, 0, 0);
+
+      const final = new Date(end);
+      final.setHours(0, 0, 0, 0);
+
+      while (cur <= final) {
+        const d = cur.getDay();
+        const y = cur.getFullYear();
+        const m = cur.getMonth();
+
+        if ((type === "annual" || type === "maternity")) {
+          if (y === currentYear && isValidLeaveDay(cur)) count++;
+        } else {
+          if (y === currentYear && m === currentMonth && isValidLeaveDay(cur)) count++;
+        }
+
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      return total + count;
+    }, 0);
+};
+
+const getMaxLeaveDays = (type) => {
+  switch (type) {
+    case "annual":
+      return 12;
+
+    case "maternity":
+      return 180;
+
+    case "sick":
+      return 2;
+
+    case "unpaid":
+      return 1;
+
+    case "bereavement":
+      return 7;
+
+    default:
+      return 0;
+  }
+};
+
 
   // ----------------- Submit -----------------
 
@@ -311,12 +380,28 @@ if (diffDays > 30) {
     setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
-  if (new Date(form.endDate) < new Date(form.startDate)) {
-  setShowConfirmSubmit(false);
-  setNotification({ message: "Ngày kết thúc phải sau ngày bắt đầu!", type: "error" });
-  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
-  return;
-}
+
+
+ const requestDays = calculateDays();
+  const usedDays = getUsedDaysByType(form.type);
+  const maxDays = getMaxLeaveDays(form.type);
+
+  const remaining = maxDays - usedDays;
+
+  if (requestDays > remaining) {
+    setShowConfirmSubmit(false);
+    setNotification({
+      message: `Bạn chỉ còn ${remaining} ngày phép cho loại này!`,
+      type: "error",
+    });
+
+    setTimeout(() => {
+      setNotification({ message: "", type: "" });
+    }, 3000);
+
+    return;
+  }
+
   const file = selectedFile;
   const MAX_SIZE = 10 * 1024 * 1024;
 
@@ -330,6 +415,20 @@ if (file) {
     });
     return;
   }
+}
+
+if (isOverlapping(form.startDate, form.endDate)) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Khoảng thời gian nghỉ bị trùng với đơn đã gửi!",
+    type: "error",
+  });
+
+  setTimeout(() => {
+    setNotification({ message: "", type: "" });
+  }, 3000);
+
+  return;
 }
 
   const payload = new FormData();
@@ -363,7 +462,7 @@ if (file) {
 
     // 5. QUAN TRỌNG: Tự động tắt thông báo sau 3 giây
     setTimeout(() => {
-      setNotification("");
+      setNotification({ message: "", type: "" });
     }, 3000);
     setShowConfirmSubmit(false);
 
@@ -391,18 +490,23 @@ const handleCancelConfirm = () => {
 
 
 
-  const calculateDays = () => {
-  if (!form.startDate || !form.endDate) return 0;
+const calculateDays = () => {
+  return countWorkDays(form.startDate, form.endDate);
+};
 
-  const start = new Date(form.startDate);
-  const end = new Date(form.endDate);
-const diffTime = end - start;
+const isOverlapping = (newStart, newEnd) => {
+  const startA = new Date(newStart);
+  const endA = new Date(newEnd);
 
-  if (diffTime < 0) return 0;
+  return requests.some((r) => {
+    if (r.status !== "approved" && r.status !== "pending") return false;
 
-  const diffDays = diffTime / (1000 * 60 * 60 * 24) + 1;
+    const startB = new Date(r.start_datetime);
+    const endB = new Date(r.end_datetime);
 
-  return diffDays;
+    // check overlap
+    return startA <= endB && endA >= startB;
+  });
 };
 
   return (

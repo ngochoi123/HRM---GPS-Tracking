@@ -911,17 +911,29 @@ exports.getApprovers = async (req, res) => {
       SELECT DISTINCT 
         e.id, 
         e.full_name, 
-        p.position_name
+        p.position_name,
+        CASE 
+          WHEN e.id = dm.direct_manager_id THEN 1
+          ELSE 2
+        END AS priority
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN (
+        SELECT direct_manager_id
+        FROM employee
+        WHERE id = $1
+      ) dm ON true
       WHERE 
-        e.id = (
-          SELECT direct_manager_id 
-          FROM employee 
-          WHERE id = $1
+        e.id = dm.direct_manager_id
+        OR (
+          dm.direct_manager_id IS NULL 
+          AND p.level = 'director'
         )
-        OR p.level = 'director'
-      ORDER BY e.full_name
+        OR (
+          dm.direct_manager_id IS NOT NULL 
+          AND p.level = 'director'
+        )
+      ORDER BY priority, e.full_name;
     `, {
       bind: [id],
       type: QueryTypes.SELECT
@@ -1127,6 +1139,7 @@ exports.getMyExplanationRequests = async (req, res) => {
         aer.reason,
         aer.attachment_url,
         aer.status,
+        aer.reject_reason,
         aer.created_at,
         e.full_name AS approver_name
       FROM attendance_explanation_request aer

@@ -223,6 +223,17 @@ if (start < minStart || start > maxStart) {
   return;
 }
 
+if (isOverlap(form.ot_date, form.start_time, form.end_time)) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Bạn đã có đơn tăng ca trùng thời gian!",
+    type: "error",
+  });
+
+  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+  return;
+}
+
   try {
     const user = JSON.parse(localStorage.getItem("user"));
 
@@ -405,6 +416,32 @@ useEffect(() => {
 useEffect(() => {
   console.log("STATE REQUESTS:", requests);
 }, [requests]);
+
+const isOverlap = (newDate, newStart, newEnd) => {
+  const newStartMin =
+    parseInt(newStart.split(":")[0]) * 60 +
+    parseInt(newStart.split(":")[1]);
+
+  const newEndMin =
+    parseInt(newEnd.split(":")[0]) * 60 +
+    parseInt(newEnd.split(":")[1]);
+
+  return requests.some((r) => {
+    if (r.status === "rejected") return false;
+    if (r.ot_date !== newDate) return false;
+
+    const oldStartMin =
+      parseInt(r.start_time.split(":")[0]) * 60 +
+      parseInt(r.start_time.split(":")[1]);
+
+    const oldEndMin =
+      parseInt(r.end_time.split(":")[0]) * 60 +
+      parseInt(r.end_time.split(":")[1]);
+
+    // overlap condition
+    return newStartMin < oldEndMin && newEndMin > oldStartMin;
+  });
+};
 
   return (
     

@@ -48,6 +48,10 @@ const Approvals = () => {
   //đơn chờ duyệt
   const totalPending = requests.length;
 
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectTarget, setRejectTarget] = useState(null);
+
 
 
   const leaveTypes = {
@@ -108,23 +112,24 @@ const Approvals = () => {
 
   const handleApprove = async (type, id) => {
     try {
-      await managerApprovals.approveRequest(type, id);
+      await managerApprovals.approveRequest(type, id,user.id);
       setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
       alert("Đã phê duyệt đơn thành công!");
     } catch (err) {
-      alert("Phê duyệt thất bại");
+      console.log("APPROVE ERROR:", err.response?.data || err.message);
+  alert(err.response?.data?.message || "Phê duyệt thất bại");
     }
   };
 
-  const handleReject = async (type, id) => {
-    try {
-      await managerApprovals.rejectRequest(type, id);
-      setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
-      alert("Đã từ chối đơn!");
-    } catch (err) {
-      alert("Thao tác thất bại");
-    }
-  };
+  const handleReject = async (type, id, reason = "") => {
+  try {
+    await managerApprovals.rejectRequest(type, id, user.id, reason);
+    setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
+    alert("Đã từ chối đơn!");
+  } catch (err) {
+    alert("Thao tác thất bại");
+  }
+};
 const handleApproveAll = async () => {
   if (requests.length === 0) return;
 
@@ -136,7 +141,7 @@ const handleApproveAll = async () => {
 
     await Promise.all(
       requests.map(req =>
-        managerApprovals.approveRequest(req.type, req.id)
+        managerApprovals.approveRequest(req.type, req.id,user.id)
       )
     );
 
@@ -171,6 +176,22 @@ const handleApproveAll = async () => {
     if (historyFilter === 'all') return true;
     return req.type === historyFilter;
   });
+
+  const countDaysExcludingSunday = (start, end) => {
+  let current = moment(start);
+  const last = moment(end);
+
+  let count = 0;
+
+  while (current.isSameOrBefore(last, 'day')) {
+    if (current.day() !== 0) { // 0 = Chủ nhật
+      count++;
+    }
+    current.add(1, 'day');
+  }
+
+  return count;
+};
   return (
     <div className="approvals-container">
 
@@ -333,7 +354,19 @@ const handleApproveAll = async () => {
               <div className="card-action-section">
                 <button className="btn-icon-view" onClick={() => setSelectedRequest(req)}><MdOutlineRemoveRedEye size={20} /></button>
                 <div className="action-buttons">
-                  <button className="btn-text-reject" onClick={() => handleReject(req.type, req.id)}>Từ chối</button>
+                  <button
+                    className="btn-text-reject"
+                    onClick={() => {
+                      if (req.type === "explanation") {
+                        setRejectTarget(req);
+                        setShowRejectModal(true);
+                      } else {
+                        handleReject(req.type, req.id);
+                      }
+                    }}
+                  >
+                    Từ chối
+                  </button>
                   <button className="btn-approve-primary" onClick={() => handleApprove(req.type, req.id)}>Phê duyệt</button>
                 </div>
               </div>
@@ -506,8 +539,10 @@ const handleApproveAll = async () => {
                       Tổng thời gian {selectedRequest.type === 'leave' ? 'nghỉ' : 'làm'} dự kiến:{" "}
                       <span>
                         {selectedRequest.type === 'leave'
-                          ? `${moment(selectedRequest.end_datetime)
-                              .diff(moment(selectedRequest.start_datetime), 'days') + 1} ngày`
+                          ? `${countDaysExcludingSunday(
+                              selectedRequest.start_datetime,
+                              selectedRequest.end_datetime
+                            )} ngày`
                           : `${moment(selectedRequest.end_time, "HH:mm")
                               .diff(moment(selectedRequest.start_time, "HH:mm"), 'hours', true)} giờ`}
                       </span>
@@ -571,6 +606,51 @@ const handleApproveAll = async () => {
             </div>
           </div>
         )}
+{showRejectModal && (
+  <div className="asp-modal-overlay" onClick={() => setShowRejectModal(false)}>
+    <div className="asp-modal-content" onClick={(e) => e.stopPropagation()}>
+      <h3>Lý do từ chối</h3>
+
+      <textarea
+        className="asp-modal-textarea"
+        value={rejectReason}
+        onChange={(e) => setRejectReason(e.target.value)}
+        placeholder="Nhập lý do chi tiết tại đây..."
+      />
+
+      <div className="asp-modal-actions">
+        <button 
+          className="asp-btn-cancel" 
+          onClick={() => setShowRejectModal(false)}
+        >
+          Hủy
+        </button>
+
+        <button
+          className="asp-btn-confirm"
+          onClick={() => {
+            if (!rejectReason.trim()) {
+              alert("Vui lòng nhập lý do");
+              return;
+            }
+
+            handleReject(
+              rejectTarget.type,
+              rejectTarget.id,
+              rejectReason
+            );
+
+            setShowRejectModal(false);
+            setRejectReason("");
+            setRejectTarget(null);
+          }}
+        >
+          Xác nhận từ chối
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

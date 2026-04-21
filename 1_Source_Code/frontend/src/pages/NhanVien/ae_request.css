@@ -73,3 +73,28 @@
 .file-view-btn:hover {
   background: #dc2626;
 }
+.reject-reason {
+  font-size: 11px !important ;
+  max-width: 150px;
+  color: #888;
+  font-style: italic; /* Chữ nghiêng tạo cảm giác là ghi chú thêm */
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+/* Nếu trạng thái là rejected, làm nổi bật nhẹ */
+tr:has(.status-rejected) .reject-reason {
+  color: #ef4444;
+  background-color: #fef2f2; /* Nền đỏ cực nhạt */
+  border: 1px dashed #fee2e2; /* Viền đứt nét nhẹ nhàng */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hiệu ứng Tooltip đơn giản bằng thuộc tính title của HTML */
+.reject-reason:hover {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}

@@ -849,3 +849,101 @@
   background-color: #FEF3C7;
   color: #D97706;
 }
+
+
+/* Overlay bao phủ toàn màn hình */
+.asp-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Làm tối nền */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px); /* Làm mờ nhẹ nền phía sau */
+}
+
+/* Khung nội dung Modal */
+.asp-modal-content {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  animation: aspFadeIn 0.3s ease;
+}
+
+.asp-modal-content h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.25rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 12px;
+}
+
+/* Textarea tùy chỉnh */
+.asp-modal-textarea {
+  width: 100%;
+  min-height: 120px;
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.asp-modal-textarea:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* Cụm nút bấm */
+.asp-modal-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Button chung */
+.asp-modal-actions button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  border: none;
+}
+
+/* Nút Hủy */
+.asp-btn-cancel {
+  background: #f1f1f1;
+  color: #555;
+}
+
+.asp-btn-cancel:hover {
+  background: #e5e5e5;
+}
+
+/* Nút Xác nhận (Màu đỏ vì là hành động từ chối) */
+.asp-btn-confirm {
+  background: #dc3545;
+  color: white;
+}
+
+.asp-btn-confirm:hover {
+  background: #c82333;
+}
+
+/* Hiệu ứng hiện ra */
+@keyframes aspFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

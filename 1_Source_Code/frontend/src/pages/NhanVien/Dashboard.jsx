@@ -296,7 +296,7 @@ const Dashboard = () => {
             <div className="checkin-action-group">
               <button
                 className="checkin-button"
-                disabled={!workStatus.canCheckIn}
+                
                 onClick={() => navigate('/NhanVien/checkin', {
                   state: { employeeId }
                 })}

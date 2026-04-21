@@ -14,6 +14,7 @@ import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
 import { FiClock } from "react-icons/fi";
 import { GoBlocked } from "react-icons/go";
+import { useLocation } from "react-router-dom";
 import './ae_request.css'
 
 // 1. SỬA TÊN COMPONENT VIẾT HOA CHỮ CÁI ĐẦU
@@ -36,6 +37,8 @@ const total = requests.length;
 const approved = requests.filter(r => r.status === "approved").length;
 const pending = requests.filter(r => r.status === "pending").length;
 const rejected = requests.filter(r => r.status === "rejected").length;
+const location = useLocation();
+const state = location.state;
 
 // Đã xóa biến percentApproved không sử dụng
 
@@ -54,6 +57,7 @@ const closeModal = () => {
   setShowModal(false);
   setSelectedRequest(null);
 };
+
 
 const [approverId, setApproverId] = useState("");
 const [approvers, setApprovers] = useState([]);
@@ -91,42 +95,126 @@ const handleSubmit = async () => {
   setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
-  if (!form.checkin || !form.checkout) {
-    setShowConfirmSubmit(false);
-    setNotification({ message: "Vui lòng chọn thời gian vào, thời gian ra!", type: "error" });
-  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
-    return;
+  // validate theo type
+ // ===== VALIDATE THEO TYPE =====
+
+
+    else if (form.type === "late_arrival") {
+      if (!form.checkin) {
+        setShowConfirmSubmit(false);
+        setNotification({ message: "Vui lòng nhập thời gian vào!", type: "error" });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+
+      const checkinMin = toMinutes(form.checkin);
+      const minCheckin = 7 * 60;
+
+      if (checkinMin < minCheckin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian vào phải >= 07:00!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+
+      //  không cho nhập checkout
+      if (form.checkout) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Đi muộn không cần nhập thời gian ra!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
     }
 
-    // validate time logic
-    const checkinMin = toMinutes(form.checkin);
-    const checkoutMin = toMinutes(form.checkout);
-    const limitMin = 21 * 60; // 21:00
+    else if (form.type === "early_leave") {
+      if (!form.checkin || !form.checkout) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Vui lòng nhập đầy đủ giờ vào và giờ ra!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
 
-    if (checkinMin >= checkoutMin) {
-    setShowConfirmSubmit(false);
-    setNotification({ message: "Thời gian vào phải nhỏ thời gian giờ ra!", type: "error" });
-  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
-    return;
+      const checkinMin = toMinutes(form.checkin);
+      const checkoutMin = toMinutes(form.checkout);
+      const limitMin = 21 * 60;
+
+      if (checkinMin >= checkoutMin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian vào phải nhỏ hơn thời gian ra!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+
+      if (checkoutMin > limitMin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian ra phải <= 21:00!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
     }
 
-    if (checkoutMin > limitMin) {
-    setShowConfirmSubmit(false);
-    setNotification({ message: "Thời gian ra phải nhỏ hơn hoặc bằng 21:00!", type: "error" });
-  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
-    return;
-    }
-    const minCheckin = 7 * 60; // 07:00
+    else {
+      // forgot_checkin, forgot_checkout
+      if (!form.checkin || !form.checkout) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Vui lòng chọn thời gian vào, thời gian ra!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
 
-if (checkinMin < minCheckin) {
-  setShowConfirmSubmit(false);
-  setNotification({
-    message: "Thời gian vào phải sau hoặc bằng 07:00!",
-    type: "error",
-  });
-  setTimeout(() => setNotification({ message: "", type: "" }), 3000);
-  return;
-}
+      const checkinMin = toMinutes(form.checkin);
+      const checkoutMin = toMinutes(form.checkout);
+      const limitMin = 21 * 60;
+      const minCheckin = 7 * 60;
+
+      if (checkinMin >= checkoutMin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian vào phải nhỏ hơn thời gian ra!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+
+      if (checkoutMin > limitMin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian ra phải <= 21:00!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+
+      if (checkinMin < minCheckin) {
+        setShowConfirmSubmit(false);
+        setNotification({
+          message: "Thời gian vào phải >= 07:00!",
+          type: "error",
+        });
+        setTimeout(() => setNotification({ message: "", type: "" }), 3000);
+        return;
+      }
+    }
   if (!form.reason.trim()) {
     setShowConfirmSubmit(false);
     setNotification({ message: "Vui lòng nhập lý do!", type: "error" });
@@ -144,6 +232,7 @@ if (checkinMin < minCheckin) {
   formData.append("proposed_check_out", form.checkout);
   formData.append("reason", form.reason);
   formData.append("approverId", approverId);
+
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB
   const file = selectedFile;
 
@@ -213,6 +302,57 @@ const handleResetForm = (showToast = true) => {
     setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
 };
+
+useEffect(() => {
+  if (!state) return;
+
+  const { date, checkIn, checkOut, type } = state;
+
+  setForm((prev) => ({
+    ...prev,
+    date: date ? date.split("T")[0] : "",
+
+    type: type || "",
+
+    checkin:
+      type === "late_arrival" && checkIn
+        ? new Date(checkIn).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "",
+
+    checkout:
+      type === "early_leave" && checkOut
+        ? new Date(checkOut).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "",
+
+    // nếu về sớm thì giữ cả checkin + checkout
+    ...(type === "early_leave" && {
+      checkin: checkIn
+        ? new Date(checkIn).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "",
+    }),
+
+    // nếu vắng mặt → clear hết
+    ...(type === "system_error" && {
+      checkin: "",
+      checkout: "",
+    }),
+  }));
+
+  // set mặc định người duyệt (quản lý trực tiếp)
+  if (approvers.length > 0) {
+    setApproverId(approvers[0].id);
+  }
+}, [state, approvers]);
+
 useEffect(() => {
   if (!user?.id) return;
 
@@ -295,9 +435,21 @@ const filteredRequests = filterMonth
                                 <select
                                     className="input-option"
                                     value={form.type}
-                                    onChange={(e) =>
-                                        setForm({ ...form, type: e.target.value })
-                                    }
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+
+                                      setForm(prev => ({
+                                        ...prev,
+                                        type: value,
+                                        ...(value === "system_error" && {
+                                          checkin: "",
+                                          checkout: ""
+                                        }),
+                                        ...(value === "late_arrival" && {
+                                          checkout: ""
+                                        })
+                                      }));
+                                    }}
                                     >
                                     <option value="">Chọn loại giải trình </option>
 
@@ -346,6 +498,7 @@ const filteredRequests = filterMonth
                                     onChange={(e) =>
                                         setForm({ ...form, checkin: e.target.value })
                                     }
+                                    disabled={form.type === "system_error"}
                                 />
                             </div>
                             <div className="input-group">
@@ -356,6 +509,9 @@ const filteredRequests = filterMonth
                                     value={form.checkout}
                                     onChange={(e) =>
                                         setForm({ ...form, checkout: e.target.value })
+                                    }
+                                    disabled={
+                                      form.type === "system_error" || form.type === "late_arrival"
                                     }
                                 />
                             </div>
@@ -525,6 +681,7 @@ const filteredRequests = filterMonth
                 <th style={{ background: "red", color: "white" }}>Thời gian vào</th>
                 <th style={{ background: "red", color: "white" }}>Thời gian ra</th>
                 <th style={{ background: "red", color: "white" }}>Trạng thái</th>
+                <th style={{ background: "red", color: "white" }}>Lý do từ chối</th>
             </tr>
           </thead>
 
@@ -563,6 +720,9 @@ const filteredRequests = filterMonth
                         ? "Chờ duyệt"
                         : "Từ chối"}
                     </span>
+                  </td>
+                  <td className="reject-reason">
+                    {r.status === "rejected" ? (r.reject_reason || "---") : "---"}
                   </td>
                 </tr>
               ))
@@ -701,6 +861,16 @@ const filteredRequests = filterMonth
     </div>
   </div>
 )}
+{selectedRequest.status === "rejected" && (
+  <div className="info-section">
+    <h3 className="section-title">Lý do từ chối</h3>
+    <textarea
+      className="input-option-3"
+      value={selectedRequest.reject_reason || ""}
+      readOnly
+    />
+  </div>
+)}
 
       <div style={{ textAlign: "right" }}>
         <button onClick={closeModal} className="btn-close-modal">
@@ -789,6 +959,7 @@ const filteredRequests = filterMonth
             {new Date(r.attendance_date).toLocaleDateString("vi-VN")}
             {" "}({r.proposed_check_in} - {r.proposed_check_out})
           </p>
+          
         </div>
 
         {/* STATUS */}
@@ -852,5 +1023,5 @@ const filteredRequests = filterMonth
     );
 };
 
-// 2. NHỚ ĐỔI TÊN Ở PHẦN EXPORT NỮA NHÉ
+
 export default AttendanceExplanationRequest;
