@@ -95,10 +95,10 @@ const createUser = async (req, res) => {
     }
 
     // Tạo tài khoản UserAccount bằng Sequelize
-    const salt = await bcrypt.gen_salt(10);
+    const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    await UserAccount.create({
+    const newUserAccount = await UserAccount.create({
       employee_id: finalEmployeeId,
       username: username,
       password_hash: password_hash,
@@ -124,13 +124,13 @@ const createUser = async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: "Tạo tài khoản thành công!", 
-      user: userResult[0] 
+      user: newUserAccount 
     });
 
   } catch (error) {
-    // 🛑 CHỐT CHẶN MỚI: Chỉ Rollback nếu giao dịch CHƯA được commit
-    if (!t.finished) {
-      await t.rollback();
+
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
     }
     
     console.error("Lỗi khi tạo tài khoản:", error);
