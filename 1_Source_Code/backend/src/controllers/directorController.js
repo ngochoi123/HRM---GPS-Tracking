@@ -1243,15 +1243,28 @@ const getContracts = async (req, res) => {
 };
 
 
-// 1. Lấy danh sách Nhân viên và Chức vụ cho Combobox
+// 1. Lấy danh sách Nhân viên (Chưa có HĐ active) và Chức vụ cho Combobox
 const getContractFormOptions = async (req, res) => {
   try {
-    // Lấy nhân viên kèm ID chức vụ hiện tại
+    // Lấy nhân viên kèm ID chức vụ, phòng ban, chi nhánh
+    // CHỈ lấy những người chưa có hợp đồng đang có hiệu lực (is_active = true)
     const employees = await db.query(`
-      SELECT id, full_name, employee_code, position_id 
-      FROM employee 
-      WHERE status = 'active' 
-      ORDER BY full_name ASC
+      SELECT 
+        e.id, 
+        e.full_name, 
+        e.employee_code, 
+        e.position_id,
+        p.department_id,
+        d.branch_id
+      FROM employee e
+      LEFT JOIN position p ON e.position_id = p.id
+      LEFT JOIN department d ON p.department_id = d.id
+      WHERE e.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM contract c 
+        WHERE c.employee_id = e.id AND c.is_active = true
+      )
+      ORDER BY e.full_name ASC
     `, { type: db.QueryTypes.SELECT });
     
     // Lấy danh sách chức vụ kèm mức lương sàn
@@ -1261,7 +1274,17 @@ const getContractFormOptions = async (req, res) => {
       ORDER BY position_name ASC
     `, { type: db.QueryTypes.SELECT });
 
-    res.status(200).json({ employees, positions });
+    // Lấy danh sách chi nhánh để hiển thị bộ lọc trên FE
+    const branches = await db.query(`
+      SELECT id, branch_name FROM branch WHERE is_active = true ORDER BY branch_name ASC
+    `, { type: db.QueryTypes.SELECT });
+
+    // Lấy danh sách phòng ban để hiển thị bộ lọc trên FE
+    const departments = await db.query(`
+      SELECT id, department_name, branch_id FROM department WHERE is_active = true ORDER BY department_name ASC
+    `, { type: db.QueryTypes.SELECT });
+
+    res.status(200).json({ employees, positions, branches, departments });
   } catch (error) {
     console.error('Lỗi getContractFormOptions:', error);
     res.status(500).json({ message: 'Lỗi Server' });

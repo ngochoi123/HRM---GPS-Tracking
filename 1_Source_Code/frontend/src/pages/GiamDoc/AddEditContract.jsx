@@ -13,10 +13,17 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
     end_date: '',
     base_salary_min: 0
   });
-
-  const [allowances, setAllowances] = useState([]);
+  
+  // 👉 Mới: Quản lý danh sách gốc và các bộ lọc
   const [employees, setEmployees] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  const [deptFilter, setDeptFilter] = useState('ALL');
+
+  const [allowances, setAllowances] = useState([]);
   const [saving, setSaving] = useState(false);
 
   // States cho UI Checkbox (Giao diện)
@@ -29,6 +36,8 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
         const res = await directorContractService.getContractFormOptions();
         setEmployees(res?.employees || []);
         setPositions(res?.positions || []);
+        setBranches(res?.branches || []);
+        setDepartments(res?.departments || []);
       } catch (error) {
         console.error("Lỗi kéo dữ liệu:", error);
       }
@@ -161,6 +170,18 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
   // Tìm tên nhân viên để hiển thị khi ở chế độ Edit (Bị khóa)
   const currentEmpName = isEdit ? (contract.employeeName + (contract.positionName ? ` - ${contract.positionName}` : '')) : '';
 
+  // 👉 LOGIC LỌC NHÂN VIÊN DỘNG THEO CHI NHÁNH / PHÒNG BAN
+  const filteredEmployeesForDropdown = employees.filter(emp => {
+    const matchBranch = branchFilter === 'ALL' || String(emp.branch_id) === String(branchFilter);
+    const matchDept = deptFilter === 'ALL' || String(emp.department_id) === String(deptFilter);
+    return matchBranch && matchDept;
+  });
+
+  // Lọc danh sách phòng ban theo chi nhánh đã chọn
+  const filteredDepartments = departments.filter(d => {
+    return branchFilter === 'ALL' || String(d.branch_id) === String(branchFilter);
+  });
+
   return (
     <div className="bg-slate-50 min-h-screen font-sans pb-10">
       <div className="max-w-5xl mx-auto pt-6 px-4">
@@ -190,6 +211,35 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
             <h3 className="flex items-center gap-2 text-base font-bold text-cyan-600 mb-5">
               <User size={18} /> Thông tin đối tượng
             </h3>
+
+            {/* 👉 MỚI: BỘ LỌC TÌM KIẾM NHANH (Chỉ hiện khi THÊM MỚI) */}
+            {!isEdit && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Lọc theo Chi nhánh</label>
+                  <select 
+                    value={branchFilter} 
+                    onChange={(e) => { setBranchFilter(e.target.value); setDeptFilter('ALL'); }}
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value="ALL">Tất cả chi nhánh</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Lọc theo Phòng ban</label>
+                  <select 
+                    value={deptFilter} 
+                    onChange={(e) => setDeptFilter(e.target.value)}
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value="ALL">Tất cả phòng ban</option>
+                    {filteredDepartments.map(d => <option key={d.id} value={d.id}>{d.department_name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-bold text-slate-700">Người lao động (Nhân viên) <span className="text-red-500">*</span></label>
@@ -200,8 +250,8 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
                   </div>
                 ) : (
                   <select name="employee_id" value={formData.employee_id} onChange={handleEmployeeChange} required className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none">
-                    <option value="">-- Chọn nhân viên từ danh sách chưa có hợp đồng --</option>
-                    {employees.map(emp => (
+                    <option value="">-- {filteredEmployeesForDropdown.length > 0 ? `Chọn từ ${filteredEmployeesForDropdown.length} nhân viên phù hợp` : 'Không có nhân viên phù hợp bộ lọc'} --</option>
+                    {filteredEmployeesForDropdown.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.employee_code} - {emp.full_name}</option>
                     ))}
                   </select>
