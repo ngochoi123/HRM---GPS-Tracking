@@ -41,6 +41,108 @@ function getPersistedTarget(target) {
   return TARGET_COMPANY;
 }
 
+async function getRequesterEmployeeId(userAccountId) {
+  if (!userAccountId) return null;
+  const rows = await sequelize.query(
+    `
+    SELECT employee_id
+    FROM user_account
+    WHERE id = :userAccountId
+    LIMIT 1
+    `,
+    {
+      replacements: { userAccountId },
+      type: QueryTypes.SELECT,
+    }
+  );
+  return rows?.[0]?.employee_id || null;
+}
+
+async function getNotificationAccessContext(req) {
+  const role = String(req.user?.role || '').toUpperCase();
+  const departmentId = req.user?.department_id || null;
+  const requesterEmployeeId = await getRequesterEmployeeId(req.user?.id);
+  return { role, departmentId, requesterEmployeeId };
+}
+
+function appendManagerHistoryScope(baseQuery, replacements, access) {
+  if (access.role !== 'MANAGER') {
+    return baseQuery;
+  }
+
+  replacements.requesterEmployeeId = access.requesterEmployeeId;
+  replacements.managerDepartmentId = access.departmentId;
+
+  return `
+    ${baseQuery}
+    WHERE n.sender_id = :requesterEmployeeId
+      AND (
+        n.target IN ('Toàn công ty', 'Tất cả nhân viên')
+        OR
+        n.target_department_id = :managerDepartmentId
+        OR (
+          n.target_employee_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM employee te
+            JOIN position tp ON tp.id = te.position_id
+            WHERE te.id = n.target_employee_id
+              AND tp.department_id = :managerDepartmentId
+          )
+        )
+      )
+  `;
+}
+
+async function ensureNotificationAccess({ req, notificationId, transaction = null }) {
+  const access = await getNotificationAccessContext(req);
+  const replacements = { id: notificationId };
+
+  let query = `
+    SELECT n.*
+    FROM notification n
+  `;
+
+  if (access.role === 'MANAGER') {
+    if (!access.requesterEmployeeId || !access.departmentId) {
+      return null;
+    }
+
+    replacements.requesterEmployeeId = access.requesterEmployeeId;
+    replacements.managerDepartmentId = access.departmentId;
+
+    query += `
+      WHERE n.id = :id
+        AND n.sender_id = :requesterEmployeeId
+        AND (
+          n.target IN ('Toàn công ty', 'Tất cả nhân viên')
+          OR
+          n.target_department_id = :managerDepartmentId
+          OR (
+            n.target_employee_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM employee te
+              JOIN position tp ON tp.id = te.position_id
+              WHERE te.id = n.target_employee_id
+                AND tp.department_id = :managerDepartmentId
+            )
+          )
+        )
+    `;
+  } else {
+    query += ` WHERE n.id = :id `;
+  }
+
+  const rows = await sequelize.query(query, {
+    replacements,
+    type: QueryTypes.SELECT,
+    transaction,
+  });
+
+  return rows?.[0] || null;
+}
+
 async function sendExpoPushIfPossible(notificationId, title, desc) {
   try {
     const fetchTokensQuery = `
@@ -89,10 +191,25 @@ const notificationController = {
   // --- Admin: danh sách ---
   getAllNotifications: async (req, res) => {
     try {
-      const notifications = await sequelize.query(
-        `SELECT * FROM notification ORDER BY created_at DESC`,
-        { type: QueryTypes.SELECT }
-      );
+      const access = await getNotificationAccessContext(req);
+      const replacements = {};
+
+      if (access.role === 'MANAGER' && (!access.requesterEmployeeId || !access.departmentId)) {
+        return res.json([]);
+      }
+
+      let query = `
+        SELECT n.*
+        FROM notification n
+      `;
+
+      query = appendManagerHistoryScope(query, replacements, access);
+      query += ` ORDER BY n.created_at DESC`;
+
+      const notifications = await sequelize.query(query, {
+        replacements,
+        type: QueryTypes.SELECT,
+      });
       res.json(notifications);
     } catch (err) {
       console.error('❌ Lỗi lấy thông báo:', err);
@@ -104,6 +221,7 @@ const notificationController = {
   createNotification: async (req, res) => {
     const t = await sequelize.transaction();
     try {
+      const access = await getNotificationAccessContext(req);
       const {
         title,
         content,
@@ -115,6 +233,11 @@ const notificationController = {
         sender_id,
         status,
       } = req.body;
+
+      if (access.role === 'MANAGER' && (!access.requesterEmployeeId || !access.departmentId)) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Không xác định được phạm vi thông báo của quản lý' });
+      }
 
       const finalStatus = status === STATUS_DRAFT ? STATUS_DRAFT : STATUS_SENT;
 
@@ -134,11 +257,46 @@ const notificationController = {
 
       const tgtNorm = getPersistedTarget(target);
 
+      if (access.role === 'MANAGER') {
+        if (safeDeptId !== null && Number(safeDeptId) !== Number(access.departmentId)) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Quản lý chỉ được gửi thông báo cho phòng ban của mình' });
+        }
+      }
+
       if (getTargetScope(tgtNorm) === 'company') {
         safeDeptId = null;
         safeEmpId = null;
       } else if (getTargetScope(tgtNorm) === 'department') {
         safeEmpId = null;
+        if (access.role === 'MANAGER') {
+          safeDeptId = access.departmentId;
+        }
+      } else if (getTargetScope(tgtNorm) === 'employee' && access.role === 'MANAGER') {
+        safeDeptId = access.departmentId;
+        const targetEmployeeRows = await sequelize.query(
+          `
+          SELECT e.id
+          FROM employee e
+          JOIN position p ON e.position_id = p.id
+          WHERE e.id = :employeeId
+            AND p.department_id = :departmentId
+          LIMIT 1
+          `,
+          {
+            replacements: {
+              employeeId: safeEmpId,
+              departmentId: access.departmentId,
+            },
+            type: QueryTypes.SELECT,
+            transaction: t,
+          }
+        );
+
+        if (!targetEmployeeRows.length) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Nhân viên nhận thông báo không thuộc phòng ban bạn quản lý' });
+        }
       }
 
       const [newNotiRows] = await sequelize.query(
@@ -154,7 +312,10 @@ const notificationController = {
             target: tgtNorm,
             desc: desc || '',
             notiStatus: finalStatus,
-            sender: sender_id || null,
+            sender:
+              access.role === 'MANAGER'
+                ? access.requesterEmployeeId
+                : (sender_id || access.requesterEmployeeId || null),
             tdept: safeDeptId,
             temp: safeEmpId,
           },
@@ -219,6 +380,18 @@ res.status(201).json({ message: 'Gửi thông báo thành công', id: notificati
 updateNotification: async (req, res) => {
   const t = await sequelize.transaction();
   try {
+    const allowedNotification = await ensureNotificationAccess({
+      req,
+      notificationId: req.params.id,
+      transaction: t,
+    });
+
+    if (!allowedNotification) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy thông báo' });
+    }
+
+    const access = await getNotificationAccessContext(req);
     const { id } = req.params;
     const {
       title,
@@ -251,11 +424,46 @@ updateNotification: async (req, res) => {
 
     const uTgt = getPersistedTarget(target);
 
+    if (access.role === 'MANAGER') {
+      if (uSafeDept !== null && Number(uSafeDept) !== Number(access.departmentId)) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Quản lý chỉ được gửi thông báo cho phòng ban của mình' });
+      }
+    }
+
     if (isCompanyWideTarget(uTgt)) {
       uSafeDept = null;
       u_safeEmp = null;
     } else if (getTargetScope(uTgt) === 'department') {
       u_safeEmp = null;
+      if (access.role === 'MANAGER') {
+        uSafeDept = access.departmentId;
+      }
+    } else if (getTargetScope(uTgt) === 'employee' && access.role === 'MANAGER') {
+      uSafeDept = access.departmentId;
+      const targetEmployeeRows = await sequelize.query(
+        `
+        SELECT e.id
+        FROM employee e
+        JOIN position p ON e.position_id = p.id
+        WHERE e.id = :employeeId
+          AND p.department_id = :departmentId
+        LIMIT 1
+        `,
+        {
+          replacements: {
+            employeeId: u_safeEmp,
+            departmentId: access.departmentId,
+          },
+          type: QueryTypes.SELECT,
+          transaction: t,
+        }
+      );
+
+      if (!targetEmployeeRows.length) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Nhân viên nhận thông báo không thuộc phòng ban bạn quản lý' });
+      }
     }
 
     await sequelize.query(
@@ -279,7 +487,10 @@ updateNotification: async (req, res) => {
           target: uTgt, // 🔥 fix bug (trước bạn dùng tgtNorm sai scope)
           desc: desc || '',
           status: resolvedStatus,
-          sender: sender_id || null,
+          sender:
+            access.role === 'MANAGER'
+              ? access.requesterEmployeeId
+              : (sender_id || access.requesterEmployeeId || null),
           tdept: uSafeDept,
           temp: u_safeEmp,
         },
@@ -334,10 +545,10 @@ updateNotification: async (req, res) => {
 // --- Admin: chi tiết ---
 getNotificationById: async (req, res) => {
   try {
-    const [notification] = await sequelize.query(
-      `SELECT * FROM notification WHERE id = :id`,
-      { replacements: { id: req.params.id }, type: QueryTypes.SELECT }
-    );
+    const notification = await ensureNotificationAccess({
+      req,
+      notificationId: req.params.id,
+    });
 
     if (!notification)
       return res.status(404).json({ message: 'Không tìm thấy thông báo' });
@@ -352,6 +563,10 @@ getNotificationById: async (req, res) => {
 getNotificationAdminDetail: async (req, res) => {
   try {
     const { id } = req.params;
+    const allowedNotification = await ensureNotificationAccess({ req, notificationId: id });
+
+    if (!allowedNotification)
+      return res.status(404).json({ message: 'Không tìm thấy thông báo' });
 
     const rows = await sequelize.query(
       `SELECT n.*,
@@ -479,6 +694,16 @@ getNotificationAdminDetail: async (req, res) => {
       const t = await sequelize.transaction();
       try {
         const { id } = req.params;
+        const allowedNotification = await ensureNotificationAccess({
+          req,
+          notificationId: id,
+          transaction: t,
+        });
+
+        if (!allowedNotification) {
+          await t.rollback();
+          return res.status(404).json({ message: 'Không tìm thấy thông báo' });
+        }
     
         await sequelize.query(
           `DELETE FROM notification_recipient WHERE notification_id = :id`,

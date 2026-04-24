@@ -264,6 +264,7 @@ const resetPassword = async (req, res) => {
 
 const changePasswordFirstLogin = async (req, res) => {
   const { username: loginId, oldPassword, newPassword } = req.body;
+  const passwordRule = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,}$/;
 
   try {
     if (!loginId || !oldPassword || !newPassword) {
@@ -271,6 +272,13 @@ const changePasswordFirstLogin = async (req, res) => {
     }
 
     // 1. Giống đăng nhập: cho phép username hoặc email công ty/cá nhân; chỉ tài khoản đang bắt buộc đổi mật khẩu
+    if (!passwordRule.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'M?t kh?u m?i ph?i c? ?t nh?t 6 k? t?, g?m 1 ch? hoa, 1 s? v? 1 k? t? ??c bi?t!'
+      });
+    }
+
     const checkQuery = `
       SELECT ua.id
       FROM user_account ua
