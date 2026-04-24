@@ -43,15 +43,20 @@ const SidebarAdmin = () => {
           QUẢN TRỊ VIÊN
         </p>
 
-        {menuItems.map((item) => (
-          <Link 
-            key={item.path} 
-            to={item.path} 
-            className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
-          >
-            {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
-          </Link>
-        ))}
+        {menuItems.map((item) => {
+          const isActive = location.pathname.toLowerCase() === item.path.toLowerCase() || 
+                          (item.path !== '/Admin/dashboard' && location.pathname.toLowerCase().startsWith(item.path.toLowerCase()));
+          
+          return (
+            <Link 
+              key={item.path} 
+              to={item.path} 
+              className={`menu-item ${isActive ? 'active' : ''}`}
+            >
+              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       {/* 3. MENU FOOTER (SUPPORT) */}

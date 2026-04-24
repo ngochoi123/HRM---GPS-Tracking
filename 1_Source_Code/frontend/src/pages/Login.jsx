@@ -57,7 +57,7 @@ const Login = () => {
           localStorage.setItem('user', JSON.stringify(data.user));
           localStorage.setItem('token', data.token);
 
-          if (userRole === 'ADMIN') navigate('/Admin/Dashboard');
+          if (userRole === 'ADMIN') navigate('/Admin/dashboard');
           else if (userRole === 'DIRECTOR') navigate('/GiamDoc/Dashboard');
           else if (userRole === 'MANAGER') navigate('/QuanLy/Dashboard');
           else navigate('/NhanVien/Dashboard');

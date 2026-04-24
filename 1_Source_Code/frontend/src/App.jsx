@@ -126,6 +126,7 @@ function App() {
         <Route element={<MainLayout />}>
 
           {/* --- ROUTES ADMIN --- */}
+          <Route path="/Admin" element={<Navigate to="/Admin/dashboard" replace />} />
           <Route path="/Admin/dashboard" element={<AdminDashboard />} />
           <Route path="/Admin/users" element={<AdminUsers />} />
           <Route path="/Admin/settings" element={<AdminSettings />} />
