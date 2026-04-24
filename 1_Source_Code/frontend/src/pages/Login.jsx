@@ -34,7 +34,7 @@ const Login = () => {
     }
 
     if (!isEmailEmpty && isPasswordEmpty) {
-      setError('B\u1EA1n ch\u01B0a nh\u1EADp m\u1EADt kh\u1EA9u v\u00E0ol !');
+      setError('Bạn chưa nhập mật khẩu');
       return;
     }
 

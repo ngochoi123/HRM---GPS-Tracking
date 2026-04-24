@@ -118,8 +118,9 @@
 }
 
 .tab-badge.neutral {
-  color: #4b5563;
+  color: #6b7280;
   background: #e5e7eb;
+  border: 1px solid #d1d5db;
 }
 
 .director-approvals-filters {

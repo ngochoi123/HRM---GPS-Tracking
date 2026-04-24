@@ -493,7 +493,11 @@ export default function ApprovalsDirector() {
           >
             <FileSpreadsheet size={16} />
             Bảng lương chờ duyệt
-            <span className="tab-badge danger">{meta.stats.payrollPendingCount}</span>
+            <span
+              className={`tab-badge ${Number(meta.stats.payrollPendingCount || 0) > 0 ? 'danger' : 'neutral'}`}
+            >
+              {meta.stats.payrollPendingCount}
+            </span>
           </button>
 
           <button
@@ -502,8 +506,12 @@ export default function ApprovalsDirector() {
             onClick={() => updateFilter('tab', 'leave')}
           >
             <CalendarRange size={16} />
-            Đơn phép
-            <span className="tab-badge neutral">{meta.stats.leavePendingCount}</span>
+            Đơn từ
+            <span
+              className={`tab-badge ${Number(meta.stats.leavePendingCount || 0) > 0 ? 'danger' : 'neutral'}`}
+            >
+              {meta.stats.leavePendingCount}
+            </span>
           </button>
         </div>
 
