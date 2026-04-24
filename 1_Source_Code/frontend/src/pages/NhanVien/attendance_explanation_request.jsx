@@ -272,9 +272,9 @@ if (file && file.size > MAX_SIZE) {
       setNotification("");
     }, 3000);
 
-  } catch (err) {
-    console.error(err.response?.data || err);
+  } catch (err) {   
     setNotification({ message: "Gửi thất bại!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
 };
 const getExplanationText = (type) => {

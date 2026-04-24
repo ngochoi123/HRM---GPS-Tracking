@@ -85,10 +85,12 @@ export default function DeleteDepartment() {
   }
 
   // ✅ Điều kiện bật nút xoá
+  const totalEmployees = Number(department.total_employees || 0);
+
   const canDelete =
     checked &&
     confirmCode.trim() === String(department.department_code).trim() &&
-    (department.total_employees === 0 || targetDepartment);
+    (totalEmployees === 0 || targetDepartment);
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
@@ -144,7 +146,7 @@ export default function DeleteDepartment() {
         </div>
 
         {/* WARNING - NẾU CÒN NHÂN SỰ */}
-        {department.total_employees > 0 && (
+        {totalEmployees > 0 && (
           <div className="bg-red-50 border border-red-200 p-5 rounded-xl space-y-3">
             <p className="text-red-600 font-semibold">
               ⚠️ Có {department.total_employees} nhân sự
@@ -223,7 +225,7 @@ export default function DeleteDepartment() {
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle className="text-red-500" />
               <h3 className="font-semibold text-lg">
-                Xác nhận xoá
+                Xác nhận xóa
               </h3>
             </div>
 

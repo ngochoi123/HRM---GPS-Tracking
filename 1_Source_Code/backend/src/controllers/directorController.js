@@ -433,7 +433,6 @@ const deleteDepartment = async (req, res) => {
   const transaction = await db.transaction();
 
   try {
-
     const move_to_department_id =
       req.body?.move_to_department_id ||
       req.body?.moveDepartmentId ||
@@ -444,7 +443,7 @@ const deleteDepartment = async (req, res) => {
     if (move_to_department_id == departmentId) {
       await transaction.rollback();
       return res.status(400).json({
-        message: "Không thể chuyển sang chính phòng ban này"
+        message: "Khong the chuyen sang chinh phong ban nay"
       });
     }
 
@@ -458,7 +457,22 @@ const deleteDepartment = async (req, res) => {
 
     if (!department.length) {
       await transaction.rollback();
-      return res.status(404).json({ message: "Phòng ban không tồn tại" });
+      return res.status(404).json({ message: "Phong ban khong ton tai" });
+    }
+
+    if (move_to_department_id) {
+      const targetDepartment = await db.query(`
+        SELECT id FROM department WHERE id = :id
+      `, {
+        replacements: { id: move_to_department_id },
+        type: QueryTypes.SELECT,
+        transaction
+      });
+
+      if (!targetDepartment.length) {
+        await transaction.rollback();
+        return res.status(404).json({ message: "Phong ban chuyen den khong ton tai" });
+      }
     }
 
     const employees = await db.query(`
@@ -475,12 +489,11 @@ const deleteDepartment = async (req, res) => {
     if (employees[0].total > 0 && !move_to_department_id) {
       await transaction.rollback();
       return res.status(400).json({
-        message: "Phòng ban còn nhân sự, cần chọn phòng ban chuyển"
+        message: "Phong ban con nhan su, can chon phong ban chuyen"
       });
     }
 
     if (employees[0].total > 0 && move_to_department_id) {
-
       let newPosition = await db.query(`
         SELECT id
         FROM position
@@ -495,7 +508,6 @@ const deleteDepartment = async (req, res) => {
       let positionId;
 
       if (!newPosition.length) {
-
         const position_code = `NV_${Date.now()}`;
 
         const createdPosition = await db.query(`
@@ -508,14 +520,14 @@ const deleteDepartment = async (req, res) => {
           )
           VALUES (
             :position_code,
-            'Nhân viên',
+            'Nhan vien',
             :dept,
             'junior',
             0
           )
           RETURNING id
         `, {
-          replacements: { 
+          replacements: {
             dept: move_to_department_id,
             position_code
           },
@@ -524,7 +536,6 @@ const deleteDepartment = async (req, res) => {
         });
 
         positionId = createdPosition[0][0].id;
-
       } else {
         positionId = newPosition[0].id;
       }
@@ -545,6 +556,14 @@ const deleteDepartment = async (req, res) => {
     }
 
     await db.query(`
+      DELETE FROM position
+      WHERE department_id = :departmentId
+    `, {
+      replacements: { departmentId },
+      transaction
+    });
+
+    await db.query(`
       DELETE FROM department WHERE id = :id
     `, {
       replacements: { id: departmentId },
@@ -553,11 +572,15 @@ const deleteDepartment = async (req, res) => {
 
     await transaction.commit();
 
-    res.json({ message: "Xoá phòng ban thành công" });
-
+    res.json({ message: "Xoa phong ban thanh cong" });
   } catch (err) {
     await transaction.rollback();
     console.error("DELETE DEPARTMENT ERROR:", err);
+    if (err.original?.code === '23503') {
+      return res.status(400).json({
+        message: "Khong the xoa phong ban vi van con du lieu lien quan."
+      });
+    }
     res.status(500).json({ message: err.message });
   }
 };
