@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Loader2, User, CreditCard, Briefcase } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, CreditCard, Briefcase, Camera, UploadCloud } from 'lucide-react';
 import { managerEmployeeService } from '../../services/managerEmployeeService';
 
 export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
@@ -8,6 +8,15 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
   const [saving, setSaving] = useState(false);
   const [options, setOptions] = useState({ departments: [], positions: [], managers: [] });
   const [user, setUser] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileInputRef = React.useRef(null);
+
+  const getAvatarUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    return `http://localhost:5000/${url}`;
+  };
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -46,6 +55,9 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
         data.contract_type = data.contract_type || '';
 
         setFormData(data);
+        if (data.avatar_url) {
+          setAvatarPreview(getAvatarUrl(data.avatar_url));
+        }
       } catch (error) {
         console.error("Lỗi kéo dữ liệu:", error);
       } finally {
@@ -65,22 +77,41 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
     }
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      // Ép các giá trị rỗng về null trước khi gửi xuống DB để tránh lỗi UUID rỗng
-      const payload = { ...formData };
-      if (!payload.department_id) payload.department_id = null;
-      if (!payload.position_id) payload.position_id = null;
-      if (!payload.direct_manager_id) payload.direct_manager_id = null;
+      const formDataToSend = new FormData();
+      
+      // Append all from formData
+      Object.keys(formData).forEach(key => {
+        const value = formData[key] === null ? '' : formData[key];
+        formDataToSend.append(key, value);
+      });
 
-      await managerEmployeeService.updateEmployee(employee.id, payload);
+      // Append avatar file if exists
+      if (avatarFile) {
+        formDataToSend.append('avatar', avatarFile);
+      }
+
+      await managerEmployeeService.updateEmployee(employee.id, formDataToSend);
       alert('Cập nhật hồ sơ thành công!');
       onSaveSuccess();
     } catch (error) {
       console.error("Lỗi lưu dữ liệu:", error);
-      alert('Có lỗi xảy ra khi lưu!');
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi lưu!');
     } finally {
       setSaving(false);
     }
@@ -113,6 +144,40 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
 
         {/* FORM NHẬP LIỆU */}
         <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* AVATAR SECTION */}
+          <div className="flex flex-col items-center gap-4 mb-8 pb-8 border-b border-slate-100">
+            <div 
+              className="relative group cursor-pointer"
+              onClick={handleAvatarClick}
+            >
+              <div className="w-32 h-32 bg-slate-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={64} className="text-slate-300" />
+                )}
+              </div>
+              <div className="absolute inset-0 bg-black/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera size={24} className="text-white" />
+              </div>
+            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            <button 
+              type="button"
+              onClick={handleAvatarClick}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <UploadCloud size={16} className="text-cyan-500" />
+              Thay đổi ảnh đại diện
+            </button>
+          </div>
           
           {/* BLOCK 1: THÔNG TIN CÁ NHÂN */}
           <div>

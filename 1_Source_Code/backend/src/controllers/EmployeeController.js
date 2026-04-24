@@ -633,7 +633,8 @@ exports.createEmployee = async (req, res) => {
       bank_name,
       status: status || 'active',
       position_id,
-      join_date: join_date || null
+      join_date: join_date || null,
+      avatar_url: req.file ? `uploads/${req.file.filename}` : null
     }, { transaction: t });
 
     // 4. Tạo tài khoản người dùng
@@ -752,7 +753,8 @@ exports.updateEmployee = async (req, res) => {
       status: status || employee.status,
       position_id: position_id || employee.position_id,
       join_date: join_date || employee.join_date,
-      direct_manager_id: direct_manager_id !== undefined ? direct_manager_id : employee.direct_manager_id
+      direct_manager_id: direct_manager_id !== undefined ? direct_manager_id : employee.direct_manager_id,
+      avatar_url: req.file ? `uploads/${req.file.filename}` : employee.avatar_url
     }, { transaction: t });
 
     // 2. Logic thăng chức / đổi trưởng phòng

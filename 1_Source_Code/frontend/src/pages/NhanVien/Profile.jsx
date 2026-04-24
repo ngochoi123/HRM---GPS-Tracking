@@ -14,8 +14,14 @@ import "./Profile.css";
 import { employeeService } from "../../services/employeeService";
 
 export default function Profile() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
+
+  const getAvatarUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    return `http://localhost:5000/${url}`;
+  };
   const [confirmPassword, setConfirmPassword] = useState("");
   const [modalMessage, setModalMessage] = useState("");
   const { id } = useParams();
@@ -165,8 +171,11 @@ useEffect(() => {
             {/* Avatar */}
             <div className="avatar-wrapper">
               <img
-                src={user.avatar_url || "https://i.pravatar.cc/150"}
+                src={getAvatarUrl(user.avatar_url) || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name || 'U') + "&background=random"}
                 alt="avatar"
+                onError={(e) => {
+                  e.target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name || 'U') + "&background=random";
+                }}
               />
               <div className="online-status-dot"></div>
             </div>

@@ -8,6 +8,12 @@ export default function EmployeeDetail({ employee, onBack, onEdit }) {
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
 
+  const getAvatarUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    return `http://localhost:5000/${url}`;
+  };
+
   useEffect(() => {
     // Gọi API kéo full data chi tiết của nhân viên này
     const fetchDetail = async () => {
@@ -130,8 +136,19 @@ export default function EmployeeDetail({ employee, onBack, onEdit }) {
         {/* PROFILE HEADER (Avatar & Basic Info) */}
         <div className="flex flex-col md:flex-row gap-6 items-center md:items-start mb-8 pb-8 border-b border-slate-100">
           <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-200 to-blue-200 flex items-center justify-center text-3xl font-bold text-cyan-800 shadow-md border-4 border-white">
-              {detail.full_name?.split(' ').pop().charAt(0) || 'U'}
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-200 to-blue-200 flex items-center justify-center text-3xl font-bold text-cyan-800 shadow-md border-4 border-white overflow-hidden">
+              {detail.avatar_url ? (
+                <img 
+                  src={getAvatarUrl(detail.avatar_url)} 
+                  alt="Avatar" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(detail.full_name || 'U') + "&background=random";
+                  }}
+                />
+              ) : (
+                detail.full_name?.split(' ').pop().charAt(0) || 'U'
+              )}
             </div>
             <div className={`absolute bottom-1 right-1 w-5 h-5 border-4 border-white rounded-full ${detail.status === 'active' ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
           </div>

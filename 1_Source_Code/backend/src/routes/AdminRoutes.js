@@ -5,6 +5,28 @@ const router = express.Router();
 // IMPORT CONTROLLERS
 // (Import phân tách rõ ràng từng hàm để code gọn hơn)
 // ==========================================
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Tự động tạo thư mục uploads nếu chưa tồn tại
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Cấu hình Multer
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir); 
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'AVATAR-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
+
 const { 
   getAllUsers, 
   createUser, 
@@ -38,8 +60,8 @@ router.use(authenticateToken);
 // Gốc: /api/admin/...
 // ==========================================
 router.get('/users', getAllUsers); 
-router.post('/users', createUser); 
-router.put('/users/:id', updateUser);
+router.post('/users', upload.single('avatar'), createUser); 
+router.put('/users/:id', upload.single('avatar'), updateUser);
 router.get('/employees-no-account', getEmployeesWithoutAccount);
 router.post('/force-reset-password', adminForceResetPassword);
 router.post('/sync-managers', syncManagerAssignments); // Đồng bộ direct_manager_id toàn hệ thống

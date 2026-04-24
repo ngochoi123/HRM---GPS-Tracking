@@ -26,6 +26,9 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
   const [loadingCascade, setLoadingCascade] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deptManagerInfo, setDeptManagerInfo] = useState({ hasManager: false, managerName: '' });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileInputRef = React.useRef(null);
 
   const tempEmpCode = `NV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const [user, setUser] = useState(null);
@@ -121,16 +124,42 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
     }
   };
 
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...formData };
-      if (!payload.department_id) payload.department_id = null;
-      if (!payload.position_id) payload.position_id = null;
-      if (!payload.direct_manager_id) payload.direct_manager_id = null;
+      const formDataToSend = new FormData();
+      
+      // Append all from formData
+      Object.keys(formData).forEach(key => {
+        // Handle null values
+        const value = formData[key] === null ? '' : formData[key];
+        formDataToSend.append(key, value);
+      });
 
-      await managerEmployeeService.createEmployee(payload);
+      // Append additional fields
+      formDataToSend.append('employee_code', tempEmpCode);
+      
+      // Append avatar file if exists
+      if (avatarFile) {
+        formDataToSend.append('avatar', avatarFile);
+      }
+
+      await managerEmployeeService.createEmployee(formDataToSend);
       alert('Thêm nhân viên thành công!');
       onSaveSuccess();
     } catch (error) {
@@ -190,18 +219,36 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
             </div>
             
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="relative group">
+              <div 
+                className="relative group cursor-pointer"
+                onClick={handleAvatarClick}
+              >
                 <div className="w-32 h-32 bg-slate-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden">
-                  <User size={64} className="text-slate-300" />
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={64} className="text-slate-300" />
+                  )}
                 </div>
-                <div className="absolute inset-0 bg-black/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                <div className="absolute inset-0 bg-black/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center transition-all">
                   <Camera size={24} className="text-white" />
                 </div>
               </div>
               
               <div className="flex flex-col gap-3">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chọn file ảnh</span>
-                <button type="button" className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+                <button 
+                  type="button" 
+                  onClick={handleAvatarClick}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+                >
                   <UploadCloud size={18} className="text-blue-500" />
                   Nhập Ảnh Avatar
                 </button>

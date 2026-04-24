@@ -87,7 +87,8 @@ const createUser = async (req, res) => {
         full_name: fullName,
         work_email: email || null,
         position_id: positionId || null,
-        status: 'active'
+        status: 'active',
+        avatar_url: req.file ? `uploads/${req.file.filename}` : null
       }, { transaction });
 
       finalEmployeeId = newEmployee.id;
@@ -219,6 +220,17 @@ const updateUser = async (req, res) => {
     if (updateFields.length > 0) {
       const query = `UPDATE user_account SET ${updateFields.join(', ')} WHERE id = :id RETURNING id;`;
       await db.query(query, { replacements });
+    }
+
+    // Cập nhật Avatar cho nhân viên liên kết nếu có upload file
+    if (req.file) {
+      const ua = await UserAccount.findByPk(id);
+      if (ua && ua.employee_id) {
+        await Employee.update(
+          { avatar_url: `uploads/${req.file.filename}` },
+          { where: { id: ua.employee_id } }
+        );
+      }
     }
 
     res.status(200).json({ success: true, message: "Cập nhật thành công" });
