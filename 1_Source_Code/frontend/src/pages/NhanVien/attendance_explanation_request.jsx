@@ -177,7 +177,7 @@ const handleSubmit = async () => {
       }
     }
 
-    else {
+    else if (form.type !== "system_error") {
       // forgot_checkin, forgot_checkout
       if (!form.checkin || !form.checkout) {
         setShowConfirmSubmit(false);

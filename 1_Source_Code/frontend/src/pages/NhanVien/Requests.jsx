@@ -390,6 +390,18 @@ if (diffDays > 30) {
 
   const remaining = maxDays - usedDays;
 
+  if (remaining <= 0) {
+  setShowConfirmSubmit(false);
+  setNotification({
+    message: "Bạn đã hết số ngày phép cho loại này!",
+    type: "error",
+  });
+  setTimeout(() => {
+      setNotification({ message: "", type: "" });
+    }, 3000);
+  return;
+}
+
   if (requestDays > remaining) {
     setShowConfirmSubmit(false);
     setNotification({

@@ -623,8 +623,11 @@
 }
 
 .type-leave { background: #dcfce7; color: #15803d; }
-.type-overtime { background: #fef3c7; color: #92400e; }
-
+.type-overtime { background: #f3e8ff; color: #7e22ce; }
+.type-explanation {
+  background: #fff7ed;  
+  color: #ea580c;       
+}
 .history-meta {
   text-align: right;
   display: flex;

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from "react-router-dom";
+import { BiCheck } from "react-icons/bi";
 import { Calendar, Search, Clock3, CalendarDays, AlertTriangle, Link2, CheckCircle2, PlayCircle } from 'lucide-react';
 import './AttendanceHistoryModal.css';
 
@@ -38,6 +39,7 @@ const statusLabel = (row) => {
     if (status === 'off_day') return { text: explicitText, tone: 'off', icon: <CalendarDays size={14} /> };
     if (status === 'absent') return { text: explicitText, tone: 'bad', icon: <AlertTriangle size={14} /> };
     if (status === 'on_time') return { text: explicitText, tone: 'ok', icon: <CheckCircle2 size={14} /> };
+    if (status === 'on_leave') return { text: explicitText, tone: 'leave', icon: <BiCheck size={14} /> };
     return { text: explicitText, tone: 'warn', icon: <AlertTriangle size={14} /> };
   }
   switch (status) {
@@ -49,6 +51,8 @@ const statusLabel = (row) => {
       return { text: 'Về sớm', tone: 'warn', icon: <AlertTriangle size={14} /> };
     case 'absent':
       return { text: 'Vắng mặt', tone: 'bad', icon: <AlertTriangle size={14} /> };
+    case 'on_leave':
+      return { text: 'Nghỉ phép', tone: 'leave', icon: <BiCheck size={14} /> };
     default:
       return { text: 'Đang cập nhật', tone: 'warn', icon: <AlertTriangle size={14} /> };
   }
@@ -266,7 +270,9 @@ const handleExplain = (row) => {
 
                         {(r.status === "absent" ||
                           r.status === "late" ||
-                          r.status === "early_leave") && (
+                          r.status === "early_leave" ||
+                          r.status === "on_leave"
+                        ) && (
                           <button
                             className="ahm-report-btn"
                             onClick={() => handleExplain(r)}

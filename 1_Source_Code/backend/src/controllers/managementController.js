@@ -846,6 +846,7 @@ const updateApprovalStatus = async (req, res) => {
       });
     }
 
+
     // ===== NOTI =====
     if (requestRow) {
       await createRequestApprovalNotification({
@@ -855,6 +856,123 @@ const updateApprovalStatus = async (req, res) => {
         isApproved: status === 'approved'
       });
     }
+
+    // ===== HANDLE LEAVE APPROVED => INSERT ATTENDANCE =====
+    if (type === 'leave' && status === 'approved' && requestRow) {
+      const moment = require('moment');
+
+      let current = moment(requestRow.start_datetime).startOf('day');
+      const end = moment(requestRow.end_datetime).startOf('day');
+
+      while (current.isSameOrBefore(end)) {
+        // Bỏ Chủ nhật
+        if (current.day() !== 0) {
+          await db.query(`
+            INSERT INTO attendance (
+              employee_id,
+              attendance_date,
+              status,
+              check_in_time,
+              check_out_time,
+              total_work_hours
+            )
+            VALUES (:employee_id, :date, 'on_leave', NULL, NULL, 0)
+            ON CONFLICT (employee_id, attendance_date)
+            DO UPDATE SET
+              status = 'on_leave',
+              check_in_time = NULL,
+              check_out_time = NULL,
+              total_work_hours = 0
+          `, {
+            replacements: {
+              employee_id: requestRow.employee_id,
+              date: current.format('YYYY-MM-DD')
+            },
+            transaction
+          });
+        }
+
+        current.add(1, 'day');
+      }
+    }
+
+    // ===== HANDLE EXPLANATION APPROVED => UPDATE ATTENDANCE =====
+      if (type === 'explanation' && status === 'approved') {
+        // Lấy detail của explanation
+        const explanationRows = await db.query(`
+          SELECT id, employee_id, attendance_date, explanation_type
+          FROM attendance_explanation_request
+          WHERE id = :id
+          LIMIT 1
+        `, {
+          replacements: { id },
+          type: db.QueryTypes.SELECT,
+          transaction
+        });
+
+        const explanation = explanationRows?.[0];
+
+        if (!explanation) {
+          await transaction.rollback();
+          return res.status(404).json({ message: 'Không tìm thấy đơn giải trình' });
+        }
+
+        const DEFAULT_CHECKIN = '07:30:00';
+        const DEFAULT_CHECKOUT = '17:00:00';
+
+        // Tạo hoặc update attendance
+        let attendanceStatus = 'on_time';
+
+        if (explanation.explanation_type === 'late_arrival') {
+          attendanceStatus = 'late';
+        } else if (explanation.explanation_type === 'early_leave') {
+          attendanceStatus = 'early_leave';
+        }
+
+        await db.query(`
+          INSERT INTO attendance (
+            employee_id,
+            attendance_date,
+            check_in_time,
+            check_out_time,
+            status
+          )
+          VALUES (
+            :employee_id,
+            :attendance_date,
+            :checkin,
+            :checkout,
+            :status
+          )
+          ON CONFLICT (employee_id, attendance_date)
+          DO UPDATE SET
+            check_in_time = COALESCE(EXCLUDED.check_in_time, attendance.check_in_time),
+            check_out_time = COALESCE(EXCLUDED.check_out_time, attendance.check_out_time),
+            status = :status
+        `, {
+          replacements: {
+            employee_id: explanation.employee_id,
+            attendance_date: explanation.attendance_date,
+            status: attendanceStatus,
+
+            checkin:
+              explanation.explanation_type === 'system_error' ||
+              explanation.explanation_type === 'late_arrival' ||
+              explanation.explanation_type === 'forgot_checkin'
+                ? `${explanation.attendance_date}T07:30:00+07:00`
+                : null,
+
+            checkout:
+              explanation.explanation_type === 'system_error' ||
+              explanation.explanation_type === 'early_leave' ||
+              explanation.explanation_type === 'forgot_checkout'
+                ? `${explanation.attendance_date}T17:00:00+07:00`
+                : null
+          },
+          transaction
+        });
+      }
+
 
     await transaction.commit();
 
