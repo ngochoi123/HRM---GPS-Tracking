@@ -114,10 +114,14 @@ const Approvals = () => {
     try {
       await managerApprovals.approveRequest(type, id,user.id);
       setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
+
+      const resApproved = await managerApprovals.getApprovalHistory(user.id);
+      setApprovedRequests(resApproved.data || resApproved);
+
       alert("Đã phê duyệt đơn thành công!");
     } catch (err) {
       console.log("APPROVE ERROR:", err.response?.data || err.message);
-  alert(err.response?.data?.message || "Phê duyệt thất bại");
+      alert(err.response?.data?.message || "Phê duyệt thất bại");
     }
   };
 
@@ -389,6 +393,7 @@ const handleApproveAll = async () => {
                   <option value="all">Tất cả đơn</option>
                   <option value="leave">Nghỉ phép</option>
                   <option value="overtime">Tăng ca</option>
+                  <option value="explanation">Giải trình</option>
                 </select>
                 
               </div>
@@ -407,8 +412,20 @@ const handleApproveAll = async () => {
                       <div key={`${req.type}-${req.id}`} className="history-item">
                         <div className="history-info">
                           <span className="history-user">{req.employee_name}</span>
-                          <span className={`history-type-chip ${req.type === 'leave' ? 'type-leave' : 'type-overtime'}`}>
-                            {req.type === 'leave' ? 'Nghỉ phép' : 'Làm thêm giờ'}
+                          <span
+                            className={`history-type-chip 
+                              ${req.type === 'leave' ? 'type-leave' : ''}
+                              ${req.type === 'overtime' ? 'type-overtime' : ''}
+                              ${req.type === 'explanation' ? 'type-explanation' : ''}
+                            `}
+                          >
+                            {req.type === 'leave'
+                              ? 'Nghỉ phép'
+                              : req.type === 'overtime'
+                              ? 'Tăng ca'
+                              : req.type === 'explanation'
+                              ? 'Giải trình'
+                              : ''}
                           </span>
                         </div>
                         

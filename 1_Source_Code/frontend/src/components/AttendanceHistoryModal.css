@@ -441,3 +441,13 @@
 .ahm-report-btn:hover {
   background: #d98e75;
 }
+
+.ahm-pill.leave {
+  background: #b1fca1;      
+  color: gray;           
+  border-color: #50f60a;
+}
+
+.ahm-pill.leave svg {
+  color: gray;           
+}

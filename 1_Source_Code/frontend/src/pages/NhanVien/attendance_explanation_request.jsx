@@ -168,7 +168,7 @@ const handleSubmit = async () => {
       }
     }
 
-    else {
+    else if (form.type !== "system_error") {
       // forgot_checkin, forgot_checkout
       if (!form.checkin || !form.checkout) {
         setShowConfirmSubmit(false);
@@ -267,6 +267,7 @@ if (file && file.size > MAX_SIZE) {
   } catch (err) {
     console.error(err.response?.data || err);
     setNotification({ message: "Gửi thất bại!", type: "error" });
+    setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
 };
 const getExplanationText = (type) => {

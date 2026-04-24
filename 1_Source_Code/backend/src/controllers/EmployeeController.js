@@ -215,6 +215,20 @@ exports.getAttendanceHistory = async (req, res) => {
       const checkOutDt = row?.check_out_time ? new Date(row.check_out_time) : null;
       const hasValidIn = checkInDt instanceof Date && !Number.isNaN(checkInDt.getTime());
       const hasValidOut = checkOutDt instanceof Date && !Number.isNaN(checkOutDt.getTime());
+      
+      if (row?.status === 'on_leave') {
+        return {
+          attendance_date: attendanceDate,
+          check_in_time: null,
+          check_out_time: null,
+          status: 'on_leave',
+          status_text: 'Nghỉ phép',
+          is_late: false,
+          is_early_leave: false,
+          is_off_day: false,
+          total_work_hours: 0,
+        };
+      }
 
       if (!hasValidIn) {
         return {
