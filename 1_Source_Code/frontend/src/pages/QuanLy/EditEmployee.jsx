@@ -6,7 +6,7 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+  const [options, setOptions] = useState({ departments: [], positions: [], managers: [] });
   const [user, setUser] = useState(null);
 
   useEffect(() => {
