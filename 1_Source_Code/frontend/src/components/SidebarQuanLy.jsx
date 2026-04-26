@@ -5,7 +5,7 @@ import {
   Home, Clock, FileText, Wallet, CreditCard,// Nhóm cá nhân
   Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
   Settings, LogOut, HelpCircle,
-  FileSpreadsheet 
+  FileSpreadsheet ,BrainCircuit
 } from 'lucide-react';
 import LogoutModal from './LogoutModal';
 const personalItems = [
@@ -23,6 +23,7 @@ const personalItems = [
         
       ]
     },
+    { path: '/QuanLy/AI/AITurnoverDashboard', icon: <BrainCircuit size={20} />, label: 'AI Dự báo nhân sự' },
   ];
 const SidebarQuanLy = () => {
   const location = useLocation();

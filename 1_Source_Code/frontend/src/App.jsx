@@ -48,6 +48,8 @@ import ApprovalsQuanLy from './pages/QuanLy/Approvals';
 import RewardsDiscipline from './pages/QuanLy/RewardsDiscipline';
 import NotificationPage from './pages/QuanLy/NotificationPage';
 import Payroll from './pages/QuanLy/Payroll/Payroll';
+import AITurnoverDashboard from './pages/QuanLy/AI/AITurnoverDashboard';
+
 // ==========================================
 // 5. NHÂN VIÊN (EMPLOYEE) PAGES
 // ==========================================
@@ -165,6 +167,7 @@ function App() {
               <Route path="contracts" element={<ContractsStats />} />
           <Route path="changes" element={<ChangesStats />} />
           </Route>
+          <Route path="/QuanLy/AI/AITurnoverDashboard" element={<AITurnoverDashboard />} />
 
           {/* --- ROUTES NHÂN VIÊN (EMPLOYEE) --- */}
           <Route path="/NhanVien/dashboard" element={<EmployeeDashboard />} />
