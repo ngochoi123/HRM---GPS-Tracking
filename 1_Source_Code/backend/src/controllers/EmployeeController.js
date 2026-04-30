@@ -1,6 +1,6 @@
 const db = require('../config/database');
 const { QueryTypes, Op } = require('sequelize');
-const { Employee, Department, Position, UserAccount, sequelize } = require('../models');
+const { Employee, Department, Position, UserAccount, sequelize, AIAlert } = require('../models');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const {
   normalizeWorkLocation,
@@ -334,6 +334,46 @@ exports.checkIn = async (req, res) => {
     const lng = Number(longitude);
     const io = req.app.get('socketio');
     const clientIp = getClientIp(req);
+    // 🚀 DYNAMIC LOCATION: Lấy tọa độ chuẩn từ bảng work_location (không còn hardcode)
+    if (latitude && longitude) {
+      try {
+        const workLocations = await fetchWorkLocations(id);
+        if (workLocations && workLocations.length > 0) {
+          // Tìm địa điểm gần nhất với vị trí check-in của nhân viên
+          let nearestWl = workLocations[0];
+          let minDistance = getDistanceFromLatLonInM(latitude, longitude, Number(nearestWl.latitude), Number(nearestWl.longitude));
+
+          for (let i = 1; i < workLocations.length; i++) {
+            const wl = workLocations[i];
+            const dist = getDistanceFromLatLonInM(latitude, longitude, Number(wl.latitude), Number(wl.longitude));
+            if (dist < minDistance) {
+              minDistance = dist;
+              nearestWl = wl;
+            }
+          }
+
+          const allowedRadius = Number(nearestWl.radius_meters) || 500;
+
+          // Nếu lệch quá bán kính cho phép -> Kích hoạt AI ngầm (không dùng await)
+          if (minDistance > allowedRadius) {
+            analyzeFraudWithAI(
+              req.user?.employee_id || req.user?.id || id,
+              minDistance,
+              latitude,
+              longitude,
+              req.user?.full_name || 'Không rõ',
+              nearestWl.location_name || 'Văn phòng',
+              Number(nearestWl.latitude),
+              Number(nearestWl.longitude),
+              allowedRadius
+            );
+          }
+        }
+      } catch (locErr) {
+        console.error('Lỗi fetch work_location cho AI fraud check:', locErr.message);
+      }
+    }
+
     const result = await checkInEmployee(id, lat, lng, {
       deviceIp: clientIp,
       io,
@@ -694,10 +734,10 @@ exports.createEmployee = async (req, res) => {
         }
       );
     } else if (!isManagerLevel && position.department_id) {
-        // Nếu là nhân viên bình thường, tự động gán direct_manager_id từ trưởng phòng hiện tại
+        // Nếu là nhân viên bình thường, tự động gán direct_manager_id từ trưởng phòng hiện tại của phòng ban đó
         const dept = await Department.findByPk(position.department_id, { transaction: t });
-        if (dept && dept.manager_id) {
-            newEmployee.direct_manager_id = dept.manager_id;
+        if (dept) {
+            newEmployee.direct_manager_id = dept.manager_id || null;
             await newEmployee.save({ transaction: t });
         }
     }
@@ -816,12 +856,12 @@ exports.updateEmployee = async (req, res) => {
             { manager_id: null },
             { where: { manager_id: employee.id }, transaction: t }
           );
-          
-          // Gán lại manager mới cho chính họ (từ trưởng phòng mới của phòng ban họ vừa vào)
+          // Gán lại manager mới cho chính họ (từ trưởng phòng của phòng ban họ vừa vào)
           if (newPosition.department_id) {
               const dept = await Department.findByPk(newPosition.department_id, { transaction: t });
-              if (dept && dept.manager_id) {
-                  await employee.update({ direct_manager_id: dept.manager_id }, { transaction: t });
+              if (dept) {
+                  // Cập nhật sếp mới (hoặc null nếu phòng ban chưa có sếp)
+                  await employee.update({ direct_manager_id: dept.manager_id || null }, { transaction: t });
               }
           }
       }
@@ -1282,3 +1322,59 @@ exports.getMyExplanationRequests = async (req, res) => {
   }
 };
 
+// --- MODULE AI: PHÁT HIỆN GIAN LẬN GPS ---
+const { Ollama } = require('ollama');
+const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+
+// 1. Hàm thợ: Tính khoảng cách theo công thức Haversine (trả về mét)
+function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Bán kính trái đất (mét)
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c); 
+}
+
+// 2. Hàm gọi AI đánh giá gian lận (Chạy ngầm - không block checkIn)
+async function analyzeFraudWithAI(employeeId, distance, lat, lng, empName, locationName, baseLat, baseLng, allowedRadius) {
+  try {
+    const prompt = `Phân tích gian lận GPS:
+- Nhân viên: ${empName}
+- Địa điểm chấm công chuẩn: "${locationName}" (Tọa độ: ${baseLat}, ${baseLng} | Bán kính: ${allowedRadius}m)
+- Tọa độ check-in thực tế: ${lat}, ${lng}
+- Khoảng cách lệch: ${distance}m (Vượt hạn mức ${allowedRadius}m)
+Hãy đánh giá mức độ gian lận và trả về JSON: { "risk_level": "HIGH/MEDIUM", "summary": "nhận xét", "recommendations": ["hành động 1", "hành động 2"] }`;
+
+    const response = await ollama.chat({
+      model: 'qwen2',
+      messages: [{ role: 'user', content: prompt }],
+      format: 'json'
+    });
+    const aiResult = JSON.parse(response.message.content);
+
+    // Lưu cảnh báo vào Database (bao gồm coords để Frontend vẽ bản đồ)
+    await AIAlert.create({
+      employee_id: employeeId,
+      alert_type: 'FRAUD_DETECTION',
+      risk_level: aiResult.risk_level,
+      message: JSON.stringify({
+        summary: `Nghi vấn gian lận vị trí tại "${locationName}": Lệch ${distance}m (giới hạn ${allowedRadius}m). ${aiResult.summary}`,
+        recommendations: aiResult.recommendations,
+        coords: {
+          actual: { lat, lng },
+          base: { lat: baseLat, lng: baseLng },
+          distance,
+          locationName
+        },
+        geo: { distance: `Lệch ${distance.toLocaleString('vi-VN')}m` }
+      }),
+      status: 'PENDING'
+    });
+    console.log(`🚨 AI Fraud Alert: ${empName} lệch ${distance}m so với "${locationName}" (max ${allowedRadius}m)`);
+  } catch (err) {
+    console.error("AI Fraud Error:", err);
+  }
+}

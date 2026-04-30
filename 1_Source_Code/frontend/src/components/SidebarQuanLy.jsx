@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaAngleRight } from "react-icons/fa";
 import { 
   Home, Clock, FileText, Wallet, CreditCard,// Nhóm cá nhân
-  Users, ClipboardCheck, Calculator, Award, Bell, // Nhóm quản lý
+  Users, ClipboardCheck, Calculator, Award, Bell, Sparkles, // Nhóm quản lý
   Settings, LogOut, HelpCircle,
   FileSpreadsheet ,BrainCircuit
 } from 'lucide-react';
@@ -59,6 +59,7 @@ const SidebarQuanLy = () => {
     { path: '/QuanLy/Payroll/payroll', icon: <FileSpreadsheet size={20} />, label: 'Quản lý bảng lương' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
+    { path: '/QuanLy/recommendations', icon: <Sparkles size={20} />, label: 'Đề xuất & Cảnh báo' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];  
 

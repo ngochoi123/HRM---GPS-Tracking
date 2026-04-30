@@ -3,18 +3,18 @@ import { ArrowLeft, Users, FileText, CheckCircle2, Loader2, Medal, AlertCircle, 
 import { managerEmployeeService } from '../../services/managerEmployeeService';
 import { managerDecisionService } from '../../services/managerDecisionService';
 
-export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
+export default function DecisionForm({ onCancel, onSuccess, editDecisionId, prefillData }) {
   const isEdit = Boolean(editDecisionId);
   const [employees, setEmployees] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [attachment, setAttachment] = useState(null);
   const [formData, setFormData] = useState({
-    employee_id: '',
-    decision_type: 'reward', 
-    form: 'money', 
+    employee_id: prefillData?.employee_id || '',
+    decision_type: prefillData?.decision_type || 'reward', 
+    form: prefillData?.form || 'money', 
     amount: '',
-    issue_date: '',
-    reason: ''
+    issue_date: prefillData?.issue_date || '',
+    reason: prefillData?.reason || ''
   });
 
   const [notifications, setNotifications] = useState({
@@ -70,7 +70,7 @@ export default function DecisionForm({ onCancel, onSuccess, editDecisionId }) {
       }
     };
     load();
-  }, [editDecisionId]);
+  }, [editDecisionId, onCancel]);
 
   const handleSubmitDecision = async (status = 'published') => {
     if (!formData.employee_id || !formData.issue_date || !formData.reason) {

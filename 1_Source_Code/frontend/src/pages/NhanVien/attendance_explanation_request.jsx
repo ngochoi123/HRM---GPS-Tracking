@@ -23,8 +23,6 @@ const today = new Date().toISOString().split('T')[0];
 const AttendanceExplanationRequest = () => {
 
 const fileRef = React.useRef();
-
-const user = JSON.parse(localStorage.getItem("user") || "{}");
 const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 const [showConfirmCancel, setShowConfirmCancel] = useState(false);
 const [notification, setNotification] = useState({ message: "", type: "" });
@@ -64,13 +62,11 @@ const closeModal = () => {
 const [approverId, setApproverId] = useState("");
 const [approvers, setApprovers] = useState([]);
 useEffect(() => {
-  if (!user?.id) return;
-
   employeeService
-    .getApprovers(user.id)
+    .getApprovers()
     .then((res) => setApprovers(res?.data || res || []))
     .catch(console.error);
-}, [user?.id]);
+}, []);
 
 const handleSubmit = async () => {
   if (new Date(form.date) < new Date(today)) {
@@ -268,11 +264,7 @@ if (file && file.size > MAX_SIZE) {
 
     handleResetForm(false); 
 
-    setTimeout(() => {
-      setNotification("");
-    }, 3000);
-
-  } catch (err) {   
+  } catch {   
     setNotification({ message: "Gửi thất bại!", type: "error" });
     setTimeout(() => setNotification({ message: "", type: "" }), 3000);
   }
@@ -362,8 +354,6 @@ useEffect(() => {
 }, [state, approvers]);
 
 useEffect(() => {
-  if (!user?.id) return;
-
   employeeService
     .getExplanationRequests()
     .then((res) => {
@@ -372,7 +362,7 @@ useEffect(() => {
       setRecentRequests(data.slice(0, 3));
     })
     .catch(console.error);
-}, [user?.id]);
+}, []);
 
 const getLatestMonthYear = () => {
   if (!requests || requests.length === 0) return "";

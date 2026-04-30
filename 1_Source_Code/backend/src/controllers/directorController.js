@@ -375,6 +375,7 @@ const createDepartment = async (req, res) => {
 };
 
 const updateDepartment = async (req, res) => {
+  const t = await db.transaction();
   try {
     const { id } = req.params;
     const {
@@ -390,9 +391,10 @@ const updateDepartment = async (req, res) => {
     if (manager_id) {
       const [existingManager] = await db.query(
         `SELECT id, department_name FROM department WHERE manager_id = :manager_id AND id != :id`,
-        { replacements: { manager_id, id }, type: QueryTypes.SELECT }
+        { replacements: { manager_id, id }, type: QueryTypes.SELECT, transaction: t }
       );
       if (existingManager) {
+        await t.rollback();
         return res.status(400).json({ 
           success: false, 
           message: `Nhân viên này đang là quản lý của phòng ban khác: ${existingManager.department_name}` 
@@ -412,19 +414,38 @@ const updateDepartment = async (req, res) => {
       WHERE id = :id
     `, {
       replacements: {
-        id: req.params.id,
+        id,
         department_name,
         department_code,
         description,
         branch_id,
         manager_id,
         is_active
-      }
+      },
+      transaction: t
     });
 
+    // 🚀 ĐỒNG BỘ SẾP TRỰC TIẾP: Cập nhật direct_manager_id cho toàn bộ nhân sự trong phòng
+    if (manager_id) {
+      await db.query(
+        `UPDATE employee 
+         SET direct_manager_id = :manager_id 
+         WHERE position_id IN (SELECT id FROM position WHERE department_id = :id)
+         AND id != :manager_id`,
+        { 
+          replacements: { manager_id, id }, 
+          type: QueryTypes.UPDATE,
+          transaction: t
+        }
+      );
+    }
+
+    await t.commit();
     res.json({ message: "Updated" });
 
   } catch (err) {
+    await t.rollback();
+    console.error("updateDepartment Error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -540,16 +561,25 @@ const deleteDepartment = async (req, res) => {
         positionId = newPosition[0].id;
       }
 
+      // Lấy trưởng phòng của phòng ban mới để gán làm sếp trực tiếp
+      const targetDept = await db.query(
+        `SELECT manager_id FROM department WHERE id = :id`,
+        { replacements: { id: move_to_department_id }, type: QueryTypes.SELECT, transaction }
+      );
+      const newManagerId = targetDept[0]?.manager_id || null;
+
       await db.query(`
         UPDATE employee
-        SET position_id = :positionId
+        SET position_id = :positionId,
+            direct_manager_id = :newManagerId
         WHERE position_id IN (
           SELECT id FROM position WHERE department_id = :oldDept
         )
       `, {
         replacements: {
           positionId,
-          oldDept: departmentId
+          oldDept: departmentId,
+          newManagerId
         },
         transaction
       });
@@ -1340,8 +1370,23 @@ const createContract = async (req, res) => {
     });
 
     if (position_id) {
-      await db.query(`UPDATE employee SET position_id = :position_id WHERE id = :employee_id`, {
-        replacements: { position_id, employee_id },
+      // Lấy trưởng phòng của phòng ban mới từ position_id
+      const [posData] = await db.query(
+        `SELECT d.manager_id 
+         FROM position p 
+         LEFT JOIN department d ON p.department_id = d.id 
+         WHERE p.id = :position_id`,
+        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      const newManagerId = posData?.manager_id || null;
+
+      await db.query(`
+        UPDATE employee 
+        SET position_id = :position_id,
+            direct_manager_id = :newManagerId
+        WHERE id = :employee_id
+      `, {
+        replacements: { position_id, employee_id, newManagerId },
         type: db.QueryTypes.UPDATE,
         transaction: t
       });
@@ -1384,10 +1429,24 @@ const updateContract = async (req, res) => {
       transaction: t
     });
 
-    // Cập nhật chức vụ cho Nhân viên
+    // Cập nhật chức vụ và sếp trực tiếp cho Nhân viên
     if (employee_id && position_id) {
-      await db.query(`UPDATE employee SET position_id = :position_id WHERE id = :employee_id`, {
-        replacements: { position_id, employee_id },
+      const [posData] = await db.query(
+        `SELECT d.manager_id 
+         FROM position p 
+         LEFT JOIN department d ON p.department_id = d.id 
+         WHERE p.id = :position_id`,
+        { replacements: { position_id }, type: db.QueryTypes.SELECT, transaction: t }
+      );
+      const newManagerId = posData?.manager_id || null;
+
+      await db.query(`
+        UPDATE employee 
+        SET position_id = :position_id,
+            direct_manager_id = :newManagerId
+        WHERE id = :employee_id
+      `, {
+        replacements: { position_id, employee_id, newManagerId },
         type: db.QueryTypes.UPDATE,
         transaction: t
       });
