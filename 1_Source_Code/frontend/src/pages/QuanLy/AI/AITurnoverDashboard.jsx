@@ -3,7 +3,8 @@ import axios from 'axios';
 import { 
   BrainCircuit, AlertTriangle, TrendingDown, TrendingUp, Users, Search, 
   ChevronRight, Clock, Sparkles, ArrowRight, Info, MessageSquareWarning, 
-  RefreshCw, X, Terminal, Timer, ShieldAlert, UserMinus, Crosshair
+  RefreshCw, X, Terminal, Timer, ShieldAlert, UserMinus, Crosshair,
+  Activity, Target, ThumbsUp, ThumbsDown, Gauge, CalendarClock, Zap
 } from 'lucide-react';
 
 
@@ -98,8 +99,34 @@ export default function AITurnoverDashboard() {
   };
 
   const parseAiMessage = (msg) => {
-    try { return JSON.parse(msg); } 
-    catch { return { summary: msg, recommendations: ["Cần theo dõi thêm."] }; }
+    try {
+      const parsed = JSON.parse(msg);
+      return {
+        summary: parsed.summary || '',
+        risk_score: parsed.risk_score ?? null,
+        analysis: {
+          key_concerns: parsed.analysis?.key_concerns || [],
+          positive_signals: parsed.analysis?.positive_signals || [],
+          behavior_pattern: parsed.analysis?.behavior_pattern || ''
+        },
+        retention_strategy: parsed.retention_strategy || [],
+        suggested_action: parsed.suggested_action || null,
+        recommendations: parsed.recommendations || ['Cần theo dõi thêm.'],
+        geo: parsed.geo || null,
+        last_stats: parsed.last_stats || null
+      };
+    } catch {
+      return {
+        summary: msg,
+        risk_score: null,
+        analysis: { key_concerns: [], positive_signals: [], behavior_pattern: '' },
+        retention_strategy: [],
+        suggested_action: null,
+        recommendations: ['Cần theo dõi thêm.'],
+        geo: null,
+        last_stats: null
+      };
+    }
   };
 
   return (
@@ -342,20 +369,88 @@ export default function AITurnoverDashboard() {
                     <p className="text-[12px] text-gray-500 font-medium">{selectedStaff.employee?.position?.position_name}</p>
                     <span className={`
                       mt-3 px-4 py-1.5 rounded-xl text-[11px] font-black uppercase
-                      ${selectedStaff.risk_level === 'HIGH' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}
+                      ${selectedStaff.risk_level === 'HIGH' ? 'bg-red-50 text-red-600' : selectedStaff.risk_level === 'MEDIUM' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}
                     `}>
                       Rủi ro: {selectedStaff.risk_level}
                     </span>
+
+                    {/* Risk Score Gauge */}
+                    {aiData.risk_score != null && (
+                      <div className="mt-4 w-full">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><Gauge className="w-3 h-3" /> Điểm rủi ro</span>
+                          <span className={`text-sm font-black ${
+                            aiData.risk_score >= 70 ? 'text-red-600' : aiData.risk_score >= 40 ? 'text-orange-500' : 'text-emerald-600'
+                          }`}>{aiData.risk_score}/100</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              aiData.risk_score >= 70 ? 'bg-gradient-to-r from-red-400 to-red-600' 
+                              : aiData.risk_score >= 40 ? 'bg-gradient-to-r from-orange-300 to-orange-500' 
+                              : 'bg-gradient-to-r from-emerald-300 to-emerald-500'
+                            }`}
+                            style={{ width: `${aiData.risk_score}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Insight & Map */}
-                  <div className="flex-1 space-y-6">
+                  {/* Insight & Analysis */}
+                  <div className="flex-1 space-y-5">
+                    {/* Summary */}
                     <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 italic text-[14px] text-gray-700 leading-relaxed relative">
                       <MessageSquareWarning className={`absolute top-5 left-5 w-5 h-5 opacity-20 ${isFraud ? 'text-red-500' : 'text-purple-500'}`} />
                       <span className="relative z-10 pl-8 block">"{aiData.summary}"</span>
                     </div>
 
-                    {/* MINI MAP NẾU LÀ GIAN LẬN (Mock UI để tránh lỗi thư viện ngoài) */}
+                    {/* Behavior Pattern */}
+                    {aiData.analysis.behavior_pattern && (
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <span className="text-[11px] font-bold text-gray-400 uppercase">Xu hướng hành vi:</span>
+                        <span className="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
+                          {aiData.analysis.behavior_pattern}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Key Concerns & Positive Signals */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {aiData.analysis.key_concerns.length > 0 && (
+                        <div className="bg-red-50/60 p-4 rounded-xl border border-red-100">
+                          <p className="text-[11px] font-bold text-red-500 uppercase mb-2 flex items-center gap-1.5">
+                            <ThumbsDown className="w-3.5 h-3.5" /> Vấn đề đáng lo ngại
+                          </p>
+                          <ul className="space-y-1.5">
+                            {aiData.analysis.key_concerns.map((c, i) => (
+                              <li key={i} className="text-[12px] text-red-700 font-medium flex items-start gap-2">
+                                <span className="w-1.5 h-1.5 bg-red-400 rounded-full mt-1.5 shrink-0" />
+                                {c}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {aiData.analysis.positive_signals.length > 0 && (
+                        <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100">
+                          <p className="text-[11px] font-bold text-emerald-600 uppercase mb-2 flex items-center gap-1.5">
+                            <ThumbsUp className="w-3.5 h-3.5" /> Điểm tích cực
+                          </p>
+                          <ul className="space-y-1.5">
+                            {aiData.analysis.positive_signals.map((s, i) => (
+                              <li key={i} className="text-[12px] text-emerald-700 font-medium flex items-start gap-2">
+                                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 shrink-0" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* MINI MAP NẾU LÀ GIAN LẬN */}
                     {isFraud && aiData.geo && (
                       <div className="w-full h-64 bg-[#e5e7eb] rounded-2xl border border-gray-300 overflow-hidden relative shadow-inner flex items-center justify-center">
                         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(#94a3b8 2px, transparent 2px)', backgroundSize: '24px 24px' }}></div>
@@ -394,6 +489,62 @@ export default function AITurnoverDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* Retention Strategy Cards */}
+                {aiData.retention_strategy.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-[13px] font-black text-gray-800 uppercase tracking-tight mb-3 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-blue-500" /> Chiến lược giữ chân nhân viên
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {aiData.retention_strategy.map((s, i) => {
+                        const priorityColors = {
+                          URGENT: 'bg-red-50 border-red-200 text-red-700',
+                          HIGH: 'bg-orange-50 border-orange-200 text-orange-700',
+                          MEDIUM: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+                          LOW: 'bg-blue-50 border-blue-200 text-blue-700'
+                        };
+                        const badgeColors = {
+                          URGENT: 'bg-red-600', HIGH: 'bg-orange-500', MEDIUM: 'bg-yellow-500', LOW: 'bg-blue-500'
+                        };
+                        return (
+                          <div key={i} className={`p-4 rounded-xl border ${priorityColors[s.priority] || 'bg-gray-50 border-gray-200 text-gray-700'}`}>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <span className={`text-[9px] font-black text-white px-2 py-0.5 rounded ${badgeColors[s.priority] || 'bg-gray-500'}`}>
+                                {s.priority}
+                              </span>
+                              {s.timeline && (
+                                <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1">
+                                  <CalendarClock className="w-3 h-3" /> {s.timeline}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[12px] font-semibold leading-relaxed">{s.action}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Suggested Action */}
+                {aiData.suggested_action && (
+                  <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+                      <Zap className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[11px] font-bold text-indigo-500 uppercase">Đề xuất hành động</p>
+                      <p className="text-sm font-bold text-indigo-900">
+                        {aiData.suggested_action.type === 'reward' ? '🏅 Khen thưởng' 
+                          : aiData.suggested_action.type === 'discipline' ? '⚠️ Kỷ luật' 
+                          : aiData.suggested_action.type === 'meeting' ? '🤝 Họp 1-1' 
+                          : '👁️ Theo dõi'}
+                        {aiData.suggested_action.reason && ` — ${aiData.suggested_action.reason}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Recommendations */}
                 <div className={`${isFraud ? 'bg-red-600 shadow-red-500/30' : 'bg-purple-600 shadow-purple-500/30'} rounded-[24px] p-6 text-white shadow-xl`}>

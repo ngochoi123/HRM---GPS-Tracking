@@ -1,6 +1,6 @@
 const { Ollama } = require('ollama');
 const { Op, QueryTypes } = require('sequelize');
-const { Employee, AIAlert, UserAccount, sequelize, Position, Attendance, HRDecision } = require('../models');
+const { Employee, AIAlert, UserAccount, sequelize, Position, Department, Attendance, HRDecision } = require('../models');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 
 // Ollama client — dùng 'localhost' thay vì '127.0.0.1' để ổn định hơn trên Windows
@@ -10,7 +10,7 @@ const ollama = new Ollama({ host: 'http://localhost:11434' });
 exports.testLocalAI = async (req, res) => {
   try {
     const response = await ollama.chat({
-      model: 'qwen2:1.5b',
+      model: 'qwen2.5:3b',
       messages: [
         { role: 'system', content: 'Bạn là một trợ lý nhân sự thông minh.' },
         { role: 'user', content: 'Xin chào, bạn có thể giúp gì cho hệ thống quản lý nhân sự của tôi?' }
@@ -75,7 +75,13 @@ exports.analyzeTurnoverRisk = async (req, res) => {
 
     const employees = await Employee.findAll({
       where: whereClause,
-      attributes: ['id', 'full_name']
+      attributes: ['id', 'full_name', 'join_date'],
+      include: [
+        {
+          model: Position, as: 'position', attributes: ['position_name'],
+          include: [{ model: Department, as: 'department', attributes: ['department_name'] }]
+        }
+      ]
     });
 
     if (!employees || employees.length === 0) {
@@ -85,8 +91,16 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     const empIds = employees.map(e => e.id);
     const empMap = {}; // { id: { full_name, ... stats } }
     for (const emp of employees) {
+      const joinDate = emp.join_date ? new Date(emp.join_date) : null;
+      const seniorityMonths = joinDate
+        ? Math.floor((Date.now() - joinDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000))
+        : null;
+
       empMap[emp.id] = { 
-        full_name: emp.full_name, 
+        full_name: emp.full_name,
+        position: emp.position?.position_name || 'Chưa rõ',
+        department: emp.position?.department?.department_name || 'Chưa rõ',
+        seniority_months: seniorityMonths,
         presentCount: 0, 
         totalWorkHours: 0,
         otHours: 0,
@@ -251,9 +265,8 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     const alertMap = {};
     existingAlerts.forEach(a => { alertMap[a.employee_id] = a; });
 
-    // TẠM THỜI BỎ QUA KIỂM TRA THAY ĐỔI ĐỂ CHẠY LẠI TOÀN BỘ VỚI MODEL MỚI
     const employeesToProcess = employeeStats; 
-    /*
+    
     const employeesToProcess = employeeStats.filter(s => {
       const existing = alertMap[s.id];
       if (!existing) return true;
@@ -286,64 +299,90 @@ exports.analyzeTurnoverRisk = async (req, res) => {
         data: [] 
       });
     }
-    */
+    
 
     // ═══════════════════════════════════════════════════════════════
     // BƯỚC 2: BATCH PROCESSING — Gộp prompt cho Ollama
     // ═══════════════════════════════════════════════════════════════
-    const BATCH_SIZE = 5; // Giảm xuống 5 để tránh quá tải RAM/VRAM và lỗi timeout
+    const BATCH_SIZE = 3; // Giảm xuống 3 để output JSON mở rộng vừa context window qwen2.5:3b
     const results = [];
 
     for (let i = 0; i < employeesToProcess.length; i += BATCH_SIZE) {
       const batch = employeesToProcess.slice(i, i + BATCH_SIZE);
 
       // Xây dựng danh sách nhân viên cho prompt
-      const employeeListText = batch.map((s, idx) => `
+      const employeeListText = batch.map((s, idx) => {
+        const attendanceRate = s.pastWorkingDays > 0 ? Math.round((s.presentCount / s.pastWorkingDays) * 100) : 0;
+        return `
 Nhân viên ${idx + 1} (employee_id: "${s.id}"):
   - Tên: ${s.full_name}
-  - Tổng ngày làm việc chuẩn (trừ T7, CN, tính đến hôm qua): ${s.pastWorkingDays} ngày
-  - Ngày công thực tế (có dữ liệu GPS chấm công): ${s.presentCount} ngày
+  - Chức vụ: ${s.position} | Phòng ban: ${s.department}
+  - Thâm niên: ${s.seniority_months != null ? s.seniority_months + ' tháng' : 'Chưa rõ'}
+  - Tổng ngày làm việc chuẩn (trừ T7, CN): ${s.pastWorkingDays} ngày
+  - Ngày công thực tế: ${s.presentCount} ngày (Tỷ lệ chuyên cần: ${attendanceRate}%)
+  - Tổng giờ làm thực tế: ${s.totalWorkHours} giờ | Giờ tăng ca (OT): ${s.otHours} giờ
   - Ngày nghỉ có phép (đã duyệt): ${s.approvedLeaveCount} ngày
-  - Nghỉ KHÔNG lý do (không có dữ liệu chấm công, không có đơn nghỉ): ${s.absentCount} ngày
+  - Nghỉ KHÔNG lý do: ${s.absentCount} ngày
   - Đi trễ: ${s.lateCount} lần | Về sớm: ${s.earlyLeaveCount} lần
   - Kỷ luật: ${s.disciplineCount} lần | Khen thưởng: ${s.rewardCount} lần
-  - Gian lận GPS (chấm công ngoài vùng cho phép): ${s.gpsFraudCount} lần`
-      ).join('\n');
+  - Gian lận GPS (chấm công ngoài vùng cho phép): ${s.gpsFraudCount} lần`;
+      }).join('\n');
 
       const batchPrompt = `
-Đóng vai một Giám đốc Nhân sự dày dặn kinh nghiệm. Hãy phân tích rủi ro nghỉ việc của ${batch.length} nhân viên sau trong 30 ngày qua:
+Phân tích rủi ro nghỉ việc CHUYÊN SÂU cho ${batch.length} nhân viên trong 30 ngày qua:
 ${employeeListText}
 
 Quy tắc đánh giá risk_level (HIGH/MEDIUM/LOW):
-- Nếu nghỉ không lý do >= 3 ngày → risk_level = "HIGH"
-- Nếu gian lận GPS >= 2 lần → risk_level = "HIGH" (dấu hiệu gian lận nghiêm trọng)
-- Nếu đi trễ + về sớm >= 5 lần hoặc có kỷ luật → risk_level >= "MEDIUM"
-- Nếu có khen thưởng và không vi phạm → có thể "LOW"
+- Nghỉ không lý do >= 3 ngày → "HIGH"
+- Gian lận GPS >= 2 lần → "HIGH" (gian lận nghiêm trọng)
+- Đi trễ + về sớm >= 5 lần hoặc có kỷ luật → >= "MEDIUM"
+- Có khen thưởng, chuyên cần tốt, OT cao → có thể "LOW"
+- Nhân viên mới (< 6 tháng) nghỉ nhiều → nguy cơ cao hơn bình thường
 
-Yêu cầu: Trả về MỘT MẢNG JSON (JSON Array) gồm ${batch.length} phần tử, mỗi phần tử có cấu trúc:
+Trả về MỘT MẢNG JSON gồm ${batch.length} phần tử, cấu trúc:
 [
   {
     "employee_id": "uuid của nhân viên",
     "risk_level": "HIGH" hoặc "MEDIUM" hoặc "LOW",
-    "summary": "1 câu giải thích lý do đánh giá.",
-    "recommendations": ["Đề xuất hành động 1", "Đề xuất hành động 2"]
+    "risk_score": <số nguyên từ 0 đến 100, 100 = nguy cơ cao nhất>,
+    "summary": "Tóm tắt 2-3 câu: tình trạng tổng quan và dấu hiệu đáng lo ngại nhất.",
+    "analysis": {
+      "key_concerns": ["Liệt kê 2-4 vấn đề chính đáng lo ngại"],
+      "positive_signals": ["Liệt kê 1-2 điểm tích cực nếu có, hoặc mảng rỗng"],
+      "behavior_pattern": "Mô tả xu hướng hành vi: VD 'Giảm dần động lực', 'Bất mãn gia tăng', 'Ổn định'"
+    },
+    "retention_strategy": [
+      {
+        "action": "Hành động cụ thể cần thực hiện",
+        "priority": "URGENT" hoặc "HIGH" hoặc "MEDIUM" hoặc "LOW",
+        "timeline": "Trong 3 ngày" hoặc "Trong 1 tuần" hoặc "Trong 2 tuần" hoặc "Trong 1 tháng"
+      }
+    ],
+    "suggested_action": {
+      "type": "reward" hoặc "discipline" hoặc "monitor" hoặc "meeting",
+      "reason": "Lý do ngắn gọn cho đề xuất này"
+    },
+    "recommendations": ["Đề xuất hành động 1", "Đề xuất hành động 2", "Đề xuất hành động 3"]
   }
 ]
-CHỈ trả về mảng JSON, KHÔNG kèm text giải thích bên ngoài.`;
+CHỈ trả về mảng JSON. KHÔNG kèm text giải thích bên ngoài.`;
 
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
 
         const response = await ollama.chat({
-          model: 'qwen2:1.5b',
+          model: 'qwen2.5:3b',
           messages: [
-            { role: 'system', content: 'Bạn là chuyên gia phân tích nhân sự. Luôn trả lời bằng định dạng JSON Array. KHÔNG bọc trong object, chỉ trả về mảng JSON thuần.' },
+            { role: 'system', content: `Bạn là Giám đốc Nhân sự (CHRO) với 15 năm kinh nghiệm quản trị nhân sự tại doanh nghiệp Việt Nam.
+Nhiệm vụ: Phân tích chuyên sâu rủi ro nhân sự, đưa ra đánh giá chi tiết và chiến lược giữ chân nhân viên cụ thể.
+Phong cách: Chuyên nghiệp, dựa trên dữ liệu, nhưng cũng thể hiện sự thấu hiểu con người.
+Luôn trả lời bằng định dạng JSON Array thuần. KHÔNG bọc trong object.` },
             { role: 'user', content: batchPrompt }
           ],
           format: 'json',
           keep_alive: '10m',
-          options: { num_ctx: 4096 }
+          options: { num_ctx: 8192, temperature: 0.3 }
         });
 
         clearTimeout(timeoutId);
