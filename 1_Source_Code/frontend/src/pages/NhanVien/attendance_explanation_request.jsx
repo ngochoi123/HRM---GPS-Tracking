@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
-// Đã xóa import axiosClient thừa
 import { HiMiniXCircle } from "react-icons/hi2";
 import { MdChatBubbleOutline } from "react-icons/md";
 import { IoCloudUploadOutline } from "react-icons/io5";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { employeeService } from "../../services/employeeService";
-import { IoArrowBack } from "react-icons/io5";
 import { GoCheckCircle } from "react-icons/go";
-import { MdCalendarMonth } from "react-icons/md";
-import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
 import { FiClock } from "react-icons/fi";
 import { GoBlocked } from "react-icons/go";
 import { useLocation } from "react-router-dom";
+import { StatusPill, RejectReason, MonthFilter, HistoryPageHeader, Toast } from '../../components/RequestSharedComponents';
+
 import './ae_request.css'
 
 const today = new Date().toISOString().split('T')[0];
@@ -640,34 +638,16 @@ const filteredRequests = filterMonth
 ) : (
   <>
     {/* ===== HISTORY ===== */}
-    <div className="history-page-header">
-      <div>
-        <h2>Đơn giải trình đã gửi</h2>
-        <p>Tất cả các đơn bạn đã gửi</p>
-      </div>
-
-      <button className="btn-back" onClick={() => setView("create")}>
-        <IoArrowBack /> Quay lại
-      </button>
-    </div>
+    <HistoryPageHeader
+      title="Đơn giải trình đã gửi"
+      subtitle="Tất cả các đơn bạn đã gửi"
+      onBack={() => setView("create")}
+    />
 
     <div className="history-card">
         <div className="history-filter">
-                  <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
-        
-                  <div className="filter-right">
-                    <div className="filter-right-search">
-                      <MdCalendarMonth className="month-icon" />
-                      <span> Tháng: </span>
-                      </div>
-                    <input
-                      className="input-month-search"
-                      type="month"
-                      value={filterMonth}
-                      onChange={(e) => setFilterMonth(e.target.value)}
-                    />
-                    <button style={{background:"red"}} className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
-                  </div>
+                  <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear(requests, 'attendance_date')})</h4>
+                  <MonthFilter value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
                 </div>
       <div className="history-table-container">
         <table className="history-table" >
@@ -710,15 +690,7 @@ const filteredRequests = filterMonth
 
                   <td>{r.proposed_check_out}</td>
 
-                  <td>
-                    <span className={`status-pill ${r.status}`}>
-                      {r.status === "approved"
-                        ? "Đã duyệt"
-                        : r.status === "pending"
-                        ? "Chờ duyệt"
-                        : "Từ chối"}
-                    </span>
-                  </td>
+                  <td><StatusPill status={r.status} /></td>
                   <td className="reject-reason">
                     {r.status === "rejected" ? (r.reject_reason || "---") : "---"}
                   </td>

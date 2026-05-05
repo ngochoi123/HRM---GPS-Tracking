@@ -42,6 +42,7 @@ const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
   const isLate = checkInMinutes > shift.startMinutes;
   const isEarly = checkOutMinutes < shift.endMinutes;
 
+  if (isLate && isEarly) return 'late_early_leave';
   if (isLate) return 'late';
   if (isEarly) return 'early_leave';
   return 'on_time';

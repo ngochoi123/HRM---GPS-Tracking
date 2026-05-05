@@ -3,14 +3,13 @@ import { HiMiniXCircle } from "react-icons/hi2";
 import { MdChatBubbleOutline } from "react-icons/md";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { employeeService } from "../../services/employeeService";
-import { IoArrowBack } from "react-icons/io5";
 import { GoCheckCircle } from "react-icons/go";
-import { MdCalendarMonth } from "react-icons/md";
-import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
 import { GoBlocked } from "react-icons/go";
+import { StatusPill, RejectReason, MonthFilter, HistoryPageHeader, ConfirmModal, Toast } from '../../components/RequestSharedComponents';
+import { formatDate, formatDateDMY } from '../../components/requestUtils';
 import './OvertimeRequest.css'
 
 const today = new Date().toISOString().split('T')[0];
@@ -47,10 +46,7 @@ const closeModal = () => {
   setShowModal(false);
 };
 
-const formatDate = (date) => {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("vi-VN");
-};
+// formatDate – imported from shared/requestUtils
 
 const formatTime = (time) => {
   if (!time) return "";
@@ -358,16 +354,7 @@ const getLatestMonthYear = () => {
     return `${hours}h ${minutes}p`;
    };
 
-  const formatDateDMY = (date) => {
-  if (!date) return "";
-
-  const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-
-  return `${day}/${month}/${year}`;
-};
+  // formatDateDMY – imported from shared/requestUtils
   
 
   const displayMonth = filterMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
@@ -443,11 +430,7 @@ const isOverlap = (newDate, newStart, newEnd) => {
   return (
     
     <div className="request-container">
-        {notification.message && (
-          <div className={`toast ${notification.type}`}>
-            {notification.message}
-          </div>
-        )}
+        <Toast message={notification.message} type={notification.type} />
       <div className="request-left">
         {view === "create" ? (
     <>
@@ -585,37 +568,19 @@ const isOverlap = (newDate, newStart, newEnd) => {
   ) : (
     <>
         {/* ================= HISTORY ================= */}
-        <div className="history-page-header">
-        <div>
-            <h2>Đơn đã gửi</h2>
-            <p>Tất cả các đơn bạn đã gửi</p>
-        </div>
-
-        <button className="btn-back" onClick={() => setView("create")}>
-            <IoArrowBack /> Quay lại
-        </button>
-        </div>
+        <HistoryPageHeader
+          title="Đơn đã gửi"
+          subtitle="Tất cả các đơn bạn đã gửi"
+          onBack={() => setView("create")}
+        />
 
         {/* CARD */}
         <div className="history-card">
 
         {/* FILTER */}
         <div className="history-filter">
-            <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
-
-            <div className="filter-right">
-            <div className="filter-right-search">
-                <MdCalendarMonth className="month-icon" />
-                <span> Tháng: </span>
-            </div>
-            <input
-                className="input-month-search"
-                type="month"
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-            />
-            <button className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
-            </div>
+            <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear(requests, 'ot_date')})</h4>
+            <MonthFilter value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
         </div>
 
         {/* TABLE */}
@@ -662,16 +627,7 @@ const isOverlap = (newDate, newStart, newEnd) => {
                             <td>{calculateOTHours(r.start_time, r.end_time)}</td>
 
                             {/* Trạng thái */}
-                            <td>
-                                <span className={`status-pill ${r.status}`} style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
-                                    <span className="dot" style={{ marginRight: '4px' }}>●</span>
-                                    {r.status === "approved"
-                                    ? "Đã duyệt"
-                                    : r.status === "pending"
-                                    ? "Chờ duyệt"
-                                    : "Từ chối"}
-                                </span>
-                            </td>
+                            <td><StatusPill status={r.status} /></td>
 
                         </tr>
                         ))
@@ -779,17 +735,15 @@ const isOverlap = (newDate, newStart, newEnd) => {
         />
       </div>
 
+      {/* LÝ DO TỪ CHỐI (NẾU CÓ) */}
+      {selectedRequest.status === "rejected" && (
+        <RejectReason reason={selectedRequest.reject_reason} />
+      )}
+
       {/* TRẠNG THÁI */}
       <div className="info-section">
         <h3 className="section-title">Trạng thái</h3>
-
-        <span className={`status-pill ${selectedRequest.status}`}>
-          {selectedRequest.status === "approved"
-            ? "Đã duyệt"
-            : selectedRequest.status === "pending"
-            ? "Chờ duyệt"
-            : "Từ chối"}
-        </span>
+        <StatusPill status={selectedRequest.status} />
       </div>
 
       {/* BUTTON */}

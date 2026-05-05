@@ -1440,9 +1440,9 @@ const getAttendanceStats = async (req, res) => {
         COALESCE(SUM(CASE WHEN a.attendance_date >= :prev_start AND a.attendance_date < :prev_end
           THEN COALESCE(a.total_work_hours, 0) ELSE 0 END), 0)::float AS work_hours_prev,
         COALESCE(SUM(CASE WHEN a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
-            AND a.status IN ('late', 'early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_cur,
+            AND a.status IN ('late', 'early_leave', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_cur,
         COALESCE(SUM(CASE WHEN a.attendance_date >= :prev_start AND a.attendance_date < :prev_end
-            AND a.status IN ('late', 'early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_prev
+            AND a.status IN ('late', 'early_leave', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_prev
       FROM attendance a
       JOIN employee e ON e.id = a.employee_id AND e.status = 'active'
       LEFT JOIN position p ON e.position_id = p.id
@@ -1540,7 +1540,7 @@ const getAttendanceStats = async (req, res) => {
       SELECT
         d.id AS department_id,
         d.department_name,
-        COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave'))::int AS incident_count
+        COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave', 'late_early_leave'))::int AS incident_count
       FROM department d
       JOIN "position" p ON p.department_id = d.id
       JOIN employee e ON e.position_id = p.id AND e.status = 'active'
@@ -1548,7 +1548,7 @@ const getAttendanceStats = async (req, res) => {
         AND a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
       WHERE 1=1 ${scopingClause}
       GROUP BY d.id, d.department_name
-      HAVING COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave')) > 0
+      HAVING COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave', 'late_early_leave')) > 0
       ORDER BY incident_count DESC
       `,
       {
@@ -1578,17 +1578,17 @@ const getAttendanceStats = async (req, res) => {
         e.avatar_url,
         d.id AS department_id,
         d.department_name,
-        COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0)::int AS late_count,
+        COALESCE(SUM(CASE WHEN a.status IN ('late', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_count,
         COALESCE(SUM(
           CASE
-            WHEN a.status = 'late' AND a.check_in_time IS NOT NULL THEN
+            WHEN a.status IN ('late', 'late_early_leave') AND a.check_in_time IS NOT NULL THEN
               CASE
                 WHEN (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
-                  BETWEEN TIME '07:30' AND TIME '11:30'
+                  BETWEEN TIME '07:00' AND TIME '11:30'
                 THEN GREATEST(0,
                   EXTRACT(EPOCH FROM (
                     (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
-                    - (TIME '07:30' + (interval '1 minute' * :tol_min))
+                    - (TIME '07:00' + (interval '1 minute' * :tol_min))
                   )) / 60.0
                 )
                 WHEN (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
@@ -1612,7 +1612,7 @@ const getAttendanceStats = async (req, res) => {
       WHERE e.status = 'active'
         ${scopingClause}
       GROUP BY e.id, e.employee_code, e.full_name, e.avatar_url, d.id, d.department_name
-      HAVING COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) > 0
+      HAVING COALESCE(SUM(CASE WHEN a.status IN ('late', 'late_early_leave') THEN 1 ELSE 0 END), 0) > 0
       ORDER BY late_count DESC, total_late_minutes DESC
       LIMIT 50
       `,

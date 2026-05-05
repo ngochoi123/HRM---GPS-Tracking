@@ -6,13 +6,10 @@ import { HiMiniXCircle } from "react-icons/hi2";
 import { BsSend } from "react-icons/bs";
 import { FiClock } from "react-icons/fi";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import { MdCalendarMonth } from "react-icons/md";
-import { CiSearch } from "react-icons/ci";
-import { GoCheckCircle,GoBlocked  } from "react-icons/go";
+import { GoCheckCircle, GoBlocked } from "react-icons/go";
 import { LuClock2 } from "react-icons/lu";
-import { IoArrowBack } from "react-icons/io5";
 import { employeeService } from "../../services/employeeService";
-
+import { StatusPill, RejectReason, MonthFilter, HistoryPageHeader, Toast } from '../../components/RequestSharedComponents';
 
 import "./Requests.css";
 
@@ -523,11 +520,7 @@ const isOverlapping = (newStart, newEnd) => {
   return (
     <div className="request-container">
 
-      {notification.message && (
-        <div className={`toast ${notification.type}`}>
-          {notification.message}
-        </div>
-      )}
+      <Toast message={notification.message} type={notification.type} />
 
       {/* LEFT */}
       <div className="request-left">
@@ -788,37 +781,19 @@ const isOverlapping = (newStart, newEnd) => {
   ) : (
     <>
       {/* ================= HISTORY ================= */}
-      <div className="history-page-header">
-        <div>
-<h2>Đơn đã gửi</h2>
-          <p>Tất cả các đơn bạn đã gửi</p>
-        </div>
-
-        <button className="btn-back" onClick={() => setView("create")}>
-          <IoArrowBack /> Quay lại
-        </button>
-      </div>
+      <HistoryPageHeader
+          title="Đơn đã gửi"
+          subtitle="Tất cả các đơn bạn đã gửi"
+          onBack={() => setView("create")}
+        />
 
       {/* CARD */}
       <div className="history-card">
 
         {/* FILTER */}
         <div className="history-filter">
-          <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
-
-          <div className="filter-right">
-            <div className="filter-right-search">
-              <MdCalendarMonth className="month-icon" />
-              <span> Tháng: </span>
-              </div>
-            <input
-              className="input-month-search"
-              type="month"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-            />
-            <button className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
-          </div>
+          <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear(requests, 'start_datetime')})</h4>
+            <MonthFilter value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
         </div>
 
         {/* TABLE */}
@@ -862,15 +837,7 @@ const isOverlapping = (newStart, newEnd) => {
                       <td>{calculateTotalDays(r.start_datetime, r.end_datetime)}</td>
 
                       {/* Cột Trạng thái với Style Pill (giống ảnh image_192663.png) */}
-                      <td>
-                        <span className={`status-pill ${r.status}`}>
-                          <span className="dot">● </span>
-                          {r.status === 'approved' ? 'Đã duyệt' : 
-                          r.status === 'pending' ? 'Chờ duyệt' : 
-                          r.status === 'rejected' ? 'Từ chối': 'không xác định'
-                          }
-                        </span>
-                      </td>
+                      <td><StatusPill status={r.status} /></td>
                     </tr>
 ))
                 )}
@@ -1005,6 +972,11 @@ const isOverlapping = (newStart, newEnd) => {
               )}
               </div>
             </div>
+
+            {/* LÝ DO TỪ CHỐI (NẾU CÓ) */}
+            {selectedRequest.status === "rejected" && (
+              <RejectReason reason={selectedRequest.reject_reason} />
+            )}
 
             <div style={{ textAlign: "right" }}>
               <button onClick={closeModal} className="btn-close-modal">

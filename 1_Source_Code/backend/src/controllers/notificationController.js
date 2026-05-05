@@ -1,4 +1,4 @@
-﻿const sequelize = require('../config/database');
+const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const axios = require('axios');
 
@@ -75,11 +75,10 @@ function appendManagerHistoryScope(baseQuery, replacements, access) {
 
   return `
     ${baseQuery}
-    WHERE n.sender_id = :requesterEmployeeId
-      AND (
-        n.target IN ('Toàn công ty', 'Tất cả nhân viên')
-        OR
-        n.target_department_id = :managerDepartmentId
+    WHERE (
+        n.sender_id = :requesterEmployeeId
+        OR n.target IN ('Toàn công ty', 'Tất cả nhân viên')
+        OR n.target_department_id = :managerDepartmentId
         OR (
           n.target_employee_id IS NOT NULL
           AND EXISTS (
@@ -113,11 +112,10 @@ async function ensureNotificationAccess({ req, notificationId, transaction = nul
 
     query += `
       WHERE n.id = :id
-        AND n.sender_id = :requesterEmployeeId
         AND (
-          n.target IN ('Toàn công ty', 'Tất cả nhân viên')
-          OR
-          n.target_department_id = :managerDepartmentId
+          n.sender_id = :requesterEmployeeId
+          OR n.target IN ('Toàn công ty', 'Tất cả nhân viên')
+          OR n.target_department_id = :managerDepartmentId
           OR (
             n.target_employee_id IS NOT NULL
             AND EXISTS (
