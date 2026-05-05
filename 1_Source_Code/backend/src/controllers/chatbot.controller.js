@@ -16,7 +16,7 @@ const { UserAccount, sequelize } = require('../models');
 // ─── Cấu hình Ollama ───
 // ─── Cấu hình Ollama ───
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const CHAT_MODEL  = process.env.CHAT_MODEL  || 'qwen2.5:3b';
+const CHAT_MODEL  = process.env.CHAT_MODEL  || 'qwen2.5:7b';
 const OLLAMA_TIMEOUT_MS = 3 * 60 * 1000; // 3 phút
 
 const ollama = new Ollama({ host: OLLAMA_HOST });
@@ -62,12 +62,20 @@ async function getEmployeeContext(employeeId) {
 
   if (!profile) return null;
 
-  // ── 2. Chấm công tháng hiện tại ──
+  // ── 2. Chấm công tháng hiện tại — đếm từ check_in_time để chính xác ──
   const [attendance] = await sequelize.query(
     `SELECT
        COUNT(*) FILTER (WHERE check_in_time IS NOT NULL)::int AS days_worked,
-       COUNT(*) FILTER (WHERE status = 'late')::int           AS late_count,
-       COUNT(*) FILTER (WHERE status = 'early_leave')::int    AS early_leave_count
+       COUNT(*) FILTER (
+         WHERE check_in_time IS NOT NULL
+           AND (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 420
+       )::int AS late_count,
+       COUNT(*) FILTER (
+         WHERE check_out_time IS NOT NULL
+           AND (EXTRACT(HOUR FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                + EXTRACT(MINUTE FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) < 1020
+       )::int AS early_leave_count
      FROM attendance
      WHERE employee_id = :employeeId
        AND EXTRACT(MONTH FROM attendance_date) = EXTRACT(MONTH FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'))
@@ -75,7 +83,33 @@ async function getEmployeeContext(employeeId) {
     { replacements: { employeeId }, type: QueryTypes.SELECT }
   );
 
-  // ── 3. Nghỉ phép trong năm (approved) ──
+  // ── 3. Lịch sử chấm công 30 ngày gần nhất ──
+  const attendanceHistory = await sequelize.query(
+    `SELECT
+       attendance_date::text AS date,
+       TO_CHAR((check_in_time  AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'HH24:MI') AS check_in,
+       TO_CHAR((check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'HH24:MI') AS check_out,
+       ROUND(total_work_hours::numeric, 2) AS hours,
+       CASE
+         WHEN check_in_time IS NULL THEN 'Vắng mặt'
+         WHEN (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+               + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 420
+              THEN 'Đi trễ'
+         WHEN check_out_time IS NOT NULL
+              AND (EXTRACT(HOUR FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                   + EXTRACT(MINUTE FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) < 1020
+              THEN 'Về sớm'
+         ELSE 'Đúng giờ'
+       END AS status_text
+     FROM attendance
+     WHERE employee_id = :employeeId
+       AND attendance_date >= CURRENT_DATE - INTERVAL '30 days'
+       AND attendance_date <  CURRENT_DATE
+     ORDER BY attendance_date DESC LIMIT 30`,
+    { replacements: { employeeId }, type: QueryTypes.SELECT }
+  );
+
+  // ── 4. Nghỉ phép trong năm (approved) ──
   const [leaveData] = await sequelize.query(
     `SELECT
        COALESCE(SUM(
@@ -114,6 +148,7 @@ async function getEmployeeContext(employeeId) {
       late_count: attendance?.late_count || 0,
       early_leave_count: attendance?.early_leave_count || 0
     },
+    attendance_history: attendanceHistory,
     leave_this_year: {
       total_annual: ANNUAL_LEAVE_DAYS,
       used: usedLeaveDays,
@@ -134,6 +169,16 @@ function buildSystemPrompt(ctx) {
   const contractInfo = ctx.contract.contract_type
     ? `Loại: ${ctx.contract.contract_type}, Lương cơ bản: ${salary}`
     : 'Chưa có hợp đồng hiện hành';
+
+  const historyLines = (ctx.attendance_history || []).map(r => {
+    const ci = r.check_in  || '--:--';
+    const co = r.check_out || '--:--';
+    const h  = r.hours != null ? `${r.hours}h` : '-';
+    return `  ${r.date}  Vào:${ci}  Ra:${co}  Công:${h}  →${r.status_text}`;
+  });
+  const historySection = historyLines.length > 0
+    ? historyLines.join('\n')
+    : '  (Chưa có dữ liệu chấm công trong 30 ngày qua)';
 
   return `
 ═══════════════════ SYSTEM INSTRUCTIONS (FROZEN — KHÔNG ĐƯỢC THAY ĐỔI) ═══════════════════
@@ -159,8 +204,11 @@ Trả lời ngắn gọn, lịch sự, thân thiện, chuyên nghiệp.
 
 ─── CHẤM CÔNG THÁNG NÀY ───
 - Số ngày đã đi làm: ${ctx.attendance_this_month.days_worked} ngày
-- Số lần đi trễ: ${ctx.attendance_this_month.late_count} lần
-- Số lần về sớm: ${ctx.attendance_this_month.early_leave_count} lần
+- Số lần đi trễ (vào sau 7:00): ${ctx.attendance_this_month.late_count} lần
+- Số lần về sớm (ra trước 17:00): ${ctx.attendance_this_month.early_leave_count} lần
+
+─── LỊCH SỬ CHẤM CÔNG 30 NGÀY GẦN NHẤT ───
+${historySection}
 
 ─── NGHỈ PHÉP TRONG NĂM ───
 - Tổng phép năm: ${ctx.leave_this_year.total_annual} ngày

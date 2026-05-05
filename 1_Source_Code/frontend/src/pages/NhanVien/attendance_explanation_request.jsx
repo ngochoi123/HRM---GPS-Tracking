@@ -421,7 +421,6 @@ const filteredRequests = filterMonth
                                 <input
                                     type="date"
                                     className="input-option"
-                                    min={today}
                                     value={form.date}
                                     onChange={(e) =>
                                         setForm({ ...form, date: e.target.value })

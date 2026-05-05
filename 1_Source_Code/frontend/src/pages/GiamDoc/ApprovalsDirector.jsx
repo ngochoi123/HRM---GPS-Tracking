@@ -7,6 +7,7 @@ import {
   CalendarRange,
   CheckCheck,
   CheckSquare,
+  History,
   Eye,
   FileSpreadsheet,
   LoaderCircle,
@@ -281,6 +282,11 @@ export default function ApprovalsDirector() {
   const [previewItem, setPreviewItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectTarget, setRejectTarget] = useState(null);
   const dashboardNavRef = useRef({ applied: false, focusId: null });
   const latestFetchRef = useRef(0);
 
@@ -321,6 +327,24 @@ export default function ApprovalsDirector() {
       }
     }
   };
+
+  const fetchHistory = async () => {
+    try {
+      const response = await directorApprovalService.getOverview({ tab: 'history' });
+      const payload = response?.success ? response : response?.data ?? response;
+      if (payload?.success) {
+        setHistoryItems((payload?.data?.items || []).map(normalizeApprovalItem));
+      }
+    } catch (error) {
+      console.error('fetchHistory error:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showHistory) {
+      fetchHistory();
+    }
+  }, [showHistory]);
 
   useEffect(() => {
     fetchApprovals(filters);
@@ -404,10 +428,10 @@ export default function ApprovalsDirector() {
     );
   };
 
-  const handleAction = async (type, id, action) => {
+  const handleAction = async (type, id, action, reason = '') => {
     setSubmitting(true);
     try {
-      const response = await directorApprovalService.updateStatus(type, id, action);
+      const response = await directorApprovalService.updateStatus(type, id, action, reason);
       const payload = response?.success ? response : response?.data ?? response;
       if (payload?.success) {
         toast.success(payload.message || 'Cập nhật thành công');
@@ -448,6 +472,14 @@ export default function ApprovalsDirector() {
     }
   };
 
+  const handleRejectWithReason = async () => {
+    if (!rejectReason.trim()) { toast.error('Vui lòng nhập lý do từ chối'); return; }
+    setShowRejectModal(false);
+    await handleAction(rejectTarget.type, rejectTarget.id, 'reject', rejectReason);
+    setRejectReason('');
+    setRejectTarget(null);
+  };
+
   const updateFilter = (key, value) => {
     setFilters((prev) => ({
       ...prev,
@@ -474,15 +506,26 @@ export default function ApprovalsDirector() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className="director-approvals-bulk-btn"
-            onClick={handleBulkApprove}
-            disabled={submitting || !selectedItems.length}
-          >
-            {submitting ? <LoaderCircle size={18} className="spin" /> : <CheckCheck size={18} />}
-            Duyệt hàng loạt đã chọn
-          </button>
+          <div className="director-approvals-header-actions">
+            <button
+              type="button"
+              className="approvals-btn-history"
+              onClick={() => setShowHistory(true)}
+            >
+              <History size={18} />
+              Lịch sử phê duyệt
+            </button>
+
+            <button
+              type="button"
+              className="director-approvals-bulk-btn"
+              onClick={handleBulkApprove}
+              disabled={submitting || !selectedItems.length}
+            >
+              {submitting ? <LoaderCircle size={18} className="spin" /> : <CheckCheck size={18} />}
+              Duyệt hàng loạt đã chọn
+            </button>
+          </div>
         </header>
 
         <div className="director-approvals-tabs">
@@ -653,7 +696,7 @@ export default function ApprovalsDirector() {
                           <button
                             type="button"
                             className="reject-btn"
-                            onClick={() => handleAction(item.type, item.id, 'reject')}
+                            onClick={() => { setRejectTarget(item); setRejectReason(''); setShowRejectModal(true); }}
                             disabled={submitting}
                           >
                             Từ chối
@@ -900,7 +943,7 @@ export default function ApprovalsDirector() {
               <button
                 type="button"
                 className="reject-btn"
-                onClick={() => handleAction(previewItem.type, previewItem.id, 'reject')}
+                onClick={() => { setRejectTarget(previewItem); setRejectReason(''); setShowRejectModal(true); }}
                 disabled={submitting}
               >
                 Từ chối
@@ -913,6 +956,103 @@ export default function ApprovalsDirector() {
               >
                 <CheckSquare size={16} />
                 Duyệt yêu cầu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="approval-preview-overlay" onClick={() => setShowHistory(false)}>
+          <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <History size={20} /> Lịch sử phê duyệt
+              </h3>
+              <button className="preview-close-btn" onClick={() => setShowHistory(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="history-modal-body">
+              {historyItems.length === 0 ? (
+                <div className="director-approvals-empty">Chưa có lịch sử phê duyệt</div>
+              ) : (
+                <div className="history-list">
+                  {historyItems.map((item) => (
+                    <div key={`${item.type}-${item.id}`} className="history-item" style={{ cursor: 'pointer' }}
+                      onClick={() => { setShowHistory(false); setPreviewItem(item); }}
+                    >
+                      <div className="history-item-left">
+                        <div className={`history-icon-pill ${item.type}`}>
+                          {item.type === 'leave' ? (
+                            <CalendarRange size={16} />
+                          ) : item.type === 'overtime' ? (
+                            <BadgeCheck size={16} />
+                          ) : item.type === 'explanation' ? (
+                            <FileSpreadsheet size={16} />
+                          ) : (
+                            <Banknote size={16} />
+                          )}
+                        </div>
+                        <div className="history-info">
+                          <div className="history-name">{item.employeeName}</div>
+                          <div className="history-meta-sub">
+                            {requestTypeLabel(item)} • {item.timeLabel}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="history-item-right">
+                        <div className={`status-badge ${item.status}`}>
+                          {item.status === 'approved' ? (
+                            <span className="status-approved-text">
+                              <CheckSquare size={14} /> Đã duyệt
+                            </span>
+                          ) : (
+                            <span className="status-rejected-text">
+                              <X size={14} /> Đã từ chối
+                            </span>
+                          )}
+                        </div>
+                        <div className="history-date">
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleDateString('vi-VN')
+                            : ''}
+                        </div>
+                      </div>
+                      {item.status === 'rejected' && item.reject_reason && (
+                        <div style={{ width: '100%', marginTop: '6px', padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '12px', color: '#b91c1c', lineHeight: '1.5' }}>
+                          <strong>Lý do từ chối:</strong> {item.reject_reason}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {showRejectModal && (
+        <div className="asp-modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="asp-modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Lý do từ chối</h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+              Đơn: <strong>{rejectTarget?.employeeName || rejectTarget?.employee_name}</strong> — {requestTypeLabel(rejectTarget)}
+            </p>
+            <textarea
+              className="asp-modal-textarea"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Nhập lý do từ chối chi tiết..."
+              rows={4}
+              autoFocus
+            />
+            <div className="asp-modal-actions">
+              <button className="asp-btn-cancel" onClick={() => setShowRejectModal(false)}>Hủy</button>
+              <button className="asp-btn-confirm" onClick={handleRejectWithReason} disabled={submitting}>
+                {submitting ? 'Đang xử lý...' : 'Xác nhận từ chối'}
               </button>
             </div>
           </div>

@@ -10,7 +10,7 @@ const ollama = new Ollama({ host: 'http://localhost:11434' });
 exports.testLocalAI = async (req, res) => {
   try {
     const response = await ollama.chat({
-      model: 'qwen2.5:3b',
+      model: 'qwen2.5:7b',
       messages: [
         { role: 'system', content: 'Bạn là một trợ lý nhân sự thông minh.' },
         { role: 'user', content: 'Xin chào, bạn có thể giúp gì cho hệ thống quản lý nhân sự của tôi?' }
@@ -35,13 +35,12 @@ function getPastWorkingDays(startDate, today) {
   let count = 0;
   const cursor = new Date(startDate);
   cursor.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
+  const limit = new Date(today);
+  limit.setHours(23, 59, 59, 999);
 
-  while (cursor <= yesterday) {
-    const dow = cursor.getDay(); // 0=CN, 6=T7
-    if (dow !== 0 && dow !== 6) count++;
+  while (cursor <= limit) {
+    const dow = cursor.getDay(); // 0=CN
+    if (dow !== 0) count++;
     cursor.setDate(cursor.getDate() + 1);
   }
   return count;
@@ -69,9 +68,12 @@ exports.analyzeTurnoverRisk = async (req, res) => {
       whereClause.direct_manager_id = managerEmployeeId;
     }
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startDateStr = thirtyDaysAgo.toISOString().slice(0, 10);
+    // Phân tích theo tháng hiện tại (kông có ngày tương lai)
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1); // Ngày 1 của tháng hiện tại
+    const startDateStr = monthStart.toISOString().slice(0, 10);
+    const monthLabel = `${today.getMonth() + 1}/${today.getFullYear()}`;
+    console.log(`\n📅 [AI] Phân tích tháng: ${monthLabel} (từ ${startDateStr} đến ngày ${today.getDate() - 1}/${today.getMonth() + 1})`);
 
     const employees = await Employee.findAll({
       where: whereClause,
@@ -124,7 +126,7 @@ exports.analyzeTurnoverRisk = async (req, res) => {
        FROM attendance
        WHERE employee_id IN (:empIds)
          AND attendance_date >= :startDate
-         AND attendance_date < CURRENT_DATE
+         AND attendance_date <= CURRENT_DATE
          AND check_in_time IS NOT NULL`,
       { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT }
     );
@@ -177,14 +179,14 @@ exports.analyzeTurnoverRisk = async (req, res) => {
        FROM leave_request lr,
             generate_series(
               GREATEST(lr.start_datetime::date, :startDate::date),
-              LEAST(lr.end_datetime::date, (CURRENT_DATE - INTERVAL '1 day')::date),
+              LEAST(lr.end_datetime::date, CURRENT_DATE),
               '1 day'
             ) AS d
        WHERE lr.employee_id IN (:empIds)
          AND lr.status = 'approved'
-         AND lr.start_datetime::date <= (CURRENT_DATE - INTERVAL '1 day')::date
+         AND lr.start_datetime::date <= CURRENT_DATE
          AND lr.end_datetime::date >= :startDate::date
-         AND EXTRACT(DOW FROM d) NOT IN (0, 6)
+         AND EXTRACT(DOW FROM d) <> 0
        GROUP BY lr.employee_id`,
       { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT }
     );
@@ -221,7 +223,7 @@ exports.analyzeTurnoverRisk = async (req, res) => {
        JOIN work_location wl ON wl.id = a.work_location_id
        WHERE a.employee_id IN (:empIds)
          AND a.attendance_date >= :startDate
-         AND a.attendance_date < CURRENT_DATE
+         AND a.attendance_date <= CURRENT_DATE
          AND a.check_in_latitude IS NOT NULL
          AND a.check_in_longitude IS NOT NULL
          AND wl.latitude IS NOT NULL
@@ -244,20 +246,21 @@ exports.analyzeTurnoverRisk = async (req, res) => {
       if (stat) stat.gpsFraudCount = row.fraud_count;
     }
 
-    // 1f. Tính pastWorkingDays (chung cho tất cả) + absentCount cho từng người
-    const pastWorkingDays = getPastWorkingDays(thirtyDaysAgo, new Date());
+    // 1f. Tính pastWorkingDays (chủ tính các ngày đã diễn ra trong tháng, tới hôm qua)
+    const pastWorkingDays = getPastWorkingDays(monthStart, today);
 
     const employeeStats = empIds.map(id => {
       const s = empMap[id];
-      const absentCount = Math.max(0, pastWorkingDays - s.presentCount - s.approvedLeaveCount);
+      const absentCount = Math.max(0, Math.round((pastWorkingDays - s.presentCount - s.approvedLeaveCount) * 100) / 100);
       // 📊 DEBUG LOG
       console.log(`📊 [AI] ${s.full_name}: WorkDays=${pastWorkingDays} | Present=${s.presentCount} | TotalHrs=${s.totalWorkHours} | OT=${s.otHours} | Absent=${absentCount} | GPS_Fraud=${s.gpsFraudCount}`);
       return { id, ...s, pastWorkingDays, absentCount };
     });
 
     // ═══════════════════════════════════════════════════════════════
-    // BƯỚC 1.1: KIỂM TRA THAY ĐỔI DỮ LIỆU — Tránh phân tích lại nếu stats giữ nguyên
+    // BƯỚC 1.1: KIỂM TRA THAY ĐỔI DỮ LIỆU (Tạm thời bỏ qua theo yêu cầu để xử lý lại toàn bộ)
     // ═══════════════════════════════════════════════════════════════
+    /*
     const existingAlerts = await AIAlert.findAll({
       where: { employee_id: empIds, alert_type: 'TURNOVER_RISK' }
     });
@@ -297,12 +300,18 @@ exports.analyzeTurnoverRisk = async (req, res) => {
         data: [] 
       });
     }
+    */
+    
+    // Gán trực tiếp để xử lý lại toàn bộ dữ liệu
+    const employeesToProcess = employeeStats;
     
 
     // ═══════════════════════════════════════════════════════════════
     // BƯỚC 2: BATCH PROCESSING — Gộp prompt cho Ollama
     // ═══════════════════════════════════════════════════════════════
-    const BATCH_SIZE = 3; // Giảm xuống 3 để output JSON mở rộng vừa context window qwen2.5:3b
+    const BATCH_SIZE = 1; // 1:1 — Mỗi nhân viên 1 lượt AI để đảm bảo không rớt dữ liệu và insight sâu nhất.
+    const totalBatches = Math.ceil(employeesToProcess.length / BATCH_SIZE);
+    console.log(`⏳ [AI] Bắt đầu phân tích ${employeesToProcess.length} nhân viên, tổng ${totalBatches} batch...\n`);
     const results = [];
 
     for (let i = 0; i < employeesToProcess.length; i += BATCH_SIZE) {
@@ -316,18 +325,23 @@ Nhân viên ${idx + 1} (employee_id: "${s.id}"):
   - Tên: ${s.full_name}
   - Chức vụ: ${s.position} | Phòng ban: ${s.department}
   - Thâm niên: ${s.seniority_months != null ? s.seniority_months + ' tháng' : 'Chưa rõ'}
-  - Tổng ngày làm việc chuẩn (trừ T7, CN): ${s.pastWorkingDays} ngày
+  - Tổng ngày làm việc chuẩn (trừ CN): ${s.pastWorkingDays} ngày
   - Ngày công thực tế: ${s.presentCount} ngày (Tỷ lệ chuyên cần: ${attendanceRate}%)
   - Tổng giờ làm thực tế: ${s.totalWorkHours} giờ | Giờ tăng ca (OT): ${s.otHours} giờ
   - Ngày nghỉ có phép (đã duyệt): ${s.approvedLeaveCount} ngày
   - Nghỉ KHÔNG lý do: ${s.absentCount} ngày
-  - Đi trễ: ${s.lateCount} lần | Về sớm: ${s.earlyLeaveCount} lần
+  - Đi trễ (sau 7h00): ${s.lateCount} lần | Về sớm (trước 17h00): ${s.earlyLeaveCount} lần
   - Kỷ luật: ${s.disciplineCount} lần | Khen thưởng: ${s.rewardCount} lần
   - Gian lận GPS (chấm công ngoài vùng cho phép): ${s.gpsFraudCount} lần`;
       }).join('\n');
 
-      const batchPrompt = `
-Phân tích rủi ro nghỉ việc CHUYÊN SÂU cho ${batch.length} nhân viên trong 30 ngày qua:
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const empName = batch.map(s => s.full_name).join(', ');
+      console.log(`⏳ [AI Batch ${batchNum}/${totalBatches}] Đang gửi Ollama: ${empName}...`);
+
+const batchPrompt = `
+Phân tích rủi ro nghỉ việc CHUYÊN SÂU cho ${batch.length} nhân viên trong tháng ${monthLabel} dựa trên các số liệu sau:
+(Lưu ý: Tháng ${monthLabel} hiện tại có ${pastWorkingDays} ngày làm việc đã diễn ra, không kể ngày hôm nay và chủ nhật)
 ${employeeListText}
 
 Quy tắc đánh giá risk_level (HIGH/MEDIUM/LOW):
@@ -340,30 +354,47 @@ Quy tắc đánh giá risk_level (HIGH/MEDIUM/LOW):
 - Có khen thưởng, chuyên cần tốt (đi trễ 0 lần, nghỉ phép hợp lệ), OT cao → "LOW"
 - Nhân viên mới (< 6 tháng) nghỉ nhiều hoặc đi trễ liên tục → nguy cơ cao hơn bình thường
 
-Trả về MỘT MẢNG JSON gồm ${batch.length} phần tử, cấu trúc:
+YÊU CẦU ĐẶC BIỆT VỀ SỐ LIỆU VÀ XU HƯỚNG:
+- BẮT BUỘC đưa các con số cụ thể vào lý do cảnh báo (VD: "Nghỉ không phép 4 ngày", "Đi trễ 5 lần", "Đã bị kỷ luật 2 lần").
+- Đánh giá rõ xu hướng hành vi (VD: "Xu hướng đi trễ lặp lại nhiều lần cho thấy sự giảm sút về kỷ luật", "Liên tục vắng mặt không lý do báo hiệu rủi ro bỏ việc").
+
+Trả về MỘT MẢNG JSON đúng thứ tự, gồm ${batch.length} phần tử (mỗi phần tử ứng với 1 nhân viên theo thứ tự trên):
 [
   {
-    "employee_id": "uuid của nhân viên",
-    "risk_level": "HIGH" hoặc "MEDIUM" hoặc "LOW",
-    "risk_score": <số nguyên từ 0 đến 100, 100 = nguy cơ cao nhất>,
-    "summary": "Tóm tắt 2-3 câu: tình trạng tổng quan và dấu hiệu đáng lo ngại nhất.",
+    "employee_id": "<UUID của nhân viên>",
+    "risk_level": "HIGH" | "MEDIUM" | "LOW",
+    "risk_score": <0-100>,
+    "summary": "3-4 câu. PHẢI có số liệu cụ thể. VD: Trong 21 ngày làm việc, nhân viên chỉ có mặt 3 ngày (14%), nghỉ không lý do tới 18 ngày. Không có hồ sơ đi trễ hay gian lận GPS nhưng tỷ lệ vắng mặt cực cao cho thấy nguy cơ đã bỏ việc trên thực tế.",
     "analysis": {
-      "key_concerns": ["Liệt kê 2-4 vấn đề chính đáng lo ngại"],
-      "positive_signals": ["Liệt kê 1-2 điểm tích cực nếu có, hoặc mảng rỗng"],
-      "behavior_pattern": "Mô tả xu hướng hành vi: VD 'Giảm dần động lực', 'Bất mãn gia tăng', 'Ổn định'"
+      "key_concerns": [
+        "Vấn đề 1 KÈM SỐ LIỆU và phân tích nguyên nhân khả năng",
+        "Vấn đề 2 KÈM SỐ LIỆU và hệ quả nếu không xử lý",
+        "Vấn đề 3 (nếu có)"
+      ],
+      "positive_signals": ["Điểm tích cực KÈM SỐ LIỆU, hoặc [] nếu không có"],
+      "behavior_pattern": "Mô tả xu hướng hành vi chi tiết: nguyên nhân khả năng + dự đoán diễn biến nếu không can thiệp"
     },
     "retention_strategy": [
       {
-        "action": "Hành động cụ thể cần thực hiện",
-        "priority": "URGENT" hoặc "HIGH" hoặc "MEDIUM" hoặc "LOW",
-        "timeline": "Trong 3 ngày" hoặc "Trong 1 tuần" hoặc "Trong 2 tuần" hoặc "Trong 1 tháng"
+        "action": "Hành động cụ thể, ai thực hiện, cách thực hiện",
+        "priority": "URGENT" | "HIGH" | "MEDIUM" | "LOW",
+        "timeline": "Trong 3 ngày" | "Trong 1 tuần" | "Trong 2 tuần"
+      },
+      {
+        "action": "Hành động thứ 2",
+        "priority": "MEDIUM",
+        "timeline": "Trong 1 tuần"
       }
     ],
     "suggested_action": {
-      "type": "reward" hoặc "discipline" hoặc "monitor" hoặc "meeting",
-      "reason": "Lý do ngắn gọn cho đề xuất này"
+      "type": "reward" | "discipline" | "monitor" | "meeting",
+      "reason": "Lý do cụ thể dựa trên số liệu"
     },
-    "recommendations": ["Đề xuất hành động 1", "Đề xuất hành động 2", "Đề xuất hành động 3"]
+    "recommendations": [
+      "Đề xuất chi tiết 1 (ai làm, làm gì, khi nào)",
+      "Đề xuất chi tiết 2",
+      "Đề xuất chi tiết 3"
+    ]
   }
 ]
 CHỈ trả về mảng JSON. KHÔNG kèm text giải thích bên ngoài.`;
@@ -373,17 +404,23 @@ CHỈ trả về mảng JSON. KHÔNG kèm text giải thích bên ngoài.`;
         const timeoutId = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
 
         const response = await ollama.chat({
-          model: 'qwen2.5:3b',
+          model: 'qwen2.5:7b',
           messages: [
-            { role: 'system', content: `Bạn là Giám đốc Nhân sự (CHRO) với 15 năm kinh nghiệm quản trị nhân sự tại doanh nghiệp Việt Nam.
-Nhiệm vụ: Phân tích chuyên sâu rủi ro nhân sự, đưa ra đánh giá chi tiết và chiến lược giữ chân nhân viên cụ thể.
-Phong cách: Chuyên nghiệp, dựa trên dữ liệu, nhưng cũng thể hiện sự thấu hiểu con người.
-Luôn trả lời bằng định dạng JSON Array thuần. KHÔNG bọc trong object.` },
+            { role: 'system', content: `Bạn là Trưởng phòng Nhân sự (HR Manager) với 15 năm kinh nghiệm tại doanh nghiệp Việt Nam.
+Nhiệm vụ của bạn: Đọc số liệu chấm công và hành vi làm việc, sau đó đưa ra ĐÁNH GIÁ CHUYÊN SÂU, CÓ CHIỀU SÂU PHÂN TÍCH về từng nhân viên.
+Yêu cầu bắt buộc:
+1. BẮT BUỘC trả lời hoàn toàn bằng tiếng Việt.
+2. LUÔN dùng số liệu cụ thể để lập luận (VD: "có mặt 8/21 ngày = 38%").
+3. TUYỆT ĐỐI KHÔNG dùng Thâm niên để làm lý do tăng risk_level. Thâm niên chỉ là thông tin nền.
+4. ĐÁNH GIÁ RỤI RO PHẢI DỰA 100% vào: số ngày vắng mặt, số lần đi trễ (sau 7h00), về sớm (trước 17h00), kỷ luật và khen thưởng.
+5. ƯU TIÊN xu hướng chấm công: đi trễ/về sớm lặp lại là báo hiệu giảm động lực; vắng nhiều là cảnh báo rủi ro bỏ việc.
+6. ĐỀ XUẤT NGUYÊN NHÂN KHẢ NĂNG cho hành vi (VD: "đang tìm việc khác", "vấn đề sức khỏe hoặc gia đình").
+7. Trả lời HOÀN TOÀN bằng JSON Array. KHÔNG có text ngoài JSON.` },
             { role: 'user', content: batchPrompt }
           ],
           format: 'json',
           keep_alive: '10m',
-          options: { num_ctx: 8192, temperature: 0.3 }
+          options: { num_ctx: 6144, temperature: 0.4, top_p: 0.9 }
         });
 
         clearTimeout(timeoutId);
@@ -432,17 +469,27 @@ Luôn trả lời bằng định dạng JSON Array thuần. KHÔNG bọc trong o
         await AIAlert.destroy({ where: { employee_id: batchEmpIds, alert_type: 'TURNOVER_RISK' } });
 
         const alertsToCreate = [];
-        for (const ai of aiResults) {
-          // Validate employee_id có thuộc batch không
-          const matchedStat = batch.find(s => s.id === ai.employee_id);
+        for (let aiIdx = 0; aiIdx < aiResults.length; aiIdx++) {
+          const ai = aiResults[aiIdx];
+
+          // --- Tìm nhân viên tương ứng ---
+          // Ưu tiên 1: Match chính xác theo employee_id
+          let matchedStat = batch.find(s => s.id === ai.employee_id);
+
+          // Ưu tiên 2: Fallback theo thứ tự index (qwen2.5:3b hay trả "undefined" hoặc sai UUID)
           if (!matchedStat) {
-            console.warn(`⚠ [AI] employee_id "${ai.employee_id}" không tìm thấy trong batch, bỏ qua.`);
-            continue;
+            if (aiIdx < batch.length) {
+              matchedStat = batch[aiIdx];
+              console.warn(`⚠ [AI] employee_id "${ai.employee_id}" không khớp — fallback sang index ${aiIdx}: ${matchedStat.full_name}`);
+            } else {
+              console.warn(`⚠ [AI] employee_id "${ai.employee_id}" không tìm thấy trong batch, bỏ qua.`);
+              continue;
+            }
           }
 
           const riskLevel = ['HIGH', 'MEDIUM', 'LOW'].includes(ai.risk_level) ? ai.risk_level : 'MEDIUM';
           alertsToCreate.push({
-            employee_id: ai.employee_id,
+            employee_id: matchedStat.id,
             alert_type: 'TURNOVER_RISK',
             risk_level: riskLevel,
             message: JSON.stringify({
@@ -481,10 +528,10 @@ Luôn trả lời bằng định dạng JSON Array thuần. KHÔNG bọc trong o
           }
         }
 
-        console.log(`✅ [AI Batch ${Math.floor(i / BATCH_SIZE) + 1}] Đã xử lý ${batch.length} nhân viên, tạo ${alertsToCreate.length} alert.`);
+        console.log(`✅ [AI Batch ${batchNum}/${totalBatches}] ${empName}: Đã tạo ${alertsToCreate.length} alert (risk: ${alertsToCreate[0]?.risk_level || 'N/A'}).`);
 
       } catch (batchErr) {
-        console.error(`❌ [AI Batch ${Math.floor(i / BATCH_SIZE) + 1}] Lỗi:`, batchErr.message);
+        console.error(`❌ [AI Batch ${batchNum}/${totalBatches}] Lỗi khi phân tích ${empName}:`, batchErr.message);
         if (batchErr.name === 'AbortError') {
           console.error('   -> Lý do: Timeout (Quá 5 phút)');
         }
@@ -710,3 +757,115 @@ exports.getRecommendations = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
   }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// SSE ENDPOINT — GET /ai/analyze-stream
+// Stream realtime batch progress to frontend via Server-Sent Events
+// ═══════════════════════════════════════════════════════════════
+exports.analyzeStream = async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  const send = (type, data) => {
+    try { res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`); } catch (_) {}
+  };
+
+  try {
+    const currentUser = req.user;
+    if (!currentUser) { send('error', { message: 'Chưa xác thực' }); return res.end(); }
+
+    const whereClause = { status: 'active' };
+    if (currentUser.role === 'MANAGER' || currentUser.role_code === 'MANAGER') {
+      let managerEmployeeId = currentUser.employee_id;
+      if (!managerEmployeeId) {
+        const ua = await UserAccount.findOne({ where: { [Op.or]: [{ id: currentUser.id }, { employee_id: currentUser.id }] } });
+        managerEmployeeId = ua ? ua.employee_id : currentUser.id;
+      }
+      whereClause.direct_manager_id = managerEmployeeId;
+    }
+
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startDateStr = monthStart.toISOString().slice(0, 10);
+    const monthLabel = `${today.getMonth() + 1}/${today.getFullYear()}`;
+
+    const employees = await Employee.findAll({
+      where: whereClause,
+      attributes: ['id', 'full_name', 'join_date'],
+      include: [{ model: Position, as: 'position', attributes: ['position_name'], include: [{ model: Department, as: 'department', attributes: ['department_name'] }] }]
+    });
+
+    if (!employees || employees.length === 0) {
+      send('error', { message: 'Không có nhân viên nào.' });
+      return res.end();
+    }
+
+    const empIds = employees.map(e => e.id);
+    const empMap = {};
+    for (const emp of employees) {
+      const joinDate = emp.join_date ? new Date(emp.join_date) : null;
+      const seniorityMonths = joinDate ? Math.floor((Date.now() - joinDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000)) : null;
+      empMap[emp.id] = { full_name: emp.full_name, position: emp.position?.position_name || 'Chưa rõ', department: emp.position?.department?.department_name || 'Chưa rõ', seniority_months: seniorityMonths, presentCount: 0, totalWorkHours: 0, otHours: 0, approvedLeaveCount: 0, lateCount: 0, earlyLeaveCount: 0, disciplineCount: 0, rewardCount: 0, gpsFraudCount: 0 };
+    }
+
+    const STANDARD_DAY_HOURS_SSE = 8;
+    const attRowsSSE = await sequelize.query(`SELECT employee_id, total_work_hours FROM attendance WHERE employee_id IN (:empIds) AND attendance_date >= :startDate AND attendance_date <= CURRENT_DATE AND check_in_time IS NOT NULL`, { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT });
+    for (const row of attRowsSSE) {
+      const s = empMap[row.employee_id]; if (!s) continue;
+      const h = parseFloat(row.total_work_hours || 0);
+      s.totalWorkHours += h;
+      if (h > STANDARD_DAY_HOURS_SSE) s.otHours += (h - STANDARD_DAY_HOURS_SSE);
+      s.presentCount += Math.min(Math.min(Math.max(h, 0), STANDARD_DAY_HOURS_SSE) / STANDARD_DAY_HOURS_SSE, 1);
+    }
+    for (const id of empIds) { empMap[id].presentCount = Math.round(empMap[id].presentCount * 100) / 100; empMap[id].totalWorkHours = Math.round(empMap[id].totalWorkHours * 100) / 100; empMap[id].otHours = Math.round(empMap[id].otHours * 100) / 100; }
+
+    const lateRowsSSE = await sequelize.query(`SELECT employee_id, status, COUNT(*)::int AS count FROM attendance WHERE employee_id IN (:empIds) AND status IN ('late','early_leave') AND attendance_date >= :startDate GROUP BY employee_id, status`, { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT });
+    for (const row of lateRowsSSE) { const s = empMap[row.employee_id]; if (!s) continue; if (row.status === 'late') s.lateCount = row.count; if (row.status === 'early_leave') s.earlyLeaveCount = row.count; }
+
+    const leaveRowsSSE = await sequelize.query(`SELECT lr.employee_id, COUNT(DISTINCT d::date)::int AS leave_days FROM leave_request lr, generate_series(GREATEST(lr.start_datetime::date,:startDate::date),LEAST(lr.end_datetime::date,CURRENT_DATE),'1 day') AS d WHERE lr.employee_id IN (:empIds) AND lr.status='approved' AND EXTRACT(DOW FROM d) <> 0 GROUP BY lr.employee_id`, { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT });
+    for (const row of leaveRowsSSE) { const s = empMap[row.employee_id]; if (s) s.approvedLeaveCount = row.leave_days; }
+
+    const pastWorkingDaysSSE = getPastWorkingDays(monthStart, today);
+    const toProcess = empIds.map(id => {
+      const s = empMap[id];
+      const absentCount = Math.max(0, Math.round((pastWorkingDaysSSE - s.presentCount - s.approvedLeaveCount) * 100) / 100);
+      return { id, ...s, pastWorkingDays: pastWorkingDaysSSE, absentCount };
+    });
+
+    send('start', { total: toProcess.length, month: monthLabel, pastWorkingDays: pastWorkingDaysSSE });
+
+    for (let i = 0; i < toProcess.length; i++) {
+      const emp = toProcess[i];
+      const batchNum = i + 1;
+      send('batch_start', { batchNum, totalBatches: toProcess.length, name: emp.full_name, absentCount: emp.absentCount, presentCount: emp.presentCount });
+
+      try {
+        const rate = pastWorkingDaysSSE > 0 ? Math.round((emp.presentCount / pastWorkingDaysSSE) * 100) : 0;
+        const prompt = `Phân tích rủi ro nghỉ việc tháng ${monthLabel} (${pastWorkingDaysSSE} ngày làm việc đã qua):\nNhân viên: ${emp.full_name} | ${emp.position} | ${emp.department} | Thâm niên: ${emp.seniority_months ?? '?'}th (chỉ tham khảo)\nCó mặt: ${emp.presentCount}/${pastWorkingDaysSSE} ngày (${rate}%) | OT: ${emp.otHours}h | Nghỉ phép: ${emp.approvedLeaveCount} | Vắng KP: ${emp.absentCount} | Trễ (sau 7h00): ${emp.lateCount} | Sớm (trước 17h00): ${emp.earlyLeaveCount} | Kỷ luật: ${emp.disciplineCount} | Khen: ${emp.rewardCount} | GPS Fraud: ${emp.gpsFraudCount}\nQuy tắc: Vắng>=5→HIGH; Vắng>=3→MEDIUM; GPS>=2→HIGH; Trễ+Sớm>=5→HIGH; >=3→MEDIUM; KL→MEDIUM; Tốt+OT+Khen→LOW.\nTUYỆT ĐỐI KHÔNG dùng thâm niên để tăng risk_level. BẮT BUỘC dùng số liệu. Tiếng Việt hoàn toàn.\nJSON Object: {"employee_id":"${emp.id}","risk_level":"HIGH|MEDIUM|LOW","risk_score":0-100,"summary":"3-4 câu+số liệu","analysis":{"key_concerns":["..."],"positive_signals":["..."],"behavior_pattern":"..."},"retention_strategy":[{"action":"...","priority":"URGENT|HIGH|MEDIUM","timeline":"3 ngày|1 tuần"}],"suggested_action":{"type":"reward|discipline|monitor|meeting","reason":"..."},"recommendations":["...","..."]}`;
+
+        const aiResp = await ollama.chat({ model: 'qwen2.5:7b', messages: [{ role: 'system', content: 'HR Manager, phân tích nhân sự chuyên sâu. BẮT BUỘC dùng tiếng Việt. TUYỆT ĐỐI KHÔNG dùng Thâm niên để tăng risk_level. ĐÁNH GIÁ DỰA 100% vào: vắng mặt, đi trễ (sau 7h00), về sớm (trước 17h00), kỷ luật, khen thưởng. Chỉ trả JSON Object.' }, { role: 'user', content: prompt }], format: 'json', keep_alive: '10m', options: { num_ctx: 4096, temperature: 0.4 } });
+
+        let aiResult;
+        try { const p = JSON.parse(aiResp.message.content); aiResult = Array.isArray(p) ? p[0] : p; }
+        catch { aiResult = { employee_id: emp.id, risk_level: 'MEDIUM', summary: 'Lỗi parse JSON AI.' }; }
+
+        const riskLevel = ['HIGH', 'MEDIUM', 'LOW'].includes(aiResult.risk_level) ? aiResult.risk_level : 'MEDIUM';
+        await AIAlert.destroy({ where: { employee_id: emp.id, alert_type: 'TURNOVER_RISK' } });
+        await AIAlert.create({ employee_id: emp.id, alert_type: 'TURNOVER_RISK', risk_level: riskLevel, message: JSON.stringify({ summary: aiResult.summary || '', recommendations: aiResult.recommendations || [], risk_score: aiResult.risk_score ?? null, analysis: aiResult.analysis || null, retention_strategy: aiResult.retention_strategy || [], suggested_action: aiResult.suggested_action || null, last_stats: { pastWorkingDays: emp.pastWorkingDays, presentCount: emp.presentCount, totalWorkHours: emp.totalWorkHours, otHours: emp.otHours, absentCount: emp.absentCount, lateCount: emp.lateCount, earlyLeaveCount: emp.earlyLeaveCount, approvedLeaveCount: emp.approvedLeaveCount, disciplineCount: emp.disciplineCount, rewardCount: emp.rewardCount, gpsFraudCount: emp.gpsFraudCount } }), status: 'PENDING' });
+
+        send('batch_done', { batchNum, totalBatches: toProcess.length, name: emp.full_name, risk: riskLevel, risk_score: aiResult.risk_score ?? null });
+      } catch (batchErr) {
+        send('batch_error', { batchNum, totalBatches: toProcess.length, name: emp.full_name, message: batchErr.message });
+      }
+    }
+
+    send('complete', { total: toProcess.length });
+    res.end();
+  } catch (error) {
+    send('error', { message: error.message });
+    res.end();
+  }
+};

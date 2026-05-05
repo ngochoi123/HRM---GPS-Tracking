@@ -4,7 +4,7 @@ import { CiCircleCheck } from "react-icons/ci";
 import { MdHistory,MdOutlineRemoveRedEye } from "react-icons/md";
 import { managerApprovals } from '../../services/managerApprovals';
 import { CiCalendar } from "react-icons/ci";
-import { IoMoonOutline } from "react-icons/io5";
+import { IoMoonOutline, IoCloseCircleOutline } from "react-icons/io5";
 import { CiClock2 } from "react-icons/ci";
 import moment from 'moment';
 import 'moment/dist/locale/vi';
@@ -131,7 +131,8 @@ const Approvals = () => {
     setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
     alert("Đã từ chối đơn!");
   } catch (err) {
-    alert("Thao tác thất bại");
+    console.log("REJECT ERROR:", err.response?.data || err.message);
+    alert(err.response?.data?.message || "Phê duyệt thất bại");
   }
 };
 const handleApproveAll = async () => {
@@ -361,12 +362,9 @@ const handleApproveAll = async () => {
                   <button
                     className="btn-text-reject"
                     onClick={() => {
-                      if (req.type === "explanation") {
-                        setRejectTarget(req);
-                        setShowRejectModal(true);
-                      } else {
-                        handleReject(req.type, req.id);
-                      }
+                      setRejectTarget(req);
+                      setRejectReason("");
+                      setShowRejectModal(true);
                     }}
                   >
                     Từ chối
@@ -409,7 +407,7 @@ const handleApproveAll = async () => {
                 ) : (
                   <div className="history-list">
                     {filteredHistory.map(req => (
-                      <div key={`${req.type}-${req.id}`} className="history-item">
+                      <div key={`${req.type}-${req.id}`} className="history-item" style={{ cursor: 'pointer' }} onClick={() => { setShowHistory(false); setSelectedRequest(req); }}>
                         <div className="history-info">
                           <span className="history-user">{req.employee_name}</span>
                           <span
@@ -430,9 +428,15 @@ const handleApproveAll = async () => {
                         </div>
                         
                         <div className="history-meta">
-                          <span className="status-approved">
-                            <CiCircleCheck size={16} /> Đã duyệt
-                          </span>
+                          {req.status === 'approved' ? (
+                            <span className="status-approved">
+                              <CiCircleCheck size={16} /> Đã duyệt
+                            </span>
+                          ) : (
+                            <span className="status-rejected" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', fontWeight: '500' }}>
+                              <IoCloseCircleOutline size={16} /> Đã từ chối
+                            </span>
+                          )}
                           <span className="history-time">
                             {moment(req.updated_at).calendar(null, {
                               sameDay: '[Hôm nay lúc] HH:mm',
@@ -442,6 +446,11 @@ const handleApproveAll = async () => {
                             })}
                           </span>
                         </div>
+                        {req.status === 'rejected' && req.reject_reason && (
+                          <div style={{ marginTop: '6px', padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '12px', color: '#b91c1c', lineHeight: '1.5' }}>
+                            <strong>Lý do từ chối:</strong> {req.reject_reason}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -619,6 +628,20 @@ const handleApproveAll = async () => {
                     </div>
                   )}
                 </div>
+
+                {/* Lý do từ chối — chỉ hiện khi đơn đã bị từ chối */}
+                {selectedRequest.status === 'rejected' && (
+                  <div className="request-detail-section">
+                    <div className="section-title">
+                      <span className="icon">🚫</span> Lý do từ chối
+                    </div>
+                    <div className="input-group full-width">
+                      <div className="fake-textarea" style={{ color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                        {selectedRequest.reject_reason || 'Không có lý do cụ thể.'}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -645,13 +668,13 @@ const handleApproveAll = async () => {
 
         <button
           className="asp-btn-confirm"
-          onClick={() => {
+          onClick={async () => {
             if (!rejectReason.trim()) {
               alert("Vui lòng nhập lý do");
               return;
             }
 
-            handleReject(
+            await handleReject(
               rejectTarget.type,
               rejectTarget.id,
               rejectReason
@@ -660,6 +683,10 @@ const handleApproveAll = async () => {
             setShowRejectModal(false);
             setRejectReason("");
             setRejectTarget(null);
+
+            // Refresh history
+            const resApproved = await managerApprovals.getApprovalHistory(user.id);
+            setApprovedRequests(resApproved.data || resApproved);
           }}
         >
           Xác nhận từ chối
