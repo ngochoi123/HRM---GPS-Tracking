@@ -3,7 +3,7 @@ const Employee = require('./Employee');
 const Department = require('./Department');
 const Position = require('./Position');
 const UserAccount = require('./UserAccount');
-
+const AIAlert = require('./ai_alert');
 // Position - Department
 Position.belongsTo(Department, { foreignKey: 'department_id', as: 'department' });
 Department.hasMany(Position, { foreignKey: 'department_id', as: 'positions' });
@@ -23,10 +23,14 @@ Department.belongsTo(Employee, { foreignKey: 'manager_id', as: 'manager' });
 UserAccount.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
 Employee.hasOne(UserAccount, { foreignKey: 'employee_id', as: 'account' });
 
+// Employee - AIAlert (One-to-Many)
+Employee.hasMany(AIAlert, { foreignKey: 'employee_id', as: 'alerts' });
+AIAlert.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
 module.exports = {
   sequelize,
   Employee,
   Department,
   Position,
-  UserAccount
+  UserAccount,
+  AIAlert
 };

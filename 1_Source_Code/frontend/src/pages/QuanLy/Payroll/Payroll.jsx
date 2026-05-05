@@ -196,7 +196,7 @@ const Payroll = () => {
     } finally {
       setLoading(false);
     }
-  }, [monthYear]);
+  }, [monthYear, isManager, user.department_id]);
 
   useEffect(() => {
     fetchPayrollData();

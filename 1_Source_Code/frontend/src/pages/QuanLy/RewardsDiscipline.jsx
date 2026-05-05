@@ -1,11 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import DecisionList from './DecisionList';
 import DecisionForm from './DecisionForm';
 import DecisionDetail from './DecisionDetail';
 
 export default function RewardsDiscipline() {
-  const [currentView, setCurrentView] = useState('list');
+  const location = useLocation();
+
+  // Dùng lazy initializer để lấy prefill 1 lần duy nhất khi mount, tránh setState trong effect
+  const [currentView, setCurrentView] = useState(
+    () => (location.state?.prefillData ? 'create' : 'list')
+  );
   const [selectedId, setSelectedId] = useState(null);
+  const [prefillData, setPrefillData] = useState(
+    () => location.state?.prefillData ?? null
+  );
+
+  // Side-effect only: xóa navigation state để tránh khi refresh lại bị nhảy vào form
+  useEffect(() => {
+    if (location.state?.prefillData) {
+      window.history.replaceState({}, document.title);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleBackToList = () => {
+    setSelectedId(null);
+    setPrefillData(null);
+    setCurrentView('list');
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans">
@@ -13,6 +35,7 @@ export default function RewardsDiscipline() {
         <DecisionList
           onCreateNew={() => {
             setSelectedId(null);
+            setPrefillData(null);
             setCurrentView('create');
           }}
           onViewDetail={(id) => {
@@ -21,6 +44,7 @@ export default function RewardsDiscipline() {
           }}
           onEdit={(id) => {
             setSelectedId(id);
+            setPrefillData(null);
             setCurrentView('edit');
           }}
         />
@@ -29,28 +53,23 @@ export default function RewardsDiscipline() {
       {currentView === 'detail' && selectedId && (
         <DecisionDetail
           decisionId={selectedId}
-          onBack={() => {
-            setSelectedId(null);
-            setCurrentView('list');
-          }}
+          onBack={handleBackToList}
         />
       )}
 
       {currentView === 'create' && (
-        <DecisionForm onCancel={() => setCurrentView('list')} onSuccess={() => setCurrentView('list')} />
+        <DecisionForm 
+          prefillData={prefillData}
+          onCancel={handleBackToList} 
+          onSuccess={handleBackToList} 
+        />
       )}
 
       {currentView === 'edit' && selectedId && (
         <DecisionForm
           editDecisionId={selectedId}
-          onCancel={() => {
-            setSelectedId(null);
-            setCurrentView('list');
-          }}
-          onSuccess={() => {
-            setSelectedId(null);
-            setCurrentView('list');
-          }}
+          onCancel={handleBackToList}
+          onSuccess={handleBackToList}
         />
       )}
     </div>

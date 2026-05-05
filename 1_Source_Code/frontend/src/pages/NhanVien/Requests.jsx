@@ -127,7 +127,6 @@ const isValidLeaveDay = (date) => {
 };
 
 const LEAVE_LIMIT = 12;
-const currentYear = new Date().getFullYear();
 
 const getAnnualUsedDays = () => {
   const currentYear = new Date().getFullYear();
@@ -267,7 +266,6 @@ const getUsedDaysByType = (type) => {
       final.setHours(0, 0, 0, 0);
 
       while (cur <= final) {
-        const d = cur.getDay();
         const y = cur.getFullYear();
         const m = cur.getMonth();
 

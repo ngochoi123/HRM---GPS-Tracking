@@ -20,15 +20,21 @@ app.use((req, res, next) => {
 
 
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 const corsOptions = {
-  origin: [
-    'https://hrmgpsattendance.web.app', 
-    'http://localhost:3000',            
-    'http://localhost:5173'             
-  ],
+  // Dev: cho phép mọi origin (bao gồm IP LAN của mobile)
+  // Production: chỉ whitelist domain đã triển khai
+  origin: isDev
+    ? true   // true = reflect any origin (chỉ dùng khi dev local)
+    : [
+        'https://hrmgpsattendance.web.app',
+        'http://localhost:3000',
+        'http://localhost:5173'
+      ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true 
+  credentials: true
 };
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100mb' })); 
@@ -39,11 +45,13 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      'https://hrmgpsattendance.web.app',
-      'http://localhost:3000',
-      'http://localhost:5173',
-    ],
+    origin: isDev
+      ? true
+      : [
+          'https://hrmgpsattendance.web.app',
+          'http://localhost:3000',
+          'http://localhost:5173',
+        ],
     methods: ['GET', 'POST'],
     credentials: true,
   }
@@ -80,6 +88,8 @@ const employeeRoutes = require('./routes/EmployeeRoutes');
 const managementRoutes = require('./routes/managementRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const payrollRoutes = require('./routes/payrollRoutes');
+const aiRoutes = require('./routes/aiRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 
 // ================= 4. USE ROUTES =================
 app.use('/api/auth', authRoutes);
@@ -89,6 +99,8 @@ app.use('/api/employee', employeeRoutes);
 app.use('/api/manager', managementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/chat', chatRoutes);
 
 // --- ROUTES TEST ---
 app.get('/', (req, res) => {
