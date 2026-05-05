@@ -28,6 +28,7 @@ interface RequestItem {
   end_datetime?: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
+  reject_reason?: string;
   created_at?: string;
 }
 
@@ -39,6 +40,7 @@ interface ExplanationRequest {
   proposed_check_out: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
+  reject_reason?: string;
   created_at: string;
   approver_name?: string;
   attachment_url?: string;
@@ -405,36 +407,50 @@ export default function RequestsScreen() {
       setSelectedRequest(item);
       setShowDetailSheet(true);
     };
-    
-    if (isExplanation) {
-      return (
-        <TouchableOpacity style={styles.requestCard} onPress={handlePress}>
-          <View style={styles.reqTop}>
-            <Text style={styles.reqType}>{getLeaveTypeText(item.explanation_type)}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
-              <Text style={[styles.statusText, { color: s.text }]}>{s.label}</Text>
-            </View>
-          </View>
-          <Text style={styles.reqDate}>
-            <Feather name="calendar" size={12} color="#64748b" /> {new Date(item.attendance_date).toLocaleDateString('vi-VN')} ({item.proposed_check_in} - {item.proposed_check_out})
-          </Text>
-          <Text style={styles.reqReason} numberOfLines={2}>&quot;{item.reason}&quot;</Text>
-        </TouchableOpacity>
-      );
-    }
+
+    // Icon Mapping based on status
+    const getStatusIcon = () => {
+      if (item.status === 'approved') return 'check';
+      if (item.status === 'rejected') return 'x';
+      return 'clock';
+    };
     
     return (
-      <TouchableOpacity style={styles.requestCard} onPress={handlePress}>
-        <View style={styles.reqTop}>
-          <Text style={styles.reqType}>{item.type_label}</Text>
+      <TouchableOpacity style={styles.requestCard} onPress={handlePress} activeOpacity={0.7}>
+        <View style={styles.reqCardInner}>
+          {/* Left Icon Circle */}
+          <View style={[styles.statusIconCircle, { backgroundColor: s.bg }]}>
+            <Feather name={getStatusIcon()} size={16} color={s.text} />
+          </View>
+
+          {/* Middle Content */}
+          <View style={styles.reqContentMain}>
+            <View style={styles.reqTop}>
+              <Text style={styles.reqType} numberOfLines={1}>
+                {getLeaveTypeText(isExplanation ? item.explanation_type : (isOvertime ? 'overtime' : item.type))}
+              </Text>
+            </View>
+            
+            <View style={styles.reqDateRow}>
+              <Feather name="calendar" size={11} color="#94a3b8" />
+              <Text style={styles.reqDate}>
+                {isExplanation 
+                  ? `${new Date(item.attendance_date).toLocaleDateString('vi-VN')} (${item.proposed_check_in} - ${item.proposed_check_out})`
+                  : `${new Date(item.start_datetime).toLocaleDateString('vi-VN')}${item.end_datetime && !isOvertime ? ' - ' + new Date(item.end_datetime).toLocaleDateString('vi-VN') : ''}`
+                }
+              </Text>
+            </View>
+
+            <Text style={styles.reqReason} numberOfLines={1}>
+              &quot;{item.reason || 'Không có lý do'}&quot;
+            </Text>
+          </View>
+
+          {/* Right Status Pill */}
           <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
-            <Text style={[styles.statusText, { color: s.text }]}>{s.label}</Text>
+            <Text style={[styles.statusText, { color: s.text }]}>{s.label.toUpperCase()}</Text>
           </View>
         </View>
-        <Text style={styles.reqDate}>
-          <Feather name="calendar" size={12} color="#64748b" /> {new Date(item.start_datetime).toLocaleDateString('vi-VN')} {item.end_datetime && !isOvertime && `- ${new Date(item.end_datetime).toLocaleDateString('vi-VN')}`}
-        </Text>
-        <Text style={styles.reqReason} numberOfLines={2}>&quot;{item.reason}&quot;</Text>
       </TouchableOpacity>
     );
   };
@@ -800,6 +816,27 @@ export default function RequestsScreen() {
                   })()}
                 </View>
 
+                {/* Phản hồi từ người duyệt (Nếu bị từ chối) */}
+                {selectedRequest.status === 'rejected' && (
+                  <View style={styles.rejectReasonCard}>
+                    <View style={styles.rejectReasonSideLine} />
+                    <View style={styles.rejectReasonHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Feather name="message-square" size={14} color="#b91c1c" style={{ marginRight: 6 }} />
+                        <Text style={styles.rejectReasonTitle}>PHẢN HỒI TỪ NGƯỜI DUYỆT</Text>
+                      </View>
+                      <View style={styles.rejectStatusPill}>
+                        <Text style={styles.rejectStatusText}>TỪ CHỐI</Text>
+                      </View>
+                    </View>
+                    <View style={styles.rejectReasonBody}>
+                      <Text style={styles.rejectReasonText}>
+                        &quot;{selectedRequest.reject_reason || 'không được'}&quot;
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 <TouchableOpacity style={[styles.closeSheetBtn, { backgroundColor: s.bg + '50' }]} onPress={() => setShowDetailSheet(false)}>
                   <Text style={[styles.closeSheetBtnText, { color: s.text }]}>ĐÓNG CỬA SỔ</Text>
                 </TouchableOpacity>
@@ -824,23 +861,27 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 13, fontWeight: '700', color: '#64748b' },
   pager: { flex: 1 },
   content: { padding: 20 },
-  summaryCard: { borderRadius: 24, padding: 22, overflow: 'hidden', marginBottom: 20, position: 'relative' },
-  cardTitle: { color: '#fff', fontSize: 12, fontWeight: '800', opacity: 0.9, marginBottom: 10 },
-  cardValLarge: { color: '#fff', fontSize: 32, fontWeight: '900', marginBottom: 5 },
-  cardFooterText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  cardBgIcon: { position: 'absolute', right: -10, bottom: -10 },
-  mainCreateBtn: { backgroundColor: '#dcfce7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#bcf0da' },
-  mainCreateBtnText: { color: '#166534', fontSize: 14, fontWeight: '800', marginLeft: 10 },
-  listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  listTitle: { fontSize: 12, fontWeight: '900', color: '#94a3b8', marginLeft: 8 },
-  requestCard: { backgroundColor: '#fff', padding: 20, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
-  reqTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  reqType: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  statusText: { fontSize: 11, fontWeight: '800' },
-  reqDate: { fontSize: 12, color: '#64748b', fontWeight: '500', marginBottom: 10 },
-  reqReason: { fontSize: 13, color: '#475569', fontStyle: 'italic', lineHeight: 20 },
-  emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 40, fontStyle: 'italic' },
+  summaryCard: { borderRadius: 28, padding: 24, overflow: 'hidden', marginBottom: 20, position: 'relative', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 5 },
+  cardTitle: { color: '#fff', fontSize: 11, fontWeight: '900', opacity: 0.85, marginBottom: 8, letterSpacing: 1 },
+  cardValLarge: { color: '#fff', fontSize: 36, fontWeight: '900', marginBottom: 6 },
+  cardFooterText: { color: '#fff', fontSize: 12, fontWeight: '700', opacity: 0.9 },
+  cardBgIcon: { position: 'absolute', right: -15, bottom: -15, opacity: 0.25 },
+  mainCreateBtn: { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 20, marginBottom: 25, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  mainCreateBtnText: { color: '#0f172a', fontSize: 14, fontWeight: '900', marginLeft: 10, letterSpacing: 0.5 },
+  listHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 5 },
+  listTitle: { fontSize: 11, fontWeight: '900', color: '#64748b', marginLeft: 8, letterSpacing: 1 },
+  requestCard: { backgroundColor: '#fff', borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#0f172a', shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 },
+  reqCardInner: { flexDirection: 'row', alignItems: 'center', padding: 16 },
+  statusIconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  reqContentMain: { flex: 1, marginRight: 10 },
+  reqTop: { marginBottom: 4 },
+  reqType: { fontSize: 14, fontWeight: '800', color: '#1e293b' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  statusText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  reqDateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  reqDate: { fontSize: 11, color: '#64748b', fontWeight: '600', marginLeft: 5 },
+  reqReason: { fontSize: 12, color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' },
+  emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 40, fontStyle: 'italic', fontSize: 13 },
   formContainer: { padding: 0 },
   inputGroup: { marginBottom: 20 },
   inputSplit: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -868,5 +909,15 @@ const styles = StyleSheet.create({
   closeSheetBtn: { padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 25 },
   closeSheetBtnText: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   sheetItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  sheetItemText: { fontSize: 15, fontWeight: '600', color: '#334155' }
+  sheetItemText: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  
+  // Reject Reason Styles
+  rejectReasonCard: { marginTop: 20, backgroundColor: '#fff', borderRadius: 20, borderWidth: 1, borderColor: '#fee2e2', overflow: 'hidden', shadowColor: '#ef4444', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1, position: 'relative' },
+  rejectReasonHeader: { backgroundColor: '#fef2f2', paddingHorizontal: 15, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20 },
+  rejectReasonTitle: { color: '#b91c1c', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  rejectStatusPill: { backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: '#fecaca' },
+  rejectStatusText: { color: '#ef4444', fontSize: 9, fontWeight: '900' },
+  rejectReasonBody: { padding: 18, paddingLeft: 25 },
+  rejectReasonText: { color: '#b91c1c', fontSize: 13, fontWeight: '600', fontStyle: 'italic', lineHeight: 20 },
+  rejectReasonSideLine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, backgroundColor: '#ef4444', zIndex: 10 }
 });
