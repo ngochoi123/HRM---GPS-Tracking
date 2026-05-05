@@ -1,3 +1,15 @@
+// ─── AttendanceHistoryModal ────────────────────────────────────────────────────
+// Hiển thị lịch sử chấm công theo tháng trong một bottom-sheet có thể vuốt.
+//
+// ⚠️  API BASE URL:
+//   App mobile KHÔNG thể dùng localhost / 127.0.0.1 làm địa chỉ server.
+//   Phải dùng IP LAN của máy chạy backend (xem @/config/env.ts để biết thêm).
+//
+// Các endpoint được sử dụng:
+//   GET /api/employee/attendance/history/:id?month=M&year=YYYY  — danh sách ngày công
+//   GET /api/employee/attendance/summary/:id                     — thống kê tháng
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,8 +21,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { API_URL } from '@/config/env';
+import { attendanceService } from '@/services/attendanceService';
 import { SwipeableSheet } from '@/components/SwipeableSheet';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,32 +89,72 @@ export function AttendanceHistoryModal({ visible, onClose }: Props) {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [token, setToken]           = useState<string | null>(null);
 
+  // ── Lấy token + employeeId từ AsyncStorage khi component mount ──────────────
   useEffect(() => {
     (async () => {
       const t  = await AsyncStorage.getItem('userToken');
       const id = await AsyncStorage.getItem('employeeId');
-      setToken(t); setEmployeeId(id);
+      setToken(t);
+      setEmployeeId(id);
     })();
   }, []);
 
+  /**
+   * Tải lịch sử chấm công theo tháng/năm đang chọn.
+   * Gọi song song:
+   *   - attendanceService.getHistory  → danh sách ngày công
+   *   - attendanceService.getSummary  → thống kê tháng (totalHours, daysWorked…)
+   *
+   * Lưu ý: Hàm này sẽ không thực thi nếu chưa có token hoặc employeeId.
+   *        Nếu người dùng từ chối quyền vị trí / không đăng nhập, hiện thông báo rõ.
+   */
   const fetchHistory = useCallback(async () => {
-    if (!employeeId || !token) return;
-    setLoading(true); setError('');
+    if (!employeeId || !token) {
+      setError('Chưa xác thực. Vui lòng đăng nhập lại.');
+      return;
+    }
+    setLoading(true);
+    setError('');
     try {
-      const res = await axios.get(
-        `${API_URL}/employee/attendance/history/${employeeId}`,
-        { params: { month, year }, headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.data?.success) throw new Error(res.data?.message || 'Lỗi tải dữ liệu');
-      setRows(res.data.data?.rows ?? []);
-      setSummary(res.data.data?.summary ?? null);
+      // Gọi song song history + summary để tăng tốc
+      const [histRes, sumRes] = await Promise.all([
+        attendanceService.getHistory(employeeId, token, { month, year }),
+        attendanceService.getSummary(employeeId, token),
+      ]);
+
+      if (!histRes?.success) throw new Error(histRes?.message || 'Lỗi tải lịch sử chấm công');
+      setRows(histRes.data?.rows ?? []);
+
+      // Summary có thể đến từ history response hoặc summary endpoint
+      // Ưu tiên summary từ history (nếu backend trả về), fallback sang summary endpoint
+      if (histRes.data?.summary) {
+        setSummary(histRes.data.summary);
+      } else if (sumRes?.success && sumRes.data) {
+        // Tính thủ công từ dữ liệu summary hôm nay nếu cần
+        const rows = histRes.data?.rows ?? [];
+        const totalHours = rows.reduce((acc, r) => acc + (r.total_work_hours ?? 0), 0);
+        const daysWorked = rows.filter((r) => r.check_in_time != null).length;
+        const lateOrEarlyCount = rows.filter((r) => r.status === 'late' || r.status === 'early_leave').length;
+        const onTime = rows.filter((r) => r.status === 'on_time').length;
+        const compliancePercent = daysWorked > 0 ? Math.round((onTime / daysWorked) * 100) : 0;
+        setSummary({ totalHours: Math.round(totalHours * 10) / 10, daysWorked, workingDaysInMonth: null, lateOrEarlyCount, compliancePercent });
+      }
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Lỗi kết nối');
+      // Phân biệt lỗi mạng vs lỗi xác thực
+      const status = e?.response?.status;
+      if (status === 401 || status === 403) {
+        setError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+      } else if (status === 404) {
+        setError('Không tìm thấy dữ liệu chấm công.');
+      } else {
+        setError(e?.response?.data?.message || e?.message || 'Lỗi kết nối server');
+      }
     } finally {
       setLoading(false);
     }
   }, [employeeId, token, month, year]);
 
+  // Tự động fetch khi modal mở hoặc tháng thay đổi
   useEffect(() => {
     if (visible && employeeId && token) fetchHistory();
   }, [visible, fetchHistory, employeeId, token]);

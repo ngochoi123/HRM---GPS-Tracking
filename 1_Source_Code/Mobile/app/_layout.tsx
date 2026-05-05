@@ -53,6 +53,20 @@ export default function RootLayout() {
               ),
           }}
         />
+        {/* Tab AI Chatbot — dùng màu tím riêng để phân biệt */}
+        <Tabs.Screen
+          name="chat"
+          options={{
+            title: "AI Chat",
+            tabBarActiveTintColor: "#7c3aed",
+            tabBarIcon: ({ color, size, focused }) =>
+              focused ? (
+                <Feather name="message-circle" size={size + 2} color={color} />
+              ) : (
+                <Feather name="message-circle" size={size} color={color} />
+              ),
+          }}
+        />
         <Tabs.Screen
           name="profile"
           options={{

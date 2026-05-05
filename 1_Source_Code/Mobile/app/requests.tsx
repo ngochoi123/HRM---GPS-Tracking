@@ -104,8 +104,9 @@ export default function RequestsScreen() {
       setApprovers(apps);
 
       const [resLeave, resOt, reqEx] = await Promise.all([
-        axios.get(`${API_URL}/employee/leave-request/${empId}`, headers),
-        axios.get(`${API_URL}/employee/overtime-request/${empId}`, headers),
+        // ✅ Dùng /my (JWT-based) thay vì /:empId — backend không có route GET /leave-request/:id
+        axios.get(`${API_URL}/employee/leave-request/my`, headers),
+        axios.get(`${API_URL}/employee/overtime-request/my`, headers),
         // Requirement 1: Pass token as 2nd param
         employeeService.getExplanationRequests(empId, token)
       ]);
@@ -386,7 +387,7 @@ export default function RequestsScreen() {
       // Fallback sang mở URL nếu tải xuống thất bại (ví dụ: lỗi FileSystem)
       try {
         await Linking.openURL(url);
-      } catch (err) {
+      } catch {
         Alert.alert('Lỗi', 'Không thể tải xuống hoặc mở tệp này.');
       }
     } finally {

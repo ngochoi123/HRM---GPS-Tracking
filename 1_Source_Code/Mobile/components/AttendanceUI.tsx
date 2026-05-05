@@ -1,3 +1,26 @@
+// ─── AttendanceUI ────────────────────────────────────────────────────────────
+// Component UI thuần túy cho màn hình Chấm công (nhân viên).
+//
+// ⚠️  API BASE URL — QUY TẮc BẮt BUỘC:
+//   App mobile chạy trên thiết bị thật hoặc máy ảo KHÔNG thể dùng:
+//     http://localhost:5000     ← resolve thành chính thiết bị (không phải máy host)
+//     http://127.0.0.1:5000     ← tương tự
+//   Phải dùng IP LAN, ví dụ:
+//     http://192.168.1.42:5000/api   (WiFi cùng mạng với máy chạy backend)
+//     http://10.0.2.2:5000/api       (Android Emulator — alias đặc biệt)
+//   Xem và chỉnh sửa tại: @/config/env.ts
+//
+// 📍  LUỒNG GPS + QUYỀN ĐỊNH Vỏ (thực thi trong hook của parent):
+//   1. Component mount → parent gọi requestForegroundPermissionsAsync()
+//        ↳ Nếu người dùng từ chối → Alert báo lỗi, khóa nút chấm công
+//   2. Sau khi có quyền → expo-location.getCurrentPositionAsync() lấy toạ độ
+//   3. gọi props.handleAction('checkin' | 'checkout')
+//        ↳ Parent hiển thị <ActivityIndicator> (props.loading = true)
+//        ↳ Gọi POST /api/employee/attendance/checkin/:id với { latitude, longitude }
+//           Header: Authorization: Bearer <token>
+//        ↳ Cập nhật props.attendanceToday sau khi server trả về
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Animated, Dimensions, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -245,9 +268,16 @@ export const AttendanceUI = ({ props }: { props: any }) => {
                   if (btnCfg.action === 'checkout') {
                     Alert.alert('Xác nhận', 'Bạn có chắc chắn muốn tan ca không?', [
                       { text: 'Huỷ', style: 'cancel' },
-                      { text: 'Đồng ý', onPress: () => props.handleAction('checkout') }
+                      {
+                        text: 'Đồng ý',
+                        onPress: () => {
+                          // Gọi checkout → parent hook lấy GPS rồi POST /attendance/checkout/:id
+                          props.handleAction('checkout');
+                        },
+                      },
                     ]);
                   } else {
+                    // Gọi checkin → parent hook lấy GPS rồi POST /attendance/checkin/:id
                     props.handleAction(btnCfg.action);
                   }
                 }}
@@ -383,7 +413,6 @@ export const AttendanceUI = ({ props }: { props: any }) => {
           </View>
         </View>
       </Modal>
-
 
     </SafeAreaView>
   );
@@ -540,4 +569,5 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#b2ebf2',
   },
   historyBtnText: { fontSize: 14, fontWeight: '800', color: '#00b4d8', flex: 1, textAlign: 'center' },
-});
+});
+

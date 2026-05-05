@@ -8,6 +8,8 @@ import { registerForPushNotificationsAsync } from "@/services/NotificationServic
 import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
+import { attendanceService } from "@/services/attendanceService";
+
 
 /** Đếm ngược khi chưa có geofence_leave_warning từ server (fallback). */
 const GRACE_LEAVE_SEC = 5 * 60;
@@ -167,10 +169,34 @@ export const useAttendance = () => {
     }
   }, []);
 
+  // ── Lấy GPS sau khi đã có quyền ────────────────────────────────────────────
+  /**
+   * Yêu cầu quyền vị trí trước, sau đó lấy tọa độ GPS hiện tại.
+   *
+   * Luồng:
+   *   requestForegroundPermissionsAsync()
+   *     → được cấp quyền → getCurrentPositionAsync() → setLocation()
+   *     → bị từ chối     → Alert báo lỗi, khóa nút chấm công
+   */
   const fetchCurrentLocation = useCallback(async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
-    let loc = await Location.getCurrentPositionAsync({
+    // 1. Yêu cầu quyền định vị (foreground)
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      // Người dùng từ chối → hiển thị Alert rõ ràng
+      Alert.alert(
+        'Quyền vị trí bị từ chối',
+        'App cần quyền truy cập vị trí để chấm công GPS. Vui lòng cấp quyền trong Cài đặt → Quyền ứng dụng.',
+        [
+          { text: 'Bỏ qua', style: 'cancel' },
+          // Nước mời có thể mở Settings nếu muốn (tùy nền tảng)
+          // { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+        ],
+      );
+      return; // Dừng lại — không gọi getCurrentPositionAsync()
+    }
+
+    // 2. Lấy vị trí với độ chính xác cao
+    const loc = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.High,
     });
     setLocation(loc.coords);
@@ -383,36 +409,31 @@ export const useAttendance = () => {
     stopLocalLeaveCountdown();
   }, [clearGeofenceLeaveWarning, stopLocalLeaveCountdown]);
 
+  /**
+   * Auto checkout khi bị đẩy ra ngoài vùng quá lâu.
+   * Gọi attendanceService.checkOut (đã có Header Authorization sẵn).
+   */
   const forceAutoCheckout = useCallback(async () => {
     if (!location) return;
-    if (!employeeId) return;
+    if (!employeeId || !userToken) return;
     setLoading(true);
     try {
-      const res = await axios.post(
-        `${API_URL}/employee/attendance/checkout/${employeeId}`,
-        { latitude: location.latitude, longitude: location.longitude },
-        { headers: { Authorization: `Bearer ${userToken}` } },
-      );
+      const res = await attendanceService.checkOut(employeeId, userToken, {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
 
-      const successRaw = res.data?.success;
-      const success =
-        successRaw === true ||
-        successRaw === 1 ||
-        (typeof successRaw === "string" &&
-          successRaw.toLowerCase() === "true") ||
-        res.data?.status === "success";
-
-      if (success) {
+      if (res?.success) {
         Alert.alert(
-          "Auto Check-out",
-          "Hệ thống đã tự động Check-out do bạn rời vị trí quá 5 phút.",
+          'Auto Check-out',
+          'Hệ thống đã tự động Check-out do bạn rời vị trí quá 5 phút.',
         );
         dismissLeaveZoneUi();
         await fetchSummary(employeeId);
       }
     } catch (error: any) {
       console.log(
-        "❌ [FRONTEND] Auto checkout thất bại:",
+        '❌ [FRONTEND] Auto checkout thất bại:',
         error?.response?.data || error?.message,
       );
     } finally {
@@ -616,37 +637,68 @@ export const useAttendance = () => {
     }
   };
 
-  const handleAction = async (type: "checkin" | "checkout") => {
-    if (!location) return Alert.alert("Lỗi", "Chưa xác định được vị trí GPS");
-    if (!employeeId) return Alert.alert("Lỗi", "Chưa xác định được nhân viên");
+  /**
+   * Xử lý chấm công vào/ra ca.
+   *
+   * Luồng:
+   *   1. Kiểm tra GPS có sẵn — nếu không thì hiển Alert yêu cầu cấp quyền
+   *   2. Kiểm tra trong vùng geofence
+   *   3. Hiển thị Loading Spinner (setLoading(true))
+   *   4. Gọi POST /api/employee/attendance/checkin|checkout/:id
+   *        Header: Authorization: Bearer <token>
+   *        Body:   { latitude, longitude }
+   *   5. Cập nhật attendanceToday sau khi server phản hồi thành công
+   */
+  const handleAction = async (type: 'checkin' | 'checkout') => {
+    if (!location) {
+      // Gợi nhắc quyền GPS nếu chưa có vị trí
+      await fetchCurrentLocation();
+      if (!location) {
+        Alert.alert('Lỗi', 'Chưa xác định được vị trí GPS. Vui lòng cấp quyền và thử lại.');
+        return;
+      }
+    }
+    if (!employeeId || !userToken) {
+      Alert.alert('Lỗi', 'Chưa xác định được nhân viên. Vui lòng đăng nhập lại.');
+      return;
+    }
     const r = workLocation?.radius_meters;
     if (r != null && Number(r) > 0 && zoneBlocksPunch) {
-      return Alert.alert(
-        "Ngoài vùng chấm công",
-        "Vui lòng vào đúng bán kính địa điểm đã cấu hình.",
+      Alert.alert(
+        'Ngoài vùng chấm công',
+        'Vui lòng vào đúng bán kính địa điểm đã cấu hình.',
       );
+      return;
     }
+
+    // Hiển thị Loading Spinner trong khi gọi API
     setLoading(true);
     try {
-      const res = await axios.post(
-        `${API_URL}/employee/attendance/${type}/${employeeId}`,
-        { latitude: location.latitude, longitude: location.longitude },
-        { headers: { Authorization: `Bearer ${userToken}` } },
-      );
-      const successRaw = res.data?.success;
-      const success =
-        successRaw === true ||
-        successRaw === 1 ||
-        (typeof successRaw === "string" &&
-          successRaw.toLowerCase() === "true") ||
-        res.data?.status === "success";
+      // Gọi attendanceService — đã bao gồm Authorization header và timeout
+      const res =
+        type === 'checkin'
+          ? await attendanceService.checkIn(employeeId, userToken, {
+              latitude: location.latitude,
+              longitude: location.longitude,
+            })
+          : await attendanceService.checkOut(employeeId, userToken, {
+              latitude: location.latitude,
+              longitude: location.longitude,
+            });
 
-      if (success) {
-        Alert.alert("Thành công", res.data.message);
+      if (res?.success) {
+        Alert.alert('Thành công', res.message || (type === 'checkin' ? 'Chấm công vào ca thành công' : 'Chấm công ra ca thành công'));
+        // Cập nhật lại dữ liệu chấm công hôm nay
         await fetchSummary(employeeId);
+      } else {
+        Alert.alert('Lỗi chấm công', res?.message || 'Thất bại. Vui lòng thử lại.');
       }
     } catch (error: any) {
-      Alert.alert("Lỗi", error.response?.data?.message || "Thao tác thất bại");
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Thành tất bại';
+      Alert.alert('Lỗi', String(msg));
     } finally {
       setLoading(false);
     }

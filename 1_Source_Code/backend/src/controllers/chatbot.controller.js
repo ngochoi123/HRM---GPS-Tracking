@@ -16,8 +16,8 @@ const { UserAccount, sequelize } = require('../models');
 // ─── Cấu hình Ollama ───
 // ─── Cấu hình Ollama ───
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const CHAT_MODEL = process.env.CHAT_MODEL || 'qwen2.5:3b';
-const OLLAMA_TIMEOUT_MS = 2 * 60 * 1000; // 2 phút
+const CHAT_MODEL  = process.env.CHAT_MODEL  || 'qwen2.5:3b';
+const OLLAMA_TIMEOUT_MS = 3 * 60 * 1000; // 3 phút
 
 const ollama = new Ollama({ host: OLLAMA_HOST });
 
@@ -348,10 +348,12 @@ exports.chat = async (req, res) => {
       aiResponse = await ollama.chat({
         model: CHAT_MODEL,
         messages: ollamaMessages,
-        keep_alive: '10m',
+        keep_alive: '15m',  // Giữ model trong RAM lâu hơn — quan trọng khi chạy CPU
         options: {
-          num_ctx: 4096,       // Chat cá nhân không cần context quá lớn
-          temperature: 0.5,    // Cân bằng giữa chính xác và tự nhiên
+          // ⚠️ num_ctx = 2048 (thay vì 4096): tiết kiệm ~50% RAM và tăng tốc trên CPU
+          // Chatbot HR không cần context quá dài — 2048 token đủ cho 10-15 lượt hỏi/đáp
+          num_ctx: 2048,
+          temperature: 0.4,   // Giảm nhẹ để trả lời đoán định hơn, giảm token gồ lãng phí
         }
       });
     } catch (ollamaErr) {

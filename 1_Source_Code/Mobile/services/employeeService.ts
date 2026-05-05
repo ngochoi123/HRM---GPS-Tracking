@@ -11,12 +11,14 @@ export const employeeService = {
     });
   },
 
+  // ✅ Dùng /my (JWT-based) — backend route: GET /attendance-explanation-request/my
   getExplanationRequests: async (employeeId: string | number, token: string) => {
-    const response = await axios.get(`${API_URL}/employee/attendance-explanation-request/${employeeId}`, {
+    const response = await axios.get(`${API_URL}/employee/attendance-explanation-request/my`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     return response.data?.data || response.data || [];
   },
+
 
   getApprovers: async (employeeId: string | number, token: string) => {
     const response = await axios.get(`${API_URL}/employee/approvers/${employeeId}`, {
