@@ -3,36 +3,18 @@ const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
-const SHIFT_START_MINUTES = 7 * 60 + 30;
-const SHIFT_END_MINUTES = 17 * 60;
-const LUNCH_START_MINUTES = 11 * 60 + 30;
-const LUNCH_END_MINUTES = 13 * 60;
+const SHIFT_START_MINUTES = 7 * 60; // 07:00
+const SHIFT_END_MINUTES = 17 * 60;   // 17:00
+const LUNCH_START_MINUTES = 12 * 60; // 12:00
+const LUNCH_END_MINUTES = 13 * 60;   // 13:00
 const LATE_TOLERANCE = 0;
 const MAX_LATE = 24 * 60;
 
 const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
 const getShiftForDate = (dateObj) => {
   if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return null;
+  // Mặc định công ty làm theo ca hành chính 07:00 - 17:00
   return { name: 'day', startMinutes: SHIFT_START_MINUTES, endMinutes: SHIFT_END_MINUTES };
-  const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-
-  const morningStart = 7 * 60 + 30;
-  const morningEnd = 11 * 60 + 30;
-
-  const afternoonStart = 13 * 60;
-  const afternoonEnd = 17 * 60;
-
-  // Ca sáng
-  if (minutes >= morningStart && minutes <= morningEnd) {
-    return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
-  }
-
-  // Ca chiều
-  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
-    return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
-  }
-
-  return null;
 };
 
 const getAttendanceStatusForCheckIn = (dateObj) => {
@@ -54,29 +36,33 @@ const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
   const shift = getShiftForDate(checkInDateObj);
   if (!shift) return null;
 
+  const checkInMinutes = checkInDateObj.getHours() * 60 + checkInDateObj.getMinutes();
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
 
-  return checkOutMinutes < shift.endMinutes
-    ? 'early_leave'
-    : 'on_time';
+  const isLate = checkInMinutes > shift.startMinutes;
+  const isEarly = checkOutMinutes < shift.endMinutes;
+
+  if (isLate) return 'late';
+  if (isEarly) return 'early_leave';
+  return 'on_time';
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 /**
  * Giờ công chuẩn:
- * - Giờ làm: 07:30 -> 17:00
- * - Nghỉ trưa: 11:30 -> 13:00 (không tính công)
+ * - Giờ làm: 07:00 -> 17:00
+ * - Nghỉ trưa: 12:00 -> 13:00 (không tính công)
  * - Tổng công tối đa: 8.00 giờ/ngày (không tính quá, OT xử lý ở module xin phép)
  */
 const calcStandardWorkHours = (checkInDateObj, checkOutDateObj) => {
   if (!(checkInDateObj instanceof Date) || Number.isNaN(checkInDateObj.getTime())) return 0;
   if (!(checkOutDateObj instanceof Date) || Number.isNaN(checkOutDateObj.getTime())) return 0;
 
-  const start = 7 * 60 + 30;
-  const end = 17 * 60;
-  const lunchStart = 11 * 60 + 30;
-  const lunchEnd = 13 * 60;
+  const start = SHIFT_START_MINUTES;
+  const end = SHIFT_END_MINUTES;
+  const lunchStart = LUNCH_START_MINUTES;
+  const lunchEnd = LUNCH_END_MINUTES;
 
   const inMinRaw = checkInDateObj.getHours() * 60 + checkInDateObj.getMinutes();
   const outMinRaw = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
