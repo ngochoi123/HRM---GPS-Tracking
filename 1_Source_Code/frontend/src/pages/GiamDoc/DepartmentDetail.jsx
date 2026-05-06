@@ -11,6 +11,34 @@ import {
 } from "lucide-react";
 import { directorDepartmentService } from "../../services/directorDepartmentService";
 
+const getEmployeeAttendanceBadge = (emp) => {
+  if (emp.status === "inactive") {
+    return {
+      label: "Nghỉ việc",
+      className: "bg-gray-200 text-gray-500",
+    };
+  }
+
+  if (emp.has_checked_out || emp.check_out_time) {
+    return {
+      label: "Đã check-out",
+      className: "bg-slate-100 text-slate-600",
+    };
+  }
+
+  if (emp.has_checked_in || emp.check_in_time) {
+    return {
+      label: "Đang làm việc",
+      className: "bg-green-100 text-green-600",
+    };
+  }
+
+  return {
+    label: "Chưa check-in",
+    className: "bg-amber-100 text-amber-700",
+  };
+};
+
 export default function DepartmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -188,6 +216,7 @@ export default function DepartmentDetail() {
                 <tbody>
                   {currentEmployees.map((emp) => {
                     const email = emp.work_email || emp.personal_email;
+                    const attendanceBadge = getEmployeeAttendanceBadge(emp);
 
                     return (
                       <tr
@@ -219,19 +248,9 @@ export default function DepartmentDetail() {
 
                         <td>
                           <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              emp.status === "active"
-                                ? "bg-green-100 text-green-600"
-                                : emp.status === "probation"
-                                ? "bg-blue-100 text-blue-600"
-                                : "bg-gray-200 text-gray-500"
-                            }`}
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${attendanceBadge.className}`}
                           >
-                            {emp.status === "active"
-                              ? "Đang làm việc"
-                              : emp.status === "probation"
-                              ? "Thử việc"
-                              : "Nghỉ việc"}
+                            {attendanceBadge.label}
                           </span>
                         </td>
                       </tr>

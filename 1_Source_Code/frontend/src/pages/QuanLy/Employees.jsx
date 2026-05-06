@@ -81,17 +81,20 @@ export default function EmployeeManagement() {
   };
 
   // 🎨 HÀM XỬ LÝ MÀU SẮC TRẠNG THÁI
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'active':
-        return { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' };
-      case 'on_leave':
-        return { bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-500' };
-      case 'inactive':
-        return { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400' };
-      default:
-        return { bg: 'bg-gray-50', text: 'text-gray-600', dot: 'bg-gray-400' };
+  const getAttendanceBadge = (emp) => {
+    if (emp.status === 'inactive') {
+      return { text: emp.statusText || 'Đã nghỉ việc', bg: 'bg-gray-100', textColor: 'text-gray-500', dot: 'bg-gray-400' };
     }
+
+    if (emp.has_checked_out || emp.check_out_time) {
+      return { text: 'Đã check-out', bg: 'bg-slate-100', textColor: 'text-slate-600', dot: 'bg-slate-400' };
+    }
+
+    if (emp.has_checked_in || emp.check_in_time) {
+      return { text: 'Đang làm việc', bg: 'bg-emerald-50', textColor: 'text-emerald-600', dot: 'bg-emerald-500' };
+    }
+
+    return { text: 'Chưa check-in', bg: 'bg-amber-50', textColor: 'text-amber-600', dot: 'bg-amber-500' };
   };
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -260,7 +263,7 @@ export default function EmployeeManagement() {
             </thead>
             <tbody>
               {currentEmployees.map((emp) => {
-                const styles = getStatusStyle(emp.status);
+                const badge = getAttendanceBadge(emp);
                 
                 return (
                   <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
@@ -290,9 +293,9 @@ export default function EmployeeManagement() {
                     <td className="py-4 px-4 text-sm text-slate-600">{emp.position}</td>
                     <td className="py-4 px-4 text-sm font-medium text-slate-700">{emp.department}</td>
                     <td className="py-4 px-4 text-center">
-                      <span className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${styles.bg} ${styles.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${styles.dot}`}></span>
-                        {emp.statusText}
+                      <span className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.textColor}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span>
+                        {badge.text}
                       </span>
                     </td>
                     <td className="py-4 px-4">

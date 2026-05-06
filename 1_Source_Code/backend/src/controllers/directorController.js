@@ -261,9 +261,17 @@ const getEmployeesByDepartment = async (req, res) => {
         emp.personal_email,
         emp.status,
         emp.avatar_url,
-        p.position_name
+        p.position_name,
+        a.status AS attendance_status,
+        a.check_in_time,
+        a.check_out_time,
+        (a.check_in_time IS NOT NULL) AS has_checked_in,
+        (a.check_out_time IS NOT NULL) AS has_checked_out
       FROM employee emp
       INNER JOIN position p ON emp.position_id = p.id
+      LEFT JOIN attendance a
+        ON a.employee_id = emp.id
+        AND a.attendance_date = CURRENT_DATE
       WHERE p.department_id = :id
       ORDER BY emp.full_name
     `, {

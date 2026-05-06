@@ -650,6 +650,16 @@
   gap: 4px;
 }
 
+.status-rejected {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 @keyframes modalSlideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }

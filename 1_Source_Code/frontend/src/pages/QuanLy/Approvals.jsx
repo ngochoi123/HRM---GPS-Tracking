@@ -129,6 +129,8 @@ const Approvals = () => {
   try {
     await managerApprovals.rejectRequest(type, id, user.id, reason);
     setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
+    const resApproved = await managerApprovals.getApprovalHistory(user.id);
+    setApprovedRequests(resApproved.data || resApproved);
     alert("Đã từ chối đơn!");
   } catch (err) {
     console.log("REJECT ERROR:", err.response?.data || err.message);
@@ -428,15 +430,10 @@ const handleApproveAll = async () => {
                         </div>
                         
                         <div className="history-meta">
-                          {req.status === 'approved' ? (
-                            <span className="status-approved">
-                              <CiCircleCheck size={16} /> Đã duyệt
-                            </span>
-                          ) : (
-                            <span className="status-rejected" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', fontWeight: '500' }}>
-                              <IoCloseCircleOutline size={16} /> Đã từ chối
-                            </span>
-                          )}
+                          <span className={req.status === 'rejected' ? 'status-rejected' : 'status-approved'}>
+                            {req.status === 'approved' && <CiCircleCheck size={16} />}
+                            {req.status === 'rejected' ? 'Từ chối' : 'Đã duyệt'}
+                          </span>
                           <span className="history-time">
                             {moment(req.updated_at).calendar(null, {
                               sameDay: '[Hôm nay lúc] HH:mm',
