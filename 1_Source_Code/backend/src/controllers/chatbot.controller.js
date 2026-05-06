@@ -427,7 +427,8 @@ exports.chat = async (req, res) => {
 
     const replyContent = aiResponse?.message?.content || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này. Vui lòng thử lại.';
 
-    // ── BƯỚC 4 (Tùy chọn): Lưu lịch sử chat vào Database ──
+    // ── BƯỚC 4: Chatbot hoạt động ở chế độ Stateless (Không lưu lịch sử để tiết kiệm tài nguyên) ──
+    /*
     try {
       await sequelize.query(
         `INSERT INTO chat_histories (employee_id, role, content, created_at)
@@ -442,9 +443,9 @@ exports.chat = async (req, res) => {
         }
       );
     } catch (dbErr) {
-      // Không block response nếu lưu DB thất bại (bảng có thể chưa tồn tại)
       console.warn('⚠️ [Chatbot] Không thể lưu lịch sử chat:', dbErr.message);
     }
+    */
 
     // ── BƯỚC 5: Trả kết quả ──
     return res.status(200).json({
@@ -466,59 +467,9 @@ exports.chat = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 exports.getChatHistory = async (req, res) => {
-  try {
-    const currentUser = req.user;
-    if (!currentUser) {
-      return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
-    }
-
-    // RBAC: Chỉ EMPLOYEE
-    const userRole = (currentUser.role || currentUser.role_code || '').toUpperCase();
-    if (userRole !== 'EMPLOYEE') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chức năng chỉ dành cho nhân viên.'
-      });
-    }
-
-    // Lấy employee_id từ token
-    let employeeId = currentUser.employee_id;
-    if (!employeeId) {
-      const ua = await UserAccount.findOne({
-        where: { id: currentUser.id },
-        attributes: ['employee_id']
-      });
-      if (!ua) {
-        return res.status(403).json({ success: false, message: 'Không tìm thấy nhân viên.' });
-      }
-      employeeId = ua.employee_id;
-    }
-
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
-
-    const history = await sequelize.query(
-      `SELECT role, content, created_at
-       FROM chat_histories
-       WHERE employee_id = :employeeId
-         AND created_at >= (CURRENT_TIMESTAMP - INTERVAL '24 hours')
-       ORDER BY created_at DESC
-       LIMIT :limit`,
-      {
-        replacements: { employeeId, limit },
-        type: QueryTypes.SELECT
-      }
-    );
-
-    return res.status(200).json({
-      success: true,
-      data: history.reverse() // Đảo lại thành thứ tự thời gian tăng dần
-    });
-
-  } catch (error) {
-    console.error('❌ [Chatbot] Lỗi lấy lịch sử chat:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi tải lịch sử chat.'
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    data: [],
+    message: 'Chế độ Stateless đang bật: Lịch sử chat không được lưu trữ.'
+  });
 };
