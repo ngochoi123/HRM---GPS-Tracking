@@ -74,9 +74,9 @@ useEffect(() => {
 }, [user?.id]);
 
 const handleSubmit = async () => {
-  if (new Date(form.date) < new Date(today)) {
+  if (new Date(form.date) >= new Date(today)) {
     setShowConfirmSubmit(false);
-    setNotification({ message: "Lỗi logic: Không được chọn ngày trong quá khứ!", type: "error" });
+    setNotification({ message: "Không được chọn ngày chưa diễn ra!", type: "error" });
     setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
@@ -427,6 +427,7 @@ const filteredRequests = filterMonth
                                     type="date"
                                     className="input-option"
                                     value={form.date}
+                                    max={today}
                                     onChange={(e) =>
                                         setForm({ ...form, date: e.target.value })
                                     }

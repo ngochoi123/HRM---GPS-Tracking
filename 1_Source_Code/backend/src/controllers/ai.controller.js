@@ -73,7 +73,6 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1); // Ngày 1 của tháng hiện tại
     const startDateStr = monthStart.toISOString().slice(0, 10);
     const monthLabel = `${today.getMonth() + 1}/${today.getFullYear()}`;
-    console.log(`\n📅 [AI] Phân tích tháng: ${monthLabel} (từ ${startDateStr} đến ngày ${today.getDate() - 1}/${today.getMonth() + 1})`);
 
     const employees = await Employee.findAll({
       where: whereClause,
@@ -252,8 +251,6 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     const employeeStats = empIds.map(id => {
       const s = empMap[id];
       const absentCount = Math.max(0, Math.round((pastWorkingDays - s.presentCount - s.approvedLeaveCount) * 100) / 100);
-      // 📊 DEBUG LOG
-      console.log(`📊 [AI] ${s.full_name}: WorkDays=${pastWorkingDays} | Present=${s.presentCount} | TotalHrs=${s.totalWorkHours} | OT=${s.otHours} | Absent=${absentCount} | GPS_Fraud=${s.gpsFraudCount}`);
       return { id, ...s, pastWorkingDays, absentCount };
     });
 
@@ -311,7 +308,6 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     // ═══════════════════════════════════════════════════════════════
     const BATCH_SIZE = 1; // 1:1 — Mỗi nhân viên 1 lượt AI để đảm bảo không rớt dữ liệu và insight sâu nhất.
     const totalBatches = Math.ceil(employeesToProcess.length / BATCH_SIZE);
-    console.log(`⏳ [AI] Bắt đầu phân tích ${employeesToProcess.length} nhân viên, tổng ${totalBatches} batch...\n`);
     const results = [];
 
     for (let i = 0; i < employeesToProcess.length; i += BATCH_SIZE) {
@@ -337,7 +333,6 @@ Nhân viên ${idx + 1} (employee_id: "${s.id}"):
 
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       const empName = batch.map(s => s.full_name).join(', ');
-      console.log(`⏳ [AI Batch ${batchNum}/${totalBatches}] Đang gửi Ollama: ${empName}...`);
 
 const batchPrompt = `
 Phân tích rủi ro nghỉ việc CHUYÊN SÂU cho ${batch.length} nhân viên trong tháng ${monthLabel} dựa trên các số liệu sau:
@@ -527,8 +522,6 @@ Yêu cầu bắt buộc:
             results.push({ employee: stat?.full_name || alert.employee_id, alert });
           }
         }
-
-        console.log(`✅ [AI Batch ${batchNum}/${totalBatches}] ${empName}: Đã tạo ${alertsToCreate.length} alert (risk: ${alertsToCreate[0]?.risk_level || 'N/A'}).`);
 
       } catch (batchErr) {
         console.error(`❌ [AI Batch ${batchNum}/${totalBatches}] Lỗi khi phân tích ${empName}:`, batchErr.message);

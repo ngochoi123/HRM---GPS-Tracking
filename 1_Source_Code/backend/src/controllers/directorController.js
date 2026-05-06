@@ -2250,7 +2250,7 @@ const getDirectorApprovalsOverview = async (req, res) => {
         return false;
       }
       return true;
-    });
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     res.json({
       success: true,

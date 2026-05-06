@@ -6,16 +6,15 @@ import {
   RefreshCw, X, Terminal, Timer, ShieldAlert, UserMinus, Crosshair,
   Activity, Target, ThumbsUp, ThumbsDown, Gauge, CalendarClock, Zap
 } from 'lucide-react';
+import { useAIProgress } from '../../../contexts/AIProgressContext';
 
 
 export default function AITurnoverDashboard() {
   const [staffData, setStaffData] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [batchLogs, setBatchLogs] = useState([]);
-  const [totalBatchesExpected, setTotalBatchesExpected] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [error, setError] = useState(null);
+  
+  // Dùng Global Context thay vì Local State để không bị mất kết nối khi rời trang
+  const { isAnalyzing, error, runAIAnalysis } = useAIProgress();
   
   const [stats, setStats] = useState({
     total: 0, highRisk: 0, medRisk: 0, lowRisk: 0, fraudCount: 0
@@ -23,97 +22,30 @@ export default function AITurnoverDashboard() {
 
   const fetchAlerts = useCallback(async () => {
     try {
+      const processAlertData = (data) => {
+        setStaffData(data);
+        setStats({
+          total: data.length,
+          highRisk: data.filter(i => i.risk_level === 'HIGH' && i.alert_type !== 'FRAUD_DETECTION').length,
+          medRisk: data.filter(i => i.risk_level === 'MEDIUM').length,
+          lowRisk: data.filter(i => i.risk_level === 'LOW').length,
+          fraudCount: data.filter(i => i.alert_type === 'FRAUD_DETECTION').length
+        });
+      };
+
       // Giả lập gọi API, nếu lỗi sẽ dùng Mock Data
       const token = localStorage.getItem('token');
       const response = await axios.get('http://localhost:5000/api/ai/alerts', { headers: { Authorization: `Bearer ${token}` } });
       processAlertData(response.data.data);
     } catch {
       console.warn("Không kết nối được API");
-   
     }
   }, []);
 
-  const processAlertData = (data) => {
-    setStaffData(data);
-    setStats({
-      total: data.length,
-      highRisk: data.filter(i => i.risk_level === 'HIGH' && i.alert_type !== 'FRAUD_DETECTION').length,
-      medRisk: data.filter(i => i.risk_level === 'MEDIUM').length,
-      lowRisk: data.filter(i => i.risk_level === 'LOW').length,
-      fraudCount: data.filter(i => i.alert_type === 'FRAUD_DETECTION').length
-    });
-  }
-
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
-  const handleRunAnalysis = async () => {
-    setIsAnalyzing(true);
-    setError(null);
-    setBatchLogs([]);
-    setTotalBatchesExpected(0);
-    setElapsed(0);
-
-    const elapsedInterval = setInterval(() => setElapsed(prev => prev + 1), 1000);
-    const token = localStorage.getItem('token');
-
-    const es = new EventSource(`http://localhost:5000/api/ai/analyze-stream?_t=${Date.now()}`, {
-      headers: undefined // EventSource tự gắn header, nhưng không hỗ trợ Authorization
-    });
-
-    // Workaround: dùng fetch với ReadableStream thay vì EventSource để gửi token
-    clearInterval(elapsedInterval);
-    es.close();
-
-    // ── Dùng fetch + ReadableStream để hỗ trợ Bearer token ──
-    const elapsedTimer = setInterval(() => setElapsed(prev => prev + 1), 1000);
-    const addLog = (entry) => setBatchLogs(prev => [...prev, entry]);
-
-    try {
-      const response = await fetch('http://localhost:5000/api/ai/analyze-stream', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === 'start') {
-              setTotalBatchesExpected(event.total);
-              addLog({ type: 'start', text: `📅 Phân tích tháng ${event.month} — ${event.pastWorkingDays} ngày làm việc đã qua. Tổng ${event.total} nhân viên.` });
-            } else if (event.type === 'batch_start') {
-              addLog({ type: 'pending', text: `⏳ [${event.batchNum}/${event.totalBatches}] Đang phân tích: ${event.name} (Vắng: ${event.absentCount} ngày)...` });
-            } else if (event.type === 'batch_done') {
-              const riskColor = event.risk === 'HIGH' ? 'high' : event.risk === 'MEDIUM' ? 'medium' : 'low';
-              addLog({ type: 'done', risk: riskColor, text: `✅ [${event.batchNum}/${event.totalBatches}] ${event.name}: ${event.risk}${event.risk_score != null ? ` (Score: ${event.risk_score})` : ''}` });
-            } else if (event.type === 'batch_error') {
-              addLog({ type: 'error', text: `❌ [${event.batchNum}/${event.totalBatches}] Lỗi ${event.name}: ${event.message}` });
-            } else if (event.type === 'complete') {
-              addLog({ type: 'complete', text: `🎉 Hoàn tất! Đã phân tích ${event.total} nhân viên. Đang tải dữ liệu...` });
-            } else if (event.type === 'error') {
-              addLog({ type: 'error', text: `❌ Lỗi hệ thống: ${event.message}` });
-            }
-          } catch (err) {
-            console.error('Error parsing SSE event:', err);
-          }
-        }
-      }
-      await fetchAlerts();
-    } catch (err) {
-      setError(err.message || 'Lỗi kết nối SSE.');
-    } finally {
-      clearInterval(elapsedTimer);
-      setElapsed(0);
-      setIsAnalyzing(false);
-    }
+  const handleRunAnalysis = () => {
+    runAIAnalysis(fetchAlerts); // Chạy và reload lại dữ liệu khi xong
   };
 
   const parseAiMessage = (msg) => {
@@ -183,7 +115,7 @@ export default function AITurnoverDashboard() {
               <p className="text-red-600 text-xs">{error}</p>
             </div>
           </div>
-          <button onClick={() => setError(null)}><X className="w-4 h-4 text-red-400" /></button>
+          <button onClick={() => {}}><X className="w-4 h-4 text-red-400" /></button>
         </div>
       )}
 
@@ -324,69 +256,7 @@ export default function AITurnoverDashboard() {
         </div>
       </div>
 
-      {/* TERMINAL LOADING */}
-      {isAnalyzing && (
-        <div className="fixed inset-0 z-[100] bg-[#0f172a]/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in px-4">
-          <div className="w-full max-w-xl bg-[#1e293b] rounded-xl overflow-hidden shadow-2xl border border-gray-700">
-            {/* Terminal Title Bar */}
-            <div className="bg-[#0f172a] px-4 py-3 flex items-center justify-between border-b border-gray-700">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-gray-300 font-mono">Qwen2.5 HR Watchdog — SSE Live Stream</span>
-              </div>
-              <div className="flex items-center gap-2 bg-emerald-900/30 px-2.5 py-1 rounded-md border border-emerald-500/30">
-                <Timer className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs text-emerald-400 font-mono font-bold">
-                  {totalBatchesExpected > 0
-                    ? `${batchLogs.filter(l => l.type === 'done' || l.type === 'error').length}/${totalBatchesExpected} nhân viên`
-                    : `Đang khởi tạo... (${elapsed}s)`}
-                </span>
-              </div>
-            </div>
 
-            {/* Progress Bar */}
-            {totalBatchesExpected > 0 && (
-              <div className="w-full bg-gray-800 h-1">
-                <div
-                  className="h-1 bg-emerald-400 transition-all duration-500"
-                  style={{ width: `${Math.round((batchLogs.filter(l => l.type === 'done' || l.type === 'error').length / totalBatchesExpected) * 100)}%` }}
-                />
-              </div>
-            )}
-
-            {/* Log Area */}
-            <div
-              className="p-4 font-mono text-xs flex flex-col gap-1.5 h-72 overflow-y-auto bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"
-              ref={el => { if (el) el.scrollTop = el.scrollHeight; }}
-            >
-              {batchLogs.length === 0 && (
-                <div className="text-gray-500 animate-pulse">
-                  <span className="text-purple-400">~/ai-module/watchdog $ </span>
-                  Đang kết nối SSE stream...<span className="inline-block w-2 h-4 bg-emerald-400 ml-1 align-middle animate-ping"></span>
-                </div>
-              )}
-              {batchLogs.map((log, idx) => (
-                <div key={idx} className={`leading-relaxed ${
-                  log.type === 'done' && log.risk === 'high' ? 'text-red-400' :
-                  log.type === 'done' && log.risk === 'medium' ? 'text-yellow-400' :
-                  log.type === 'done' ? 'text-emerald-400' :
-                  log.type === 'error' ? 'text-red-400' :
-                  log.type === 'complete' ? 'text-cyan-400' :
-                  log.type === 'start' ? 'text-cyan-300' :
-                  'text-gray-400'
-                }`}>
-                  {log.type === 'pending' && <span className="text-purple-400">~/ai $ </span>}
-                  {log.text}
-                </div>
-              ))}
-            </div>
-
-            <div className="px-4 py-2 bg-[#0f172a] border-t border-gray-700 text-center">
-              <span className="text-[10px] text-gray-500 font-mono">Thời gian chạy: {elapsed}s • Mô hình: qwen2.5:7b</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL PHÂN TÍCH SÂU */}
       {selectedStaff && (() => {

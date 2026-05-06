@@ -1555,7 +1555,6 @@ const getAttendanceStats = async (req, res) => {
         AND a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
       WHERE 1=1 ${scopingClause}
       GROUP BY d.id, d.department_name
-      HAVING COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave', 'late_early_leave')) > 0
       ORDER BY incident_count DESC
       `,
       {
@@ -1765,18 +1764,17 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
       SELECT 
         d.id AS department_id,
         d.department_name,
-        COUNT(e.id) AS headcount,
+        COUNT(DISTINCT e.id) AS headcount,
         COALESCE(SUM(p.net_salary - p.total_allowance + p.total_deduction), 0) AS total_base_salary,
         COALESCE(SUM(p.total_allowance), 0) AS total_allowance,
         COALESCE(SUM(p.total_deduction), 0) AS total_deduction,
-        -- Cột Tổng chi phí của bảng xếp hạng phòng ban:
         COALESCE(SUM(p.net_salary + p.total_deduction), 0) AS total_gross_salary,
         COALESCE(SUM(p.net_salary), 0) AS total_net_salary
-      FROM payroll p
-      JOIN employee e ON p.employee_id = e.id
-      LEFT JOIN position pos ON e.position_id = pos.id
-      LEFT JOIN department d ON pos.department_id = d.id
-      WHERE p.month_year = :monthYear
+      FROM department d
+      LEFT JOIN "position" pos ON d.id = pos.department_id
+      LEFT JOIN employee e ON pos.id = e.position_id AND e.status = 'active'
+      LEFT JOIN payroll p ON e.id = p.employee_id AND p.month_year = :monthYear
+      WHERE 1=1
         ${scopingClause}
       GROUP BY d.id, d.department_name
       ORDER BY total_net_salary DESC
