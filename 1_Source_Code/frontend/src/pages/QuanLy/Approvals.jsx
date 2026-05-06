@@ -444,7 +444,7 @@ const handleApproveAll = async () => {
                           </span>
                         </div>
                         {req.status === 'rejected' && req.reject_reason && (
-                          <div style={{ marginTop: '6px', padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '12px', color: '#b91c1c', lineHeight: '1.5' }}>
+                          <div style={{ width: '100%', marginTop: '6px', padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '12px', color: '#b91c1c', lineHeight: '1.5' }}>
                             <strong>Lý do từ chối:</strong> {req.reject_reason}
                           </div>
                         )}

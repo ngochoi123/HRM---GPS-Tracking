@@ -936,27 +936,41 @@ export default function ApprovalsDirector() {
                     )}
                   </div>
                 )}
+                {previewItem.status === 'rejected' && previewItem.reject_reason && (
+                  <div className="preview-request-note spotlight" style={{ background: '#fef2f2', borderColor: '#fecaca', marginTop: '14px', boxShadow: '0 18px 36px rgba(225, 29, 72, 0.12)' }}>
+                    <h5 style={{ color: '#b91c1c' }}>Lý do từ chối</h5>
+                    <p style={{ color: '#7f1d1d' }}>{previewItem.reject_reason}</p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="preview-actions">
-              <button
-                type="button"
-                className="reject-btn"
-                onClick={() => { setRejectTarget(previewItem); setRejectReason(''); setShowRejectModal(true); }}
-                disabled={submitting}
-              >
-                Từ chối
-              </button>
-              <button
-                type="button"
-                className="approve-btn"
-                onClick={() => handleAction(previewItem.type, previewItem.id, 'approve')}
-                disabled={submitting}
-              >
-                <CheckSquare size={16} />
-                Duyệt yêu cầu
-              </button>
+              {previewItem.status && previewItem.status !== 'pending' ? (
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '12px', color: '#64748b', fontWeight: 'bold' }}>
+                   Yêu cầu này đã được xử lý ({previewItem.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối'})
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="reject-btn"
+                    onClick={() => { setRejectTarget(previewItem); setRejectReason(''); setShowRejectModal(true); }}
+                    disabled={submitting}
+                  >
+                    Từ chối
+                  </button>
+                  <button
+                    type="button"
+                    className="approve-btn"
+                    onClick={() => handleAction(previewItem.type, previewItem.id, 'approve')}
+                    disabled={submitting}
+                  >
+                    <CheckSquare size={16} />
+                    Duyệt yêu cầu
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -52,7 +52,7 @@ body {
 
 /* --- FIX LỖI CHỮ SỐ (TIME TEXT) --- */
 .time-text {
-  font-size: clamp(64px, 5.2vw, 82px);
+  font-size: clamp(48px, 4vw, 64px);
   font-weight: 800;
   margin: 0 0 14px;
   background: linear-gradient(135deg, #1da053 0%, #3b82f6 100%);
@@ -64,7 +64,7 @@ body {
   line-height: 1;
 }
 
-.date-text { color: var(--text-gray); font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+.date-text { color: var(--text-gray); font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 
 .status-badge {
   background-color: #dcfce7;
@@ -117,11 +117,11 @@ body {
 .checkin-button {
   background: linear-gradient(135deg, #1da053, #4338ca);
   border: none;
-  padding: 14px 0;
-  width: 190px;
+  padding: 10px 0;
+  width: 150px;
   border-radius: 50px;
   color: white;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(67, 56, 202, 0.2);
@@ -169,9 +169,9 @@ body {
 .stat-icon-wrapper.warning { background-color: #fef3c7; color: #d97706; }
 .stat-icon-wrapper.danger { background-color: #fee2e2; color: #dc2626; }
 
-.stat-card p { font-size: 15px; line-height: 1.45; }
+.stat-card p { font-size: 14px; line-height: 1.45; }
 
-.stat-card h3 { font-size: 36px; margin: 0; font-weight: 500; line-height: 1.1; }
+.stat-card h3 { font-size: 32px; margin: 0; font-weight: 500; line-height: 1.1; }
 
 /* --- CỘT PHẢI --- */
 .info-card, .notification-card {
@@ -184,8 +184,8 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  padding: 14px 0;
-  font-size: 14px;
+  padding: 12px 0;
+  font-size: 13px;
 }
 
 .time-value { font-weight: 700; color: var(--primary-green); }
@@ -248,7 +248,7 @@ body {
 
 .section-title {
   color: var(--text-dark);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
 }
 

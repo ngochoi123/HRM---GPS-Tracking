@@ -1,6 +1,6 @@
 .employee-payroll-page {
   min-height: 100%;
-  padding: 24px;
+  padding: 20px;
 }
 
 .employee-payroll-shell {
@@ -30,7 +30,7 @@
   gap: 10px;
   margin: 0;
   color: #1d2939;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
 }
 
@@ -121,12 +121,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 11px 18px;
+  padding: 9px 16px;
   border: none;
   border-radius: 12px;
   background: linear-gradient(135deg, #05b52f 0%, #049b26 100%);
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(8, 173, 53, 0.24);
@@ -182,7 +182,7 @@
   display: flex;
   align-items: baseline;
   gap: 10px;
-  font-size: 44px;
+  font-size: 32px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -306,7 +306,7 @@
 .employee-payroll-list-row p {
   margin: 0;
   color: #263140;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -324,7 +324,7 @@
 .employee-payroll-list-row strong {
   white-space: nowrap;
   color: #263140;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -351,7 +351,7 @@
 
 .employee-payroll-total-strip strong {
   color: #1f2937;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 900;
 }
 

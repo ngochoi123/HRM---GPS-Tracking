@@ -88,31 +88,27 @@
 }
 
 .approvals-btn-history {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  border-radius: 12px;
-  
-  
-  background: #ffffff; 
-  border: 1px solid #e2e8f0; 
-  color: #475569;           
-  
-  font-size: 14px;
-  font-weight: 600;
+  padding: 12px 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .approvals-btn-history:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
+  color: #0f172a;
   transform: translateY(-1px);
-  color: #1e293b;
-}
-.approvals-btn-history:active {
-  transform: scale(0.98);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
 }
 
 .approvals-btn-all {
@@ -586,6 +582,7 @@
 
 .history-item {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding: 14px 18px;

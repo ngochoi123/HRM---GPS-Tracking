@@ -10,7 +10,7 @@
 
 /* Sidebar bên trái */
 .sidebar {
-  width: 280px;
+  width: 260px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -28,12 +28,12 @@
 .menu-item {
   display: flex;
   align-items: center;
-  padding: 14px 20px;
+  padding: 12px 16px;
   text-decoration: none;
   color: #6b7280; /* Màu xám chữ */
   font-weight: 500;
-  border-radius: 16px; /* Bo góc tròn lớn theo UI */
-  margin-bottom: 8px;
+  border-radius: 12px; /* Bo góc tròn vừa phải */
+  margin-bottom: 6px;
   transition: all 0.3s ease;
   font-size: 15px;
 
@@ -104,7 +104,7 @@
 
 /* Khu vực hiển thị trang con */
 .content-body {
-  padding: 0 40px 40px 40px;
+  padding: 0 24px 24px 24px;
   flex: 1;
 }
 
@@ -274,4 +274,45 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* --- SUBMENU ALIGNMENT (NO INDENTATION) --- */
+.submenu {
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease-out;
+  padding-left: 0 !important; /* Loại bỏ hoàn toàn thụt lề */
+}
+
+.submenu.open {
+  max-height: 500px;
+  margin-bottom: 10px;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px !important; /* Cùng padding-left với menu-item cha (16px) */
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  transition: all 0.2s ease;
+}
+
+.submenu-item:hover {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+.submenu-item.active {
+  background-color: #f0fdf4;
+  color: #1da053;
+  font-weight: 600;
+}
+
+.submenu-item svg {
+  margin-right: 14px !important; /* Đồng bộ khoảng cách icon với menu cha */
 }

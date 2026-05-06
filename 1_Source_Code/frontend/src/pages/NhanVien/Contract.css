@@ -18,14 +18,14 @@
 
 
 .header-left h2 {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 700;
   margin: 0;
 }
 
 .header-left p {
   color: #888;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   
 }
 
@@ -65,7 +65,7 @@
 .section-title {
   display: flex;
   align-items: center;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #2c3e50;
   margin-bottom: 15px;
@@ -117,9 +117,9 @@
 .btn-back {
     background-color: #E8ECF0; 
     border: none;
-    padding: 8px 16px;
+    padding: 6px 12px;
     border-radius: 6px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     cursor: pointer;
     color: #495057;
     align-items: center;

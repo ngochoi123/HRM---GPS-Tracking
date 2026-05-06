@@ -32,7 +32,6 @@ const SidebarQuanLy = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ✅ THÊM STATE
-  const [openStats, setOpenStats] = useState(false);
   // 1. Thêm state để lưu lại URL trước đó
   const [prevPath, setPrevPath] = useState(location.pathname);
 
@@ -55,6 +54,16 @@ const SidebarQuanLy = () => {
   
 
   const managementItems = [
+    {
+      path: '/QuanLy/statistics',
+      label: 'Thống kê',
+      icon: <Calculator size={20} />,
+      children: [
+        { path: '/QuanLy/statistics/requests', label: 'Đơn từ & phê duyệt' },
+        { path: '/QuanLy/statistics/changes', label: 'Biến động nhân sự' },
+        { path: '/QuanLy/statistics/attendance', label: 'Chấm công & chuyên cần' }
+      ]
+    },
     { path: '/QuanLy/Employees', icon: <Users size={20} />, label: 'Quản lý nhân sự' },
     { path: '/QuanLy/Payroll/payroll', icon: <FileSpreadsheet size={20} />, label: 'Quản lý bảng lương' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
@@ -62,6 +71,21 @@ const SidebarQuanLy = () => {
     { path: '/QuanLy/recommendations', icon: <Sparkles size={20} />, label: 'Đề xuất & Cảnh báo' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];  
+
+  // Thêm logic xử lý cho openMenu của Management
+  const [openMgmtMenu, setOpenMgmtMenu] = useState(() => {
+    const index = managementItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    return index !== -1 ? index : null;
+  });
+
+  if (location.pathname !== prevPath) {
+    const mgmtIndex = managementItems.findIndex(item =>
+      item.children?.some(child => location.pathname.startsWith(child.path))
+    );
+    if (mgmtIndex !== -1) setOpenMgmtMenu(mgmtIndex);
+  }
 
   const confirmLogout = () => {
     localStorage.removeItem('user');
@@ -91,6 +115,7 @@ const SidebarQuanLy = () => {
     {item.children ? (
       <div
        className={`menu-item ${
+        openMenu === index ||
         location.pathname.startsWith(item.path) ||
         item.children?.some(child => location.pathname.startsWith(child.path))
           ? 'active'
@@ -122,7 +147,7 @@ const SidebarQuanLy = () => {
             key={child.path}
             to={child.path}
             className={`submenu-item ${
-              location.pathname.startsWith(child.path) ? "active" : ""
+              location.pathname === child.path ? "active" : ""
             }`}
           >
             <FaAngleRight style={{ marginRight: "8px", fontSize: "12px" }} />
@@ -141,43 +166,47 @@ const SidebarQuanLy = () => {
             QUẢN LÝ TRUNG TÂM
           </p>
 
-          {/* ✅ THỐNG KÊ DROPDOWN */}
-          <div 
-            className="menu-item"
-            onClick={() => setOpenStats(!openStats)}
-            style={{ cursor: 'pointer' }}
-          >
-            <Calculator size={20} />
-            <span style={{ marginLeft: '12px' }}>Thống kê</span>
-          </div>
-
-          {openStats && (
-            <>
-              <Link to="/QuanLy/statistics/requests" className="menu-item">
-                <span style={{ marginLeft: '32px' }}>- Đơn từ & phê duyệt</span>
-              </Link>
-
-              <Link to="/QuanLy/statistics/changes" className="menu-item">
-                <span style={{ marginLeft: '32px' }}>- Biến động nhân sự</span>
-              </Link>
-
-              <Link to="/QuanLy/statistics/attendance" className="menu-item">
-                <span style={{ marginLeft: '32px' }}>- Chấm công & chuyên cần</span>
-              </Link>
-            </>
-          )}
-
-          {/* MENU CŨ (GIỮ NGUYÊN) */}
-          {managementItems.map((item) => (
-            <Link 
-              key={item.path} 
-              to={item.path} 
-              className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
-            >
-              {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
-            </Link>
+          {managementItems.map((item, index) => (
+            <div key={index}>
+              {item.children ? (
+                <>
+                  <div 
+                    className={`menu-item ${
+                      openMgmtMenu === index ||
+                      location.pathname.startsWith(item.path) ||
+                      item.children?.some(child => location.pathname.startsWith(child.path))
+                        ? 'active' : ''
+                    }`}
+                    onClick={() => setOpenMgmtMenu(openMgmtMenu === index ? null : index)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {item.icon}
+                    <span style={{ marginLeft: '12px' }}>{item.label}</span>
+                  </div>
+                  <div className={`submenu ${openMgmtMenu === index ? "open" : ""}`}>
+                    {item.children.map((child) => (
+                      <Link 
+                        key={child.path}
+                        to={child.path}
+                        className={`submenu-item ${location.pathname === child.path ? 'active' : ''}`}
+                      >
+                        <FaAngleRight style={{ marginRight: "8px", fontSize: "12px" }} />
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <Link 
+                  to={item.path} 
+                  className={`menu-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
+                  onClick={() => setOpenMgmtMenu(null)}
+                >
+                  {item.icon} <span style={{ marginLeft: '12px' }}>{item.label}</span>
+                </Link>
+              )}
+            </div>
           ))}
-
         </nav>
       </div>
 

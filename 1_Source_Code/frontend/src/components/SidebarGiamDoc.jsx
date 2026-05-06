@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { FaAngleRight } from "react-icons/fa";
 import { 
   Home, Building, Users, FileText, MapPin, 
   Briefcase, CheckSquare, Settings, HelpCircle, 
@@ -16,7 +17,16 @@ const SidebarGiamDoc = () => {
   
   // Khởi tạo state: Nếu URL chứa '/QuanLy/statistics' thì mở luôn từ đầu
   // Xóa bỏ useEffect để tránh lỗi cascading renders của ESLint
+  // Khởi tạo state: Nếu URL chứa '/QuanLy/statistics' thì mở luôn từ đầu
   const [openStats, setOpenStats] = useState(location.pathname.includes('/QuanLy/statistics'));
+
+  const statsItems = [
+    { path: '/QuanLy/statistics/requests', label: 'Đơn từ & phê duyệt' },
+    { path: '/QuanLy/statistics/contracts', label: 'Hợp đồng lao động' },
+    { path: '/QuanLy/statistics/changes', label: 'Biến động nhân sự' },
+    { path: '/QuanLy/statistics/salary', label: 'Lương & chi phí' },
+    { path: '/QuanLy/statistics/attendance', label: 'Chấm công & chuyên cần' }
+  ];
 
   const menuItems = [
     { path: '/GiamDoc/dashboard', icon: <Home size={20} />, label: 'Trang chủ' },
@@ -70,7 +80,9 @@ const SidebarGiamDoc = () => {
 
         {/* ✅ THỐNG KÊ DROPDOWN (Dùng chung link của Quản lý) */}
         <div 
-          className={`menu-item ${location.pathname.includes('/QuanLy/statistics') && !openStats ? 'active' : ''}`}
+          className={`menu-item ${
+            openStats || location.pathname.includes('/QuanLy/statistics') ? 'active' : ''
+          }`}
           onClick={() => setOpenStats(!openStats)}
           style={{ cursor: 'pointer' }}
         >
@@ -78,29 +90,18 @@ const SidebarGiamDoc = () => {
           <span style={{ marginLeft: '12px' }}>Thống kê</span>
         </div>
 
-        {openStats && (
-          <div className="mb-2">
-            <Link to="/QuanLy/statistics/requests" className={`menu-item ${location.pathname.includes('/QuanLy/statistics/requests') ? 'active' : ''}`}>
-              <span style={{ marginLeft: '32px' }}>- Đơn từ & phê duyệt</span>
+        <div className={`submenu ${openStats ? "open" : ""}`}>
+          {statsItems.map((child) => (
+            <Link 
+              key={child.path}
+              to={child.path} 
+              className={`submenu-item ${location.pathname === child.path ? 'active' : ''}`}
+            >
+              <FaAngleRight style={{ marginRight: "8px", fontSize: "12px" }} />
+              {child.label}
             </Link>
-
-            <Link to="/QuanLy/statistics/contracts" className={`menu-item ${location.pathname.includes('/QuanLy/statistics/contracts') ? 'active' : ''}`}>
-              <span style={{ marginLeft: '32px' }}>- Hợp đồng lao động</span>
-            </Link>
-
-            <Link to="/QuanLy/statistics/changes" className={`menu-item ${location.pathname.includes('/QuanLy/statistics/changes') ? 'active' : ''}`}>
-              <span style={{ marginLeft: '32px' }}>- Biến động nhân sự</span>
-            </Link>
-
-            <Link to="/QuanLy/statistics/salary" className={`menu-item ${location.pathname.includes('/QuanLy/statistics/salary') ? 'active' : ''}`}>
-              <span style={{ marginLeft: '32px' }}>- Lương & chi phí</span>
-            </Link>
-
-            <Link to="/QuanLy/statistics/attendance" className={`menu-item ${location.pathname.includes('/QuanLy/statistics/attendance') ? 'active' : ''}`}>
-              <span style={{ marginLeft: '32px' }}>- Chấm công & chuyên cần</span>
-            </Link>
-          </div>
-        )}
+          ))}
+        </div>
       </nav>
 
       {/* 3. MENU FOOTER (SUPPORT) */}
