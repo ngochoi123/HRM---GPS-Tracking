@@ -1590,11 +1590,11 @@ const getAttendanceStats = async (req, res) => {
             WHEN a.status IN ('late', 'late_early_leave') AND a.check_in_time IS NOT NULL THEN
               CASE
                 WHEN (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
-                  BETWEEN TIME '07:00' AND TIME '11:30'
+                  BETWEEN TIME '07:30' AND TIME '11:30'
                 THEN GREATEST(0,
                   EXTRACT(EPOCH FROM (
                     (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
-                    - (TIME '07:00' + (interval '1 minute' * :tol_min))
+                    - (TIME '07:30' + (interval '1 minute' * :tol_min))
                   )) / 60.0
                 )
                 WHEN (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time

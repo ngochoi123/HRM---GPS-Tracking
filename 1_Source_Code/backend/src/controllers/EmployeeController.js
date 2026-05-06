@@ -207,7 +207,7 @@ exports.getAttendanceHistory = async (req, res) => {
     };
 
     const rowMap = new Map(rows.map((row) => [getDateKey(row.attendance_date), row]));
-    const normalizedRows = Array.from({ length: lastDisplayDay }, (_, index) => {
+    const normalizedRows = await Promise.all(Array.from({ length: lastDisplayDay }, async (_, index) => {
       const attendanceDate = `${targetYear}-${pad2(targetMonth)}-${pad2(index + 1)}`;
       const isSunday = isSundayDate(attendanceDate);
       const row = rowMap.get(attendanceDate) || null;
@@ -244,7 +244,7 @@ exports.getAttendanceHistory = async (req, res) => {
         };
       }
 
-      const isLate = getAttendanceStatusForCheckIn(checkInDt) === 'late';
+      const isLate = (await getAttendanceStatusForCheckIn(checkInDt)) === 'late';
       if (!hasValidOut) {
         return {
           attendance_date: attendanceDate,
@@ -260,7 +260,7 @@ exports.getAttendanceHistory = async (req, res) => {
       }
 
       const isEarlyLeave = getMinutesOfDay(checkOutDt) < SHIFT_END_MINUTES;
-      const totalWorkHours = calcStandardWorkHours(checkInDt, checkOutDt);
+      const totalWorkHours = await calcStandardWorkHours(checkInDt, checkOutDt);
 
       return {
         attendance_date: attendanceDate,
@@ -279,7 +279,7 @@ exports.getAttendanceHistory = async (req, res) => {
         is_off_day: false,
         total_work_hours: totalWorkHours,
       };
-    });
+    }));
 
     const totalHours = normalizedRows.reduce(
       (sum, r) => sum + (r.total_work_hours != null ? Number(r.total_work_hours) : 0),

@@ -69,7 +69,7 @@ async function getEmployeeContext(employeeId) {
        COUNT(*) FILTER (
          WHERE check_in_time IS NOT NULL
            AND (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
-                + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 420
+                + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 450
        )::int AS late_count,
        COUNT(*) FILTER (
          WHERE check_out_time IS NOT NULL
@@ -93,7 +93,7 @@ async function getEmployeeContext(employeeId) {
        CASE
          WHEN check_in_time IS NULL THEN 'Vắng mặt'
          WHEN (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
-               + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 420
+               + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 450
               THEN 'Đi trễ'
          WHEN check_out_time IS NOT NULL
               AND (EXTRACT(HOUR FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
@@ -204,7 +204,7 @@ Trả lời ngắn gọn, lịch sự, thân thiện, chuyên nghiệp.
 
 ─── CHẤM CÔNG THÁNG NÀY ───
 - Số ngày đã đi làm: ${ctx.attendance_this_month.days_worked} ngày
-- Số lần đi trễ (vào sau 7:00): ${ctx.attendance_this_month.late_count} lần
+- Số lần đi trễ (vào sau 7:30): ${ctx.attendance_this_month.late_count} lần
 - Số lần về sớm (ra trước 17:00): ${ctx.attendance_this_month.early_leave_count} lần
 
 ─── LỊCH SỬ CHẤM CÔNG 30 NGÀY GẦN NHẤT ───
@@ -220,8 +220,8 @@ ${historySection}
 • Quy trình xin nghỉ phép: Nhân viên tạo đơn trên hệ thống → Quản lý trực tiếp duyệt → Phòng NS ghi nhận. Cần tạo đơn trước ít nhất 1 ngày làm việc.
 • Tính lương: Lương thực nhận = (Lương cơ bản / Ngày công chuẩn) × Ngày công thực tế + Phụ cấp OT - Khấu trừ (BHXH, BHYT, BHTN...).
 • Quy định OT: Tăng ca phải có đơn xin OT được duyệt. Ngày thường: 150%, Ngày nghỉ: 200%, Ngày lễ: 300% lương giờ.
-• Giờ làm việc: Thứ 2 đến Thứ 6 (Sáng: 7:00 - 11:30, Chiều: 13:00 - 17:00). Thứ 7 làm buổi sáng (7:00 - 11:30). Nghỉ trưa từ 11:30 đến 13:00.
-• Chấm công: Check-in/Check-out qua GPS. Đi trễ sau 7:00, về sớm trước 17:00.
+• Giờ làm việc: Thứ 2 đến Thứ 6 (Sáng: 7:30 - 11:30, Chiều: 13:00 - 17:00). Thứ 7 làm buổi sáng (7:30 - 11:30). Nghỉ trưa từ 11:30 đến 13:00.
+• Chấm công: Check-in/Check-out qua GPS. Đi trễ sau 7:30, về sớm trước 17:00.
 • Lỗi chấm công: Nếu nhân viên gặp vấn đề hoặc lỗi chấm công, hãy hướng dẫn họ vào mục "Đơn từ" và chọn "Đơn giải trình" để được giải quyết.
 • Đổi mật khẩu: Nếu nhân viên muốn đổi mật khẩu, hãy hướng dẫn họ vào trang "Thông tin cá nhân" (Profile) để thực hiện đổi mật khẩu.
 • Ngày phép năm: 12 ngày/năm cho nhân viên chính thức. Cộng thêm 1 ngày mỗi 5 năm thâm niên.
