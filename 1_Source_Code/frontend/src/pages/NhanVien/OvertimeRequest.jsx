@@ -3,14 +3,13 @@ import { HiMiniXCircle } from "react-icons/hi2";
 import { MdChatBubbleOutline } from "react-icons/md";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { employeeService } from "../../services/employeeService";
-import { IoArrowBack } from "react-icons/io5";
 import { GoCheckCircle } from "react-icons/go";
-import { MdCalendarMonth } from "react-icons/md";
-import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
 import { GoBlocked } from "react-icons/go";
+import { StatusPill, ApproverFeedback, MonthFilter, HistoryPageHeader, ConfirmModal, Toast } from '../../components/RequestSharedComponents';
+import { formatDate, formatDateDMY } from '../../components/requestUtils';
 import './OvertimeRequest.css'
 
 const today = new Date().toISOString().split('T')[0];
@@ -47,10 +46,7 @@ const closeModal = () => {
   setShowModal(false);
 };
 
-const formatDate = (date) => {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("vi-VN");
-};
+// formatDate – imported from shared/requestUtils
 
 const formatTime = (time) => {
   if (!time) return "";
@@ -358,16 +354,7 @@ const getLatestMonthYear = () => {
     return `${hours}h ${minutes}p`;
    };
 
-  const formatDateDMY = (date) => {
-  if (!date) return "";
-
-  const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-
-  return `${day}/${month}/${year}`;
-};
+  // formatDateDMY – imported from shared/requestUtils
   
 
   const displayMonth = filterMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
@@ -384,6 +371,8 @@ const getLatestMonthYear = () => {
             
       const data = res?.data || res || [];
       setApprovers(data);
+      // Tự động chọn quản lý trực tiếp (phần tử đầu tiên, priority=1)
+      if (data.length > 0) setApproverId(data[0].id);
     })
     .catch((err) => {
       console.error("Lỗi lấy approvers:", err);
@@ -443,11 +432,7 @@ const isOverlap = (newDate, newStart, newEnd) => {
   return (
     
     <div className="request-container">
-        {notification.message && (
-          <div className={`toast ${notification.type}`}>
-            {notification.message}
-          </div>
-        )}
+        <Toast message={notification.message} type={notification.type} />
       <div className="request-left">
         {view === "create" ? (
     <>
@@ -585,37 +570,19 @@ const isOverlap = (newDate, newStart, newEnd) => {
   ) : (
     <>
         {/* ================= HISTORY ================= */}
-        <div className="history-page-header">
-        <div>
-            <h2>Đơn đã gửi</h2>
-            <p>Tất cả các đơn bạn đã gửi</p>
-        </div>
-
-        <button className="btn-back" onClick={() => setView("create")}>
-            <IoArrowBack /> Quay lại
-        </button>
-        </div>
+        <HistoryPageHeader
+          title="Đơn đã gửi"
+          subtitle="Tất cả các đơn bạn đã gửi"
+          onBack={() => setView("create")}
+        />
 
         {/* CARD */}
         <div className="history-card">
 
         {/* FILTER */}
         <div className="history-filter">
-            <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
-
-            <div className="filter-right">
-            <div className="filter-right-search">
-                <MdCalendarMonth className="month-icon" />
-                <span> Tháng: </span>
-            </div>
-            <input
-                className="input-month-search"
-                type="month"
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-            />
-            <button className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
-            </div>
+            <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear(requests, 'ot_date')})</h4>
+            <MonthFilter value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
         </div>
 
         {/* TABLE */}
@@ -629,6 +596,7 @@ const isOverlap = (newDate, newStart, newEnd) => {
                 <th>Thời gian kết thúc</th>
                 <th>Tổng thời gian tăng ca</th>
                 <th>Trạng thái</th>
+                <th>Lý do từ chối</th>
                 </tr>
             </thead>
                 <tbody>
@@ -662,15 +630,11 @@ const isOverlap = (newDate, newStart, newEnd) => {
                             <td>{calculateOTHours(r.start_time, r.end_time)}</td>
 
                             {/* Trạng thái */}
-                            <td>
-                                <span className={`status-pill ${r.status}`} style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
-                                    <span className="dot" style={{ marginRight: '4px' }}>●</span>
-                                    {r.status === "approved"
-                                    ? "Đã duyệt"
-                                    : r.status === "pending"
-                                    ? "Chờ duyệt"
-                                    : "Từ chối"}
-                                </span>
+                            <td><StatusPill status={r.status} /></td>
+
+                            {/* Lý do từ chối */}
+                            <td style={{ color: r.status === 'rejected' ? '#dc2626' : '#6b7280', fontSize: '13px' }}>
+                              {r.status === 'rejected' ? (r.reject_reason || '---') : '---'}
                             </td>
 
                         </tr>
@@ -686,122 +650,103 @@ const isOverlap = (newDate, newStart, newEnd) => {
       </div>
 
       {showModal && selectedRequest && (
-  <div className="modal-overlay" onClick={closeModal}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Lớp phủ tối (Backdrop mô phỏng Modal) */}
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={closeModal}></div>
 
-      <h2 style={{ marginBottom: "20px", fontSize: "20px",fontWeight:"bold" }}>
-        Chi tiết đơn tăng ca
-      </h2>
+          {/* CONTAINER CHÍNH CỦA ĐƠN TỪ */}
+          <div className="bg-white w-full max-w-[500px] rounded-3xl shadow-2xl p-6 md:p-8 relative z-10 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] overflow-y-auto">
+              
+              {/* Tiêu đề */}
+              <h2 className="text-center text-lg font-bold text-[#1f2937] mb-6">Chi tiết đơn tăng ca</h2>
 
-      {/* THÔNG TIN CHUNG */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <FaRegFileAlt className="icon" /> Thông tin chung
-        </h3>
+              {/* Khối 1: Thông tin chung */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <FaRegFileAlt className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Thông tin chung</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Ngày tăng ca</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {formatDateDMY(selectedRequest.ot_date)}
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Người kiểm duyệt</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60 truncate" title={selectedRequest.approver_name || "---"}>
+                              {selectedRequest.approver_name || "---"}
+                          </div>
+                      </div>
+                  </div>
+              </div>
 
-        <div className="input-grid">
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Ngày tăng ca</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={formatDateDMY(selectedRequest.ot_date)}
-              readOnly
-            />
-          </div>
+              {/* Khối 2: Thời gian tăng ca */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <FaRegClock className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Thời gian tăng ca</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Bắt đầu</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {selectedRequest.start_time}
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Kết thúc</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {selectedRequest.end_time}
+                          </div>
+                      </div>
+                  </div>
+                  
+                  {/* Highlight Tổng thời gian */}
+                  <div className="bg-[#dcfce7] border border-[#86efac] rounded-xl p-3 flex justify-between items-center">
+                      <span className="text-[13px] text-gray-700 font-medium">Tổng thời gian:</span>
+                      <span className="text-[13px] font-bold text-[#16a34a]">
+                        {calculateOTHours(selectedRequest.start_time, selectedRequest.end_time)}
+                      </span>
+                  </div>
+              </div>
 
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Người kiểm duyệt</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={selectedRequest.approver_name || "---"}
-              readOnly
-            />
+              {/* Khối 3: Nội dung công việc */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <MdChatBubbleOutline className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Nội dung công việc</h3>
+                  </div>
+                  <textarea 
+                    readOnly 
+                    className="w-full bg-slate-200/70 text-gray-700 text-[13px] font-medium p-3 rounded-lg border border-slate-300/60 resize-none outline-none" 
+                    rows="2"
+                    value={selectedRequest.reason || "Không có nội dung"}
+                  />
+              </div>
+
+              {/* Khối 4: Trạng thái & Lý do */}
+              <div className="pb-4">
+                <ApproverFeedback 
+                  status={selectedRequest.status} 
+                  reason={selectedRequest.reject_reason} 
+                />
+              </div>
+
+              {/* Footer Action */}
+              <div className="flex justify-end mt-2">
+                  <button 
+                    onClick={closeModal}
+                    className="bg-[#05a643] hover:bg-[#048736] text-white font-bold text-[14px] py-2.5 px-8 rounded-xl shadow-md transition-all active:scale-95"
+                  >
+                      Đóng
+                  </button>
+              </div>
+
           </div>
         </div>
-      </div>
-
-      {/* THỜI GIAN */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <FaRegClock className="icon" /> Thời gian tăng ca
-        </h3>
-
-        <div className="input-grid">
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Bắt đầu</label>
-            <input
-              type="time"
-              className="input-option-2"
-              value={selectedRequest.start_time || ""}
-              readOnly
-            />
-          </div>
-
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Kết thúc</label>
-            <input
-              type="time"
-              className="input-option-2"
-              value={selectedRequest.end_time || ""}
-              readOnly
-            />
-          </div>
-        </div>
-
-        <div className="info-section-bottom-1">
-          <div className="info-section-bottom-left">
-            <p>Tổng thời gian:</p>
-          </div>
-
-          <div className="info-section-bottom-right">
-            <p>
-              {calculateOTHours(
-                selectedRequest.start_time,
-                selectedRequest.end_time
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* NỘI DUNG */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <MdChatBubbleOutline className="icon" /> Nội dung công việc
-        </h3>
-
-        <textarea
-          className="input-option-3"
-          value={selectedRequest.reason || ""}
-          readOnly
-        />
-      </div>
-
-      {/* TRẠNG THÁI */}
-      <div className="info-section">
-        <h3 className="section-title">Trạng thái</h3>
-
-        <span className={`status-pill ${selectedRequest.status}`}>
-          {selectedRequest.status === "approved"
-            ? "Đã duyệt"
-            : selectedRequest.status === "pending"
-            ? "Chờ duyệt"
-            : "Từ chối"}
-        </span>
-      </div>
-
-      {/* BUTTON */}
-      <div style={{ textAlign: "right" }}>
-        <button onClick={closeModal} className="btn-close-modal">
-          Đóng
-        </button>
-      </div>
-
-    </div>
-  </div>
-)}
+      )}
 
       <div className="request-right">
         <div className="card-request-top">

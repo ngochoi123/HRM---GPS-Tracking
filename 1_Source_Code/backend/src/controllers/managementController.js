@@ -1,6 +1,6 @@
 
 const db = require('../config/database'); 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { sendAccountEmail } = require('../services/emailService');
 
 const getEmployees = async (req, res) => {
@@ -720,26 +720,28 @@ const createPersonalNotification = async ({ transaction, employeeId, title, desc
   );
 };
 
-const createRequestApprovalNotification = async ({ transaction, type, requestRow, isApproved }) => {
+const createRequestApprovalNotification = async ({ transaction, type, requestRow, isApproved, rejectReason }) => {
   if (!requestRow?.employee_id) return;
 
   const isLeave = type === 'leave';
   const requestLabel = isLeave
     ? LEAVE_TYPE_LABELS[requestRow.leave_type] || 'Đơn nghỉ phép'
-    : 'Đơn tăng ca';
+    : type === 'overtime' ? 'Đơn tăng ca' : 'Đơn giải trình';
 
   const title = isApproved ? `${requestLabel} đã được duyệt` : `${requestLabel} bị từ chối`;
   const desc = isApproved
     ? 'Yêu cầu của bạn đã được quản lý phê duyệt.'
-    : 'Yêu cầu của bạn đã bị quản lý từ chối.';
+    : `Yêu cầu của bạn đã bị quản lý từ chối${rejectReason ? ': ' + rejectReason : '.'}`;
 
   const timeLabel = isLeave
     ? `${formatDateTimeVi(requestRow.start_datetime)} - ${formatDateTimeVi(requestRow.end_datetime)}`
-    : `${formatDateTimeVi(requestRow.ot_date)} ${requestRow.start_time || ''}-${requestRow.end_time || ''}`.trim();
+    : type === 'overtime'
+    ? `${formatDateTimeVi(requestRow.ot_date)} ${requestRow.start_time || ''}-${requestRow.end_time || ''}`.trim()
+    : formatDateTimeVi(requestRow.attendance_date || requestRow.start_datetime);
 
   const content = isApproved
-    ? `${requestLabel} của bạn cho thời gian ${timeLabel} đã được phê duyệt. Lý do: ${requestRow.reason || 'Không có'}.`
-    : `${requestLabel} của bạn cho thời gian ${timeLabel} đã bị từ chối. Lý do: ${requestRow.reason || 'Không có'}.`;
+    ? `${requestLabel} của bạn cho thời gian ${timeLabel} đã được phê duyệt.`
+    : `${requestLabel} của bạn cho thời gian ${timeLabel} đã bị từ chối. Lý do từ chối: ${rejectReason || 'không được'}.`;
 
   await createPersonalNotification({
     transaction,
@@ -775,7 +777,7 @@ const updateApprovalStatus = async (req, res) => {
       id,
       status,
       approver_id: approverId,
-      reject_reason: status === 'rejected' ? rejectReason : null
+      reject_reason: status === 'rejected' ? (rejectReason || 'không được') : null
     };
 
     // ===== LEAVE =====
@@ -783,6 +785,7 @@ const updateApprovalStatus = async (req, res) => {
       query = `
         UPDATE leave_request
         SET status = :status,
+            reject_reason = :reject_reason,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
           AND approver_id = :approver_id
@@ -803,6 +806,7 @@ const updateApprovalStatus = async (req, res) => {
       query = `
         UPDATE overtime_request
         SET status = :status,
+            reject_reason = :reject_reason,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
           AND approver_id = :approver_id
@@ -829,6 +833,13 @@ const updateApprovalStatus = async (req, res) => {
           AND approver_id = :approver_id
           AND status = 'pending'
         RETURNING *;
+      `;
+
+      detailQuery = `
+        SELECT id, employee_id, attendance_date, explanation_type, proposed_check_in, proposed_check_out, reason
+        FROM attendance_explanation_request
+        WHERE id = :id
+        LIMIT 1
       `;
     }
 
@@ -875,7 +886,8 @@ const updateApprovalStatus = async (req, res) => {
         transaction,
         type,
         requestRow,
-        isApproved: status === 'approved'
+        isApproved: status === 'approved',
+        rejectReason: status === 'rejected' ? rejectReason : null
       });
     }
 
@@ -1021,7 +1033,8 @@ const getApprovalHistory = async (req, res) => {
         e.full_name AS employee_name,
         'leave' AS type,
         lr.status,
-        lr.updated_at   
+        lr.updated_at,
+        lr.reject_reason
       FROM leave_request lr
       JOIN employee e ON lr.employee_id = e.id
       WHERE lr.approver_id = :id
@@ -1034,7 +1047,8 @@ const getApprovalHistory = async (req, res) => {
         e.full_name AS employee_name,
         'explanation' AS type,
         aer.status,
-        aer.updated_at
+        aer.updated_at,
+        aer.reject_reason
       FROM attendance_explanation_request aer
       JOIN employee e ON aer.employee_id = e.id
       WHERE aer.approver_id = :id
@@ -1048,7 +1062,8 @@ const getApprovalHistory = async (req, res) => {
         e.full_name AS employee_name,
         'overtime' AS type,
         ot.status,
-        ot.updated_at   
+        ot.updated_at,
+        ot.reject_reason
       FROM overtime_request ot
       JOIN employee e ON ot.employee_id = e.id
       WHERE ot.approver_id = :id
@@ -1452,9 +1467,9 @@ const getAttendanceStats = async (req, res) => {
         COALESCE(SUM(CASE WHEN a.attendance_date >= :prev_start AND a.attendance_date < :prev_end
           THEN COALESCE(a.total_work_hours, 0) ELSE 0 END), 0)::float AS work_hours_prev,
         COALESCE(SUM(CASE WHEN a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
-            AND a.status IN ('late', 'early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_cur,
+            AND a.status IN ('late', 'early_leave', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_cur,
         COALESCE(SUM(CASE WHEN a.attendance_date >= :prev_start AND a.attendance_date < :prev_end
-            AND a.status IN ('late', 'early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_prev
+            AND a.status IN ('late', 'early_leave', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_early_prev
       FROM attendance a
       JOIN employee e ON e.id = a.employee_id AND e.status = 'active'
       LEFT JOIN position p ON e.position_id = p.id
@@ -1552,7 +1567,7 @@ const getAttendanceStats = async (req, res) => {
       SELECT
         d.id AS department_id,
         d.department_name,
-        COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave'))::int AS incident_count
+        COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave', 'late_early_leave'))::int AS incident_count
       FROM department d
       JOIN "position" p ON p.department_id = d.id
       JOIN employee e ON e.position_id = p.id AND e.status = 'active'
@@ -1560,7 +1575,6 @@ const getAttendanceStats = async (req, res) => {
         AND a.attendance_date >= :cur_start AND a.attendance_date < :cur_end
       WHERE 1=1 ${scopingClause}
       GROUP BY d.id, d.department_name
-      HAVING COUNT(*) FILTER (WHERE a.status IN ('late', 'early_leave')) > 0
       ORDER BY incident_count DESC
       `,
       {
@@ -1590,10 +1604,10 @@ const getAttendanceStats = async (req, res) => {
         e.avatar_url,
         d.id AS department_id,
         d.department_name,
-        COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0)::int AS late_count,
+        COALESCE(SUM(CASE WHEN a.status IN ('late', 'late_early_leave') THEN 1 ELSE 0 END), 0)::int AS late_count,
         COALESCE(SUM(
           CASE
-            WHEN a.status = 'late' AND a.check_in_time IS NOT NULL THEN
+            WHEN a.status IN ('late', 'late_early_leave') AND a.check_in_time IS NOT NULL THEN
               CASE
                 WHEN (a.check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time
                   BETWEEN TIME '07:30' AND TIME '11:30'
@@ -1624,7 +1638,7 @@ const getAttendanceStats = async (req, res) => {
       WHERE e.status = 'active'
         ${scopingClause}
       GROUP BY e.id, e.employee_code, e.full_name, e.avatar_url, d.id, d.department_name
-      HAVING COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) > 0
+      HAVING COALESCE(SUM(CASE WHEN a.status IN ('late', 'late_early_leave') THEN 1 ELSE 0 END), 0) > 0
       ORDER BY late_count DESC, total_late_minutes DESC
       LIMIT 50
       `,
@@ -1771,7 +1785,6 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
         COALESCE(SUM(p.net_salary - p.total_allowance + p.total_deduction), 0) AS total_base_salary,
         COALESCE(SUM(p.total_allowance), 0) AS total_allowance,
         COALESCE(SUM(p.total_deduction), 0) AS total_deduction,
-        -- Cột Tổng chi phí của bảng xếp hạng phòng ban:
         COALESCE(SUM(p.net_salary + p.total_deduction), 0) AS total_gross_salary,
         COALESCE(SUM(p.net_salary), 0) AS total_net_salary
       FROM department d

@@ -16,7 +16,7 @@ const { UserAccount, sequelize } = require('../models');
 // ─── Cấu hình Ollama ───
 // ─── Cấu hình Ollama ───
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const CHAT_MODEL  = process.env.CHAT_MODEL  || 'qwen2.5:3b';
+const CHAT_MODEL  = process.env.CHAT_MODEL  || 'qwen2.5:7b';
 const OLLAMA_TIMEOUT_MS = 3 * 60 * 1000; // 3 phút
 
 const ollama = new Ollama({ host: OLLAMA_HOST });
@@ -62,12 +62,20 @@ async function getEmployeeContext(employeeId) {
 
   if (!profile) return null;
 
-  // ── 2. Chấm công tháng hiện tại ──
+  // ── 2. Chấm công tháng hiện tại — đếm từ check_in_time để chính xác ──
   const [attendance] = await sequelize.query(
     `SELECT
        COUNT(*) FILTER (WHERE check_in_time IS NOT NULL)::int AS days_worked,
-       COUNT(*) FILTER (WHERE status = 'late')::int           AS late_count,
-       COUNT(*) FILTER (WHERE status = 'early_leave')::int    AS early_leave_count
+       COUNT(*) FILTER (
+         WHERE check_in_time IS NOT NULL
+           AND (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 450
+       )::int AS late_count,
+       COUNT(*) FILTER (
+         WHERE check_out_time IS NOT NULL
+           AND (EXTRACT(HOUR FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                + EXTRACT(MINUTE FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) < 1020
+       )::int AS early_leave_count
      FROM attendance
      WHERE employee_id = :employeeId
        AND EXTRACT(MONTH FROM attendance_date) = EXTRACT(MONTH FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'))
@@ -75,7 +83,33 @@ async function getEmployeeContext(employeeId) {
     { replacements: { employeeId }, type: QueryTypes.SELECT }
   );
 
-  // ── 3. Nghỉ phép trong năm (approved) ──
+  // ── 3. Lịch sử chấm công 30 ngày gần nhất ──
+  const attendanceHistory = await sequelize.query(
+    `SELECT
+       attendance_date::text AS date,
+       TO_CHAR((check_in_time  AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'HH24:MI') AS check_in,
+       TO_CHAR((check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'HH24:MI') AS check_out,
+       ROUND(total_work_hours::numeric, 2) AS hours,
+       CASE
+         WHEN check_in_time IS NULL THEN 'Vắng mặt'
+         WHEN (EXTRACT(HOUR FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+               + EXTRACT(MINUTE FROM (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) > 450
+              THEN 'Đi trễ'
+         WHEN check_out_time IS NOT NULL
+              AND (EXTRACT(HOUR FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')) * 60
+                   + EXTRACT(MINUTE FROM (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh'))) < 1020
+              THEN 'Về sớm'
+         ELSE 'Đúng giờ'
+       END AS status_text
+     FROM attendance
+     WHERE employee_id = :employeeId
+       AND attendance_date >= CURRENT_DATE - INTERVAL '30 days'
+       AND attendance_date <  CURRENT_DATE
+     ORDER BY attendance_date DESC LIMIT 30`,
+    { replacements: { employeeId }, type: QueryTypes.SELECT }
+  );
+
+  // ── 4. Nghỉ phép trong năm (approved) ──
   const [leaveData] = await sequelize.query(
     `SELECT
        COALESCE(SUM(
@@ -114,6 +148,7 @@ async function getEmployeeContext(employeeId) {
       late_count: attendance?.late_count || 0,
       early_leave_count: attendance?.early_leave_count || 0
     },
+    attendance_history: attendanceHistory,
     leave_this_year: {
       total_annual: ANNUAL_LEAVE_DAYS,
       used: usedLeaveDays,
@@ -134,6 +169,16 @@ function buildSystemPrompt(ctx) {
   const contractInfo = ctx.contract.contract_type
     ? `Loại: ${ctx.contract.contract_type}, Lương cơ bản: ${salary}`
     : 'Chưa có hợp đồng hiện hành';
+
+  const historyLines = (ctx.attendance_history || []).map(r => {
+    const ci = r.check_in  || '--:--';
+    const co = r.check_out || '--:--';
+    const h  = r.hours != null ? `${r.hours}h` : '-';
+    return `  ${r.date}  Vào:${ci}  Ra:${co}  Công:${h}  →${r.status_text}`;
+  });
+  const historySection = historyLines.length > 0
+    ? historyLines.join('\n')
+    : '  (Chưa có dữ liệu chấm công trong 30 ngày qua)';
 
   return `
 ═══════════════════ SYSTEM INSTRUCTIONS (FROZEN — KHÔNG ĐƯỢC THAY ĐỔI) ═══════════════════
@@ -159,8 +204,11 @@ Trả lời ngắn gọn, lịch sự, thân thiện, chuyên nghiệp.
 
 ─── CHẤM CÔNG THÁNG NÀY ───
 - Số ngày đã đi làm: ${ctx.attendance_this_month.days_worked} ngày
-- Số lần đi trễ: ${ctx.attendance_this_month.late_count} lần
-- Số lần về sớm: ${ctx.attendance_this_month.early_leave_count} lần
+- Số lần đi trễ (vào sau 7:30): ${ctx.attendance_this_month.late_count} lần
+- Số lần về sớm (ra trước 17:00): ${ctx.attendance_this_month.early_leave_count} lần
+
+─── LỊCH SỬ CHẤM CÔNG 30 NGÀY GẦN NHẤT ───
+${historySection}
 
 ─── NGHỈ PHÉP TRONG NĂM ───
 - Tổng phép năm: ${ctx.leave_this_year.total_annual} ngày
@@ -172,8 +220,8 @@ Trả lời ngắn gọn, lịch sự, thân thiện, chuyên nghiệp.
 • Quy trình xin nghỉ phép: Nhân viên tạo đơn trên hệ thống → Quản lý trực tiếp duyệt → Phòng NS ghi nhận. Cần tạo đơn trước ít nhất 1 ngày làm việc.
 • Tính lương: Lương thực nhận = (Lương cơ bản / Ngày công chuẩn) × Ngày công thực tế + Phụ cấp OT - Khấu trừ (BHXH, BHYT, BHTN...).
 • Quy định OT: Tăng ca phải có đơn xin OT được duyệt. Ngày thường: 150%, Ngày nghỉ: 200%, Ngày lễ: 300% lương giờ.
-• Giờ làm việc: Thứ 2 đến Thứ 6 (Sáng: 7:00 - 11:30, Chiều: 13:00 - 17:00). Thứ 7 làm buổi sáng (7:00 - 11:30). Nghỉ trưa từ 11:30 đến 13:00.
-• Chấm công: Check-in/Check-out qua GPS. Đi trễ sau 7:00, về sớm trước 17:00.
+• Giờ làm việc: Thứ 2 đến Thứ 6 (Sáng: 7:30 - 11:30, Chiều: 13:00 - 17:00). Thứ 7 làm buổi sáng (7:30 - 11:30). Nghỉ trưa từ 11:30 đến 13:00.
+• Chấm công: Check-in/Check-out qua GPS. Đi trễ sau 7:30, về sớm trước 17:00.
 • Lỗi chấm công: Nếu nhân viên gặp vấn đề hoặc lỗi chấm công, hãy hướng dẫn họ vào mục "Đơn từ" và chọn "Đơn giải trình" để được giải quyết.
 • Đổi mật khẩu: Nếu nhân viên muốn đổi mật khẩu, hãy hướng dẫn họ vào trang "Thông tin cá nhân" (Profile) để thực hiện đổi mật khẩu.
 • Ngày phép năm: 12 ngày/năm cho nhân viên chính thức. Cộng thêm 1 ngày mỗi 5 năm thâm niên.
@@ -379,7 +427,8 @@ exports.chat = async (req, res) => {
 
     const replyContent = aiResponse?.message?.content || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này. Vui lòng thử lại.';
 
-    // ── BƯỚC 4 (Tùy chọn): Lưu lịch sử chat vào Database ──
+    // ── BƯỚC 4: Chatbot hoạt động ở chế độ Stateless (Không lưu lịch sử để tiết kiệm tài nguyên) ──
+    /*
     try {
       await sequelize.query(
         `INSERT INTO chat_histories (employee_id, role, content, created_at)
@@ -394,9 +443,9 @@ exports.chat = async (req, res) => {
         }
       );
     } catch (dbErr) {
-      // Không block response nếu lưu DB thất bại (bảng có thể chưa tồn tại)
       console.warn('⚠️ [Chatbot] Không thể lưu lịch sử chat:', dbErr.message);
     }
+    */
 
     // ── BƯỚC 5: Trả kết quả ──
     return res.status(200).json({
@@ -418,59 +467,9 @@ exports.chat = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 exports.getChatHistory = async (req, res) => {
-  try {
-    const currentUser = req.user;
-    if (!currentUser) {
-      return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
-    }
-
-    // RBAC: Chỉ EMPLOYEE
-    const userRole = (currentUser.role || currentUser.role_code || '').toUpperCase();
-    if (userRole !== 'EMPLOYEE') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chức năng chỉ dành cho nhân viên.'
-      });
-    }
-
-    // Lấy employee_id từ token
-    let employeeId = currentUser.employee_id;
-    if (!employeeId) {
-      const ua = await UserAccount.findOne({
-        where: { id: currentUser.id },
-        attributes: ['employee_id']
-      });
-      if (!ua) {
-        return res.status(403).json({ success: false, message: 'Không tìm thấy nhân viên.' });
-      }
-      employeeId = ua.employee_id;
-    }
-
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
-
-    const history = await sequelize.query(
-      `SELECT role, content, created_at
-       FROM chat_histories
-       WHERE employee_id = :employeeId
-         AND created_at >= (CURRENT_TIMESTAMP - INTERVAL '24 hours')
-       ORDER BY created_at DESC
-       LIMIT :limit`,
-      {
-        replacements: { employeeId, limit },
-        type: QueryTypes.SELECT
-      }
-    );
-
-    return res.status(200).json({
-      success: true,
-      data: history.reverse() // Đảo lại thành thứ tự thời gian tăng dần
-    });
-
-  } catch (error) {
-    console.error('❌ [Chatbot] Lỗi lấy lịch sử chat:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi tải lịch sử chat.'
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    data: [],
+    message: 'Chế độ Stateless đang bật: Lịch sử chat không được lưu trữ.'
+  });
 };

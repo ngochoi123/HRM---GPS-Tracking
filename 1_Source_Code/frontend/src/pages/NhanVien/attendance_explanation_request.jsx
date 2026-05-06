@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
-// Đã xóa import axiosClient thừa
 import { HiMiniXCircle } from "react-icons/hi2";
 import { MdChatBubbleOutline } from "react-icons/md";
 import { IoCloudUploadOutline } from "react-icons/io5";
 import { BsSend } from "react-icons/bs";
 import { PiClockCounterClockwise } from "react-icons/pi";
-import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
+import { FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { employeeService } from "../../services/employeeService";
-import { IoArrowBack } from "react-icons/io5";
 import { GoCheckCircle } from "react-icons/go";
-import { MdCalendarMonth } from "react-icons/md";
-import { CiSearch } from "react-icons/ci";
 import { LuClock2 } from "react-icons/lu";
 import { FiClock } from "react-icons/fi";
 import { GoBlocked } from "react-icons/go";
 import { useLocation } from "react-router-dom";
+import { StatusPill, ApproverFeedback, MonthFilter, HistoryPageHeader, ConfirmModal, Toast } from '../../components/RequestSharedComponents';
+
 import './ae_request.css'
 
 const today = new Date().toISOString().split('T')[0];
@@ -59,19 +57,26 @@ const closeModal = () => {
 };
 
 
+const user = JSON.parse(localStorage.getItem('user') || '{}');
 const [approverId, setApproverId] = useState("");
 const [approvers, setApprovers] = useState([]);
 useEffect(() => {
+  if (!user?.id) return;
   employeeService
-    .getApprovers()
-    .then((res) => setApprovers(res?.data || res || []))
+    .getApprovers(user.id)
+    .then((res) => {
+      const data = res?.data || res || [];
+      setApprovers(data);
+      // Tự động chọn quản lý trực tiếp (phần tử đầu tiên, priority=1)
+      if (data.length > 0) setApproverId(data[0].id);
+    })
     .catch(console.error);
-}, []);
+}, [user?.id]);
 
 const handleSubmit = async () => {
-  if (new Date(form.date) < new Date(today)) {
+  if (new Date(form.date) >= new Date(today)) {
     setShowConfirmSubmit(false);
-    setNotification({ message: "Lỗi logic: Không được chọn ngày trong quá khứ!", type: "error" });
+    setNotification({ message: "Không được chọn ngày chưa diễn ra!", type: "error" });
     setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     return;
   }
@@ -421,8 +426,8 @@ const filteredRequests = filterMonth
                                 <input
                                     type="date"
                                     className="input-option"
-                                    min={today}
                                     value={form.date}
+                                    max={today}
                                     onChange={(e) =>
                                         setForm({ ...form, date: e.target.value })
                                     }
@@ -641,34 +646,16 @@ const filteredRequests = filterMonth
 ) : (
   <>
     {/* ===== HISTORY ===== */}
-    <div className="history-page-header">
-      <div>
-        <h2>Đơn giải trình đã gửi</h2>
-        <p>Tất cả các đơn bạn đã gửi</p>
-      </div>
-
-      <button className="btn-back" onClick={() => setView("create")}>
-        <IoArrowBack /> Quay lại
-      </button>
-    </div>
+    <HistoryPageHeader
+      title="Đơn giải trình đã gửi"
+      subtitle="Tất cả các đơn bạn đã gửi"
+      onBack={() => setView("create")}
+    />
 
     <div className="history-card">
         <div className="history-filter">
-                  <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear()})</h4>
-        
-                  <div className="filter-right">
-                    <div className="filter-right-search">
-                      <MdCalendarMonth className="month-icon" />
-                      <span> Tháng: </span>
-                      </div>
-                    <input
-                      className="input-month-search"
-                      type="month"
-                      value={filterMonth}
-                      onChange={(e) => setFilterMonth(e.target.value)}
-                    />
-                    <button style={{background:"red"}} className="btn-search" onClick={() => {}}><CiSearch size={20} /></button>
-                  </div>
+                  <h4>Chi tiết theo ngày (Tháng {getLatestMonthYear(requests, 'attendance_date')})</h4>
+                  <MonthFilter value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
                 </div>
       <div className="history-table-container">
         <table className="history-table" >
@@ -711,15 +698,7 @@ const filteredRequests = filterMonth
 
                   <td>{r.proposed_check_out}</td>
 
-                  <td>
-                    <span className={`status-pill ${r.status}`}>
-                      {r.status === "approved"
-                        ? "Đã duyệt"
-                        : r.status === "pending"
-                        ? "Chờ duyệt"
-                        : "Từ chối"}
-                    </span>
-                  </td>
+                  <td><StatusPill status={r.status} /></td>
                   <td className="reject-reason">
                     {r.status === "rejected" ? (r.reject_reason || "---") : "---"}
                   </td>
@@ -736,158 +715,121 @@ const filteredRequests = filterMonth
             </div>
 
             {showModal && selectedRequest && (
-  <div className="modal-overlay" onClick={closeModal}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <h2 style={{ marginBottom: "20px", fontSize: "20px", fontWeight: "bold" }}>
-        Chi tiết đơn giải trình
-      </h2>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Lớp phủ tối (Backdrop mô phỏng Modal) */}
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={closeModal}></div>
 
-      {/* THÔNG TIN CHUNG */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <FaRegFileAlt className="icon" /> Thông tin chung
-        </h3>
+          {/* CONTAINER CHÍNH CỦA ĐƠN TỪ */}
+          <div className="bg-white w-full max-w-[500px] rounded-3xl shadow-2xl p-6 md:p-8 relative z-10 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] overflow-y-auto">
+              
+              {/* Tiêu đề */}
+              <h2 className="text-center text-lg font-bold text-[#1f2937] mb-6">Chi tiết đơn giải trình</h2>
 
-        <div className="input-grid">
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Loại giải trình</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={getExplanationText(selectedRequest.explanation_type)}
-              readOnly
-            />
-          </div>
+              {/* Khối 1: Thông tin chung */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <FaRegFileAlt className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Thông tin chung</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Loại giải trình</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {getExplanationText(selectedRequest.explanation_type)}
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Người kiểm duyệt</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60 truncate" title={selectedRequest.approver_name || "---"}>
+                              {selectedRequest.approver_name || "---"}
+                          </div>
+                      </div>
+                  </div>
+              </div>
 
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Người kiểm duyệt</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={selectedRequest.approver_name || "---"}
-              readOnly
-            />
+              {/* Khối 2: Thời gian & Ngày */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <FaRegClock className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Thời gian & Ngày</h3>
+                  </div>
+                  <div className="mb-4">
+                      <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Ngày giải trình</label>
+                      <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                          {new Date(selectedRequest.attendance_date).toLocaleDateString("vi-VN")}
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Check-in đề xuất</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {selectedRequest.proposed_check_in || "---"}
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-[11px] font-bold text-[#1f2937] mb-1.5 uppercase tracking-wider">Check-out đề xuất</label>
+                          <div className="bg-slate-200/70 text-gray-700 text-[13px] font-medium p-2.5 rounded-lg border border-slate-300/60">
+                              {selectedRequest.proposed_check_out || "---"}
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Khối 3: Nội dung & Đính kèm */}
+              <div className="border border-gray-200 rounded-[16px] p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-4">
+                      <MdChatBubbleOutline className="w-[18px] h-[18px] text-emerald-500" />
+                      <h3 className="font-bold text-gray-700 text-[13px]">Lý do giải trình</h3>
+                  </div>
+                  <textarea 
+                    readOnly 
+                    className="w-full bg-slate-200/70 text-gray-700 text-[13px] font-medium p-3 rounded-lg border border-slate-300/60 resize-none outline-none mb-3" 
+                    rows="2"
+                    value={selectedRequest.reason || "Không có nội dung"}
+                  />
+
+                  {selectedRequest.attachment_url && (
+                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-lg">📎</span>
+                        <span className="text-[12px] text-slate-600 truncate">{selectedRequest.attachment_url.split('-').slice(1).join('-')}</span>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <a 
+                          href={`http://localhost:5000/uploads/${selectedRequest.attachment_url}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[11px] font-bold text-blue-600 hover:underline"
+                        >
+                          Xem
+                        </a>
+                      </div>
+                    </div>
+                  )}
+              </div>
+
+              {/* Khối 4: Trạng thái & Lý do */}
+              <ApproverFeedback 
+                status={selectedRequest.status} 
+                reason={selectedRequest.reject_reason} 
+              />
+
+              {/* Footer Action */}
+              <div className="flex justify-end mt-2">
+                  <button 
+                    onClick={closeModal}
+                    className="bg-[#05a643] hover:bg-[#048736] text-white font-bold text-[14px] py-2.5 px-8 rounded-xl shadow-md transition-all active:scale-95"
+                  >
+                      Đóng
+                  </button>
+              </div>
+
           </div>
         </div>
-      </div>
+      )}
 
-      {/* NGÀY */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <MdCalendarMonth className="icon" /> Ngày giải trình
-        </h3>
 
-        <div className="input-grid">
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Ngày</label>
-            <input
-              type="date"
-              className="input-option-2"
-              value={selectedRequest.attendance_date?.split("T")[0] || ""}
-              readOnly
-            />
-          </div>
-        </div>
-      </div>
 
-      {/* THỜI GIAN */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <FaRegClock className="icon" /> Thời gian thực tế
-        </h3>
-
-        <div className="input-grid">
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Checkin</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={selectedRequest.proposed_check_in || "---"}
-              readOnly
-            />
-          </div>
-
-          <div className="input-group-1">
-            <label style={{textAlign:"left",marginLeft:"5px",fontWeight:"bold",fontSize:"13px"}}>Checkout</label>
-            <input
-              type="text"
-              className="input-option-2"
-              value={selectedRequest.proposed_check_out || "---"}
-              readOnly
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* LÝ DO */}
-      <div className="info-section">
-        <h3 className="section-title">
-          <MdChatBubbleOutline className="icon" /> Lý do
-        </h3>
-        
-        <textarea
-          className="input-option-3"
-          value={selectedRequest.reason || ""}
-          readOnly
-        />
-      </div>
-
-      {/* FILE */}
-      {selectedRequest.attachment_url && (
-  <div className="info-section file-section">
-    <label>File đính kèm</label>
-
-    <div className="file-box">
-      <div className="file-left">📎</div>
-
-      <div className="file-info">
-        <span className="file-name">
-          {selectedRequest.attachment_url
-            .split("-")
-            .slice(1)
-            .join("-")}
-        </span>
-      </div>
-
-      <div className="file-actions">
-        <a
-          href={`http://localhost:5000/uploads/${selectedRequest.attachment_url}`}
-          target="_blank"
-          rel="noreferrer"
-          className="file-view-btn"
-        >
-          Xem
-        </a>
-        <a
-          href={`http://localhost:5000/uploads/${selectedRequest.attachment_url}`}
-          download
-          className="file-download-btn"
-        >
-          Tải xuống
-        </a>
-      </div>
-    </div>
-  </div>
-)}
-{selectedRequest.status === "rejected" && (
-  <div className="info-section">
-    <h3 className="section-title">Lý do từ chối</h3>
-    <textarea
-      className="input-option-3"
-      value={selectedRequest.reject_reason || ""}
-      readOnly
-    />
-  </div>
-)}
-
-      <div style={{ textAlign: "right" }}>
-        <button onClick={closeModal} className="btn-close-modal">
-          Đóng
-        </button>
-      </div>
-    </div>
-  </div>
-)}
 
             <div className="request-right">
 

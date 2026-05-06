@@ -5,6 +5,7 @@ const http = require('http'); // 1. Thêm http
 const { Server } = require('socket.io'); // 2. Thêm Server từ socket.io
 const path = require('path');
 require('dotenv').config();
+const { startBackupJob } = require('./cronjobs/backup.job');
 
 const app = express();
 
@@ -137,6 +138,7 @@ server.listen(PORT, '0.0.0.0', () => {
   db.authenticate()
     .then(() => {
       console.log(`✅ [${runtimeLabel}] Đã kết nối Database: ${dbProviderLabel}`);
+      startBackupJob(); // Khởi động cron job backup tự động
     })
     .catch(err => {
       console.error(`❌ [${runtimeLabel}] Lỗi kết nối Database (${dbProviderLabel}):`, err.message);

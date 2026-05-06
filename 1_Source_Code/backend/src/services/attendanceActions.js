@@ -3,40 +3,35 @@ const { QueryTypes } = require('sequelize');
 const { haversineDistanceMeters } = require('../utils/geoUtils');
 const { parseAllowedIps, isIpAllowed } = require('../utils/ipAllowlist');
 
-const SHIFT_START_MINUTES = 7 * 60 + 30;
-const SHIFT_END_MINUTES = 17 * 60;
-const LUNCH_START_MINUTES = 11 * 60 + 30;
-const LUNCH_END_MINUTES = 13 * 60;
+const configService = require('./ConfigService');
+
+const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
+
+const getShiftConfig = async () => {
+  const startStr = await configService.getConfig('DEFAULT_CHECKIN_TIME', '07:30');
+  const endStr = await configService.getConfig('DEFAULT_CHECKOUT_TIME', '17:00');
+  const lunchStartStr = await configService.getConfig('LUNCH_BREAK_START', '11:30');
+  const lunchEndStr = await configService.getConfig('LUNCH_BREAK_END', '13:00');
+
+  return {
+    startMinutes: configService.timeStringToMinutes(startStr, 7 * 60 + 30),
+    endMinutes: configService.timeStringToMinutes(endStr, 17 * 60),
+    lunchStart: configService.timeStringToMinutes(lunchStartStr, 11 * 60 + 30),
+    lunchEnd: configService.timeStringToMinutes(lunchEndStr, 13 * 60)
+  };
+};
+
 const LATE_TOLERANCE = 0;
 const MAX_LATE = 24 * 60;
 
-const getMinutesOfDay = (dateObj) => dateObj.getHours() * 60 + dateObj.getMinutes();
-const getShiftForDate = (dateObj) => {
+const getShiftForDate = async (dateObj) => {
   if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return null;
-  return { name: 'day', startMinutes: SHIFT_START_MINUTES, endMinutes: SHIFT_END_MINUTES };
-  const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
-
-  const morningStart = 7 * 60 + 30;
-  const morningEnd = 11 * 60 + 30;
-
-  const afternoonStart = 13 * 60;
-  const afternoonEnd = 17 * 60;
-
-  // Ca sáng
-  if (minutes >= morningStart && minutes <= morningEnd) {
-    return { name: 'morning', startMinutes: morningStart, endMinutes: morningEnd };
-  }
-
-  // Ca chiều
-  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
-    return { name: 'afternoon', startMinutes: afternoonStart, endMinutes: afternoonEnd };
-  }
-
-  return null;
+  const config = await getShiftConfig();
+  return { name: 'day', ...config };
 };
 
-const getAttendanceStatusForCheckIn = (dateObj) => {
-  const shift = getShiftForDate(dateObj);
+const getAttendanceStatusForCheckIn = async (dateObj) => {
+  const shift = await getShiftForDate(dateObj);
   if (!shift) return 'absent';
 
   const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
@@ -50,49 +45,56 @@ const getAttendanceStatusForCheckIn = (dateObj) => {
     : 'late';
 };
 
-const getAttendanceStatusForCheckOut = (checkInDateObj, checkOutDateObj) => {
-  const shift = getShiftForDate(checkInDateObj);
+const getAttendanceStatusForCheckOut = async (checkInDateObj, checkOutDateObj) => {
+  const shift = await getShiftForDate(checkInDateObj);
   if (!shift) return null;
 
+  const checkInMinutes = checkInDateObj.getHours() * 60 + checkInDateObj.getMinutes();
   const checkOutMinutes = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
 
-  return checkOutMinutes < shift.endMinutes
-    ? 'early_leave'
-    : 'on_time';
+  const isLate = checkInMinutes > shift.startMinutes;
+  const isEarly = checkOutMinutes < shift.endMinutes;
+
+  if (isLate && isEarly) return 'late_early_leave';
+  if (isLate) return 'late';
+  if (isEarly) return 'early_leave';
+  return 'on_time';
 };
 
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
 /**
- * Giờ công chuẩn:
- * - Giờ làm: 07:30 -> 17:00
- * - Nghỉ trưa: 11:30 -> 13:00 (không tính công)
- * - Tổng công tối đa: 8.00 giờ/ngày (không tính quá, OT xử lý ở module xin phép)
+ * Giờ công chuẩn tính toán dựa trên cấu hình hệ thống:
+ * - Áp dụng quy tắc chặn mốc thời gian:
+ *   + Effective Check-in = Max(Actual_Checkin, Default_Checkin_Time)
+ *   + Effective Check-out = Min(Actual_Checkout, Default_Checkout_Time)
+ * - Trừ thời gian nghỉ trưa.
+ * - Làm tròn 2 chữ số thập phân (ví dụ: 1.00, 0.50).
  */
-const calcStandardWorkHours = (checkInDateObj, checkOutDateObj) => {
-  if (!(checkInDateObj instanceof Date) || Number.isNaN(checkInDateObj.getTime())) return 0;
-  if (!(checkOutDateObj instanceof Date) || Number.isNaN(checkOutDateObj.getTime())) return 0;
+const calcStandardWorkHours = async (checkInDateObj, checkOutDateObj) => {
+  if (!(checkInDateObj instanceof Date) || Number.isNaN(checkInDateObj.getTime())) return 0.00;
+  if (!(checkOutDateObj instanceof Date) || Number.isNaN(checkOutDateObj.getTime())) return 0.00;
 
-  const start = 7 * 60 + 30;
-  const end = 17 * 60;
-  const lunchStart = 11 * 60 + 30;
-  const lunchEnd = 13 * 60;
+  const config = await getShiftConfig();
 
   const inMinRaw = checkInDateObj.getHours() * 60 + checkInDateObj.getMinutes();
   const outMinRaw = checkOutDateObj.getHours() * 60 + checkOutDateObj.getMinutes();
 
-  const inMin = clamp(inMinRaw, start, end);
-  const outMin = clamp(outMinRaw, start, end);
+  // Quy tắc Max/Min chặn mốc thời gian
+  const effectiveInMin = Math.max(inMinRaw, config.startMinutes);
+  const effectiveOutMin = Math.min(outMinRaw, config.endMinutes);
 
-  if (outMin <= inMin) return 0;
+  if (effectiveOutMin <= effectiveInMin) return 0.00;
 
-  const overlap = outMin - inMin;
-  const lunchOverlap = Math.max(0, Math.min(outMin, lunchEnd) - Math.max(inMin, lunchStart));
+  const overlap = effectiveOutMin - effectiveInMin;
+  
+  // Trừ giờ nghỉ trưa (nếu thời gian làm việc có đè lên giờ nghỉ trưa)
+  const lunchOverlap = Math.max(0, Math.min(effectiveOutMin, config.lunchEnd) - Math.max(effectiveInMin, config.lunchStart));
   const effectiveMinutes = Math.max(0, overlap - lunchOverlap);
 
-  const cappedMinutes = Math.min(effectiveMinutes, 8 * 60);
-  const hours = cappedMinutes / 60;
-  return Math.round(hours * 100) / 100;
+  // Không áp dụng cappedMinutes cứng nữa, để nó linh hoạt theo ca
+  const hours = effectiveMinutes / 60.0;
+  
+  // Làm tròn chính xác đến chữ số thứ 2
+  return Number(hours.toFixed(2));
 };
 
 const normalizeWorkLocation = (row) => {
@@ -201,6 +203,7 @@ async function checkInEmployee(employeeId, lat, lng, options = {}) {
     skipGeofenceValidation = false,
     skipWifiIpValidation = false,
     forceWorkLocationId = null,
+    is_mocked = false,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -257,7 +260,7 @@ async function checkInEmployee(employeeId, lat, lng, options = {}) {
   }
 
   const now = new Date();
-  const status = getAttendanceStatusForCheckIn(now);
+  const status = await getAttendanceStatusForCheckIn(now);
 
   if (attendanceToday && !attendanceToday.check_in_time) {
     const sql = `
@@ -311,6 +314,7 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
     checkOutNote = null,
     skipWifiIpValidation = false,
     forceWorkLocationId = null,
+    is_mocked = false,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -371,8 +375,8 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
 
   const now = new Date();
   const checkInDateObj = new Date(attendanceToday.check_in_time);
-  const status = getAttendanceStatusForCheckOut(checkInDateObj, now);
-  const standardWorkHours = calcStandardWorkHours(checkInDateObj, now);
+  const status = await getAttendanceStatusForCheckOut(checkInDateObj, now);
+  const standardWorkHours = await calcStandardWorkHours(checkInDateObj, now);
 
   const sql = `
     UPDATE attendance

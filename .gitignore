@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 1_Source_Code/node_modules/
 1_Source_Code/frontend/node_modules/
@@ -54,3 +54,10 @@ yarn-error.*
 # TypeScript
 *.tsbuildinfo
 *.pem
+
+# Database backups (tự động tạo, không commit lên git)
+backups/
+
+# Google Service Account credentials (BI MAT - KHONG commit)
+**/google-credentials.json
+google-credentials.json

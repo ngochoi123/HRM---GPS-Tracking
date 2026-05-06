@@ -124,12 +124,12 @@ const parseHmToVNDate = (attendanceDateYmd, hm) => {
     return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const resolveStatusAfterEdit = (checkInDt, checkOutDt) => {
+const resolveStatusAfterEdit = async (checkInDt, checkOutDt) => {
     if (checkInDt && checkOutDt) {
-        return getAttendanceStatusForCheckOut(checkInDt, checkOutDt);
+        return await getAttendanceStatusForCheckOut(checkInDt, checkOutDt);
     }
     if (checkInDt) {
-        return getAttendanceStatusForCheckIn(checkInDt) || 'on_time';
+        return (await getAttendanceStatusForCheckIn(checkInDt)) || 'on_time';
     }
     return 'absent';
 };
@@ -476,8 +476,8 @@ const correctAttendance = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Check-out phải sau check-in.' });
         }
 
-        const totalHours = checkInDt && checkOutDt ? calcStandardWorkHours(checkInDt, checkOutDt) : 0;
-        const status = resolveStatusAfterEdit(checkInDt, checkOutDt);
+        const totalHours = checkInDt && checkOutDt ? await calcStandardWorkHours(checkInDt, checkOutDt) : 0;
+        const status = await resolveStatusAfterEdit(checkInDt, checkOutDt);
 
         tx = await db.transaction();
 

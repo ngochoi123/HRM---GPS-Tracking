@@ -1817,7 +1817,7 @@ const getLeaveDurationDays = (startDateTime, endDateTime) => {
   return Math.max(Number(diffDays.toFixed(2)), 0);
 };
 
-const getPayrollApprovalRows = async (transaction = null) => db.query(
+const getPayrollApprovalRows = async (statuses = ['pending_approval'], transaction = null) => db.query(
   `
   SELECT pr.id, pr.employee_id, pr.month_year, pr.status, pr.net_salary, pr.base_salary_snapshot, pr.total_work_days, pr.total_allowance, pr.total_deduction,
          pr.created_at,
@@ -1826,13 +1826,13 @@ const getPayrollApprovalRows = async (transaction = null) => db.query(
   JOIN employee e ON pr.employee_id = e.id
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
-  WHERE pr.status = 'pending_approval'
+  WHERE pr.status IN (:statuses)
   ORDER BY pr.created_at DESC
   `,
-  { type: QueryTypes.SELECT, transaction }
+  { replacements: { statuses }, type: QueryTypes.SELECT, transaction }
 );
 
-const getLeaveApprovalRows = async (transaction = null) => db.query(
+const getLeaveApprovalRows = async (statuses = ['pending'], transaction = null) => db.query(
   `
   SELECT lr.id, lr.employee_id, lr.leave_type, lr.start_datetime, lr.end_datetime, lr.reason, lr.status, lr.attachment,
          lr.created_at, e.employee_code, e.full_name, d.id AS department_id, d.department_name, p.position_name,
@@ -1842,7 +1842,7 @@ const getLeaveApprovalRows = async (transaction = null) => db.query(
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
   LEFT JOIN employee dm ON e.direct_manager_id = dm.id
-  WHERE lr.status = 'pending'
+  WHERE lr.status IN (:statuses)
     AND EXISTS (
       SELECT 1 FROM employee appr
       JOIN position ap ON appr.position_id = ap.id
@@ -1850,10 +1850,10 @@ const getLeaveApprovalRows = async (transaction = null) => db.query(
     )
   ORDER BY lr.created_at DESC
   `,
-  { type: QueryTypes.SELECT, transaction }
+  { replacements: { statuses }, type: QueryTypes.SELECT, transaction }
 );
 
-const getOvertimeApprovalRows = async (transaction = null) => db.query(
+const getOvertimeApprovalRows = async (statuses = ['pending'], transaction = null) => db.query(
   `
   SELECT ot.id, ot.employee_id, ot.ot_date, ot.start_time, ot.end_time, ot.reason, ot.status,
          ot.created_at, e.employee_code, e.full_name, d.id AS department_id, d.department_name, p.position_name,
@@ -1863,7 +1863,7 @@ const getOvertimeApprovalRows = async (transaction = null) => db.query(
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
   LEFT JOIN employee dm ON e.direct_manager_id = dm.id
-  WHERE ot.status = 'pending'
+  WHERE ot.status IN (:statuses)
     AND EXISTS (
       SELECT 1 FROM employee appr
       JOIN position ap ON appr.position_id = ap.id
@@ -1871,10 +1871,10 @@ const getOvertimeApprovalRows = async (transaction = null) => db.query(
     )
   ORDER BY ot.created_at DESC
   `,
-  { type: QueryTypes.SELECT, transaction }
+  { replacements: { statuses }, type: QueryTypes.SELECT, transaction }
 );
 
-const getExplanationApprovalRows = async (transaction = null) => db.query(
+const getExplanationApprovalRows = async (statuses = ['pending'], transaction = null) => db.query(
   `
   SELECT aer.id, aer.employee_id, aer.attendance_date, aer.explanation_type, aer.proposed_check_in, aer.proposed_check_out,
          aer.reason, aer.attachment_url, aer.status, aer.created_at,
@@ -1885,7 +1885,7 @@ const getExplanationApprovalRows = async (transaction = null) => db.query(
   LEFT JOIN position p ON e.position_id = p.id
   LEFT JOIN department d ON p.department_id = d.id
   LEFT JOIN employee dm ON e.direct_manager_id = dm.id
-  WHERE aer.status = 'pending'
+  WHERE aer.status IN (:statuses)
     AND EXISTS (
       SELECT 1 FROM employee appr
       JOIN position ap ON appr.position_id = ap.id
@@ -1893,7 +1893,7 @@ const getExplanationApprovalRows = async (transaction = null) => db.query(
     )
   ORDER BY aer.created_at DESC
   `,
-  { type: QueryTypes.SELECT, transaction }
+  { replacements: { statuses }, type: QueryTypes.SELECT, transaction }
 );
 
 const applyApprovedExplanationToAttendance = async ({ transaction, request }) => {
@@ -2035,15 +2035,28 @@ const getDirectorApprovalsOverview = async (req, res) => {
     const departmentId = String(req.query?.departmentId || '').trim();
     const requestType = String(req.query?.requestType || req.query?.escalationReason || 'all').trim();
 
+    // Determine statuses based on tab
+    const isHistory = tab === 'history';
+    const payrollStatuses = isHistory ? ['approved'] : ['pending_approval'];
+    const requestStatuses = isHistory ? ['approved', 'rejected'] : ['pending'];
+
     const [payrollRows, leaveRows, overtimeRows, explanationRows, departments] = await Promise.all([
-      getPayrollApprovalRows(),
-      getLeaveApprovalRows(),
-      getOvertimeApprovalRows(),
-      getExplanationApprovalRows(),
+      getPayrollApprovalRows(payrollStatuses),
+      getLeaveApprovalRows(requestStatuses),
+      getOvertimeApprovalRows(requestStatuses),
+      getExplanationApprovalRows(requestStatuses),
       db.query(
         `SELECT id, department_name FROM department ORDER BY department_name`,
         { type: QueryTypes.SELECT }
       )
+    ]);
+
+    // Pre-calculate counts for badges (always pending counts)
+    const [pendingPayroll, pendingLeave, pendingOvertime, pendingExplanation] = await Promise.all([
+      getPayrollApprovalRows(['pending_approval']),
+      getLeaveApprovalRows(['pending']),
+      getOvertimeApprovalRows(['pending']),
+      getExplanationApprovalRows(['pending'])
     ]);
 
     const payrollItems = payrollRows.map((row) => ({
@@ -2241,19 +2254,19 @@ const getDirectorApprovalsOverview = async (req, res) => {
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      if (tab === 'leave' && requestType !== 'all' && item.type !== requestType) {
+      if ((tab === 'leave' || tab === 'history') && requestType !== 'all' && item.type !== requestType) {
         return false;
       }
       return true;
-    });
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     res.json({
       success: true,
       data: {
         items: filteredItems,
         stats: {
-          payrollPendingCount: payrollItems.length,
-          leavePendingCount: leaveItems.length + overtimeItems.length + explanationItems.length
+          payrollPendingCount: pendingPayroll.length,
+          leavePendingCount: pendingLeave.length + pendingOvertime.length + pendingExplanation.length
         },
         options: {
           departments: departments || [],

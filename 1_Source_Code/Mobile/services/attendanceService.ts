@@ -39,13 +39,13 @@ export interface AttendanceSummaryResponse {
       wifi_ip_required?: boolean;
       client_ip_allowed?: boolean;
     } | null;
-    workLocations: Array<{
+    workLocations: {
       work_location_id: number;
       location_name: string;
       latitude: number;
       longitude: number;
       radius_meters: number;
-    }>;
+    }[];
   };
 }
 
@@ -53,13 +53,13 @@ export interface AttendanceHistoryResponse {
   success: boolean;
   message?: string;
   data?: {
-    rows: Array<{
+    rows: {
       attendance_date: string;
       check_in_time: string | null;
       check_out_time: string | null;
       status: string | null;
       total_work_hours: number | null;
-    }>;
+    }[];
     summary: {
       totalHours: number;
       daysWorked: number;
@@ -90,6 +90,8 @@ export interface AttendancePayload {
   latitude: number;
   /** Kinh độ GPS hiện tại của nhân viên */
   longitude: number;
+  /** Cờ xác định vị trí có phải do ứng dụng giả lập (Mock GPS) hay không */
+  is_mocked?: boolean;
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────

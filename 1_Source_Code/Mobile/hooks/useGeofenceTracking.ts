@@ -94,7 +94,7 @@ export function useGeofenceTracking({ token, employeeId, onAttendanceSync, onAut
       },
       (loc) => {
         const acc = loc.coords.accuracy;
-        if (typeof acc === 'number' && acc > 40) {
+        if (typeof acc === 'number' && acc > 80) { // Tăng từ 40 lên 80 để hỗ trợ thiết bị cũ
           return;
         }
 
@@ -117,6 +117,7 @@ export function useGeofenceTracking({ token, employeeId, onAttendanceSync, onAut
           latitude: newLat,
           longitude: newLng,
           accuracy: accOpt,
+          is_mocked: loc.mocked, // Quan trọng: Phát hiện Fake GPS
           timestamp: Date.now(),
         });
       }

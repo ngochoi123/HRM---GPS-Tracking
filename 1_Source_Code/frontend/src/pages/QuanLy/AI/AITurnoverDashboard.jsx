@@ -6,16 +6,15 @@ import {
   RefreshCw, X, Terminal, Timer, ShieldAlert, UserMinus, Crosshair,
   Activity, Target, ThumbsUp, ThumbsDown, Gauge, CalendarClock, Zap
 } from 'lucide-react';
+import { useAIProgress } from '../../../contexts/AIProgressContext';
 
 
 export default function AITurnoverDashboard() {
   const [staffData, setStaffData] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState(''); 
-  const [timeLeft, setTimeLeft] = useState(0);   
-  const [elapsed, setElapsed] = useState(0);     
-  const [error, setError] = useState(null);
+  
+  // Dùng Global Context thay vì Local State để không bị mất kết nối khi rời trang
+  const { isAnalyzing, error, runAIAnalysis } = useAIProgress();
   
   const [stats, setStats] = useState({
     total: 0, highRisk: 0, medRisk: 0, lowRisk: 0, fraudCount: 0
@@ -23,79 +22,30 @@ export default function AITurnoverDashboard() {
 
   const fetchAlerts = useCallback(async () => {
     try {
+      const processAlertData = (data) => {
+        setStaffData(data);
+        setStats({
+          total: data.length,
+          highRisk: data.filter(i => i.risk_level === 'HIGH' && i.alert_type !== 'FRAUD_DETECTION').length,
+          medRisk: data.filter(i => i.risk_level === 'MEDIUM').length,
+          lowRisk: data.filter(i => i.risk_level === 'LOW').length,
+          fraudCount: data.filter(i => i.alert_type === 'FRAUD_DETECTION').length
+        });
+      };
+
       // Giả lập gọi API, nếu lỗi sẽ dùng Mock Data
       const token = localStorage.getItem('token');
       const response = await axios.get('http://localhost:5000/api/ai/alerts', { headers: { Authorization: `Bearer ${token}` } });
       processAlertData(response.data.data);
     } catch {
       console.warn("Không kết nối được API");
-   
     }
   }, []);
 
-  const processAlertData = (data) => {
-    setStaffData(data);
-    setStats({
-      total: data.length,
-      highRisk: data.filter(i => i.risk_level === 'HIGH' && i.alert_type !== 'FRAUD_DETECTION').length,
-      medRisk: data.filter(i => i.risk_level === 'MEDIUM').length,
-      lowRisk: data.filter(i => i.risk_level === 'LOW').length,
-      fraudCount: data.filter(i => i.alert_type === 'FRAUD_DETECTION').length
-    });
-  }
-
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
-  const handleRunAnalysis = async () => {
-    setIsAnalyzing(true);
-    setError(null);
-    
-    const estimatedSeconds = staffData.length > 0 ? Math.max(15, staffData.length * 5) : 20;
-    setTimeLeft(estimatedSeconds);
-    setElapsed(0);
-
-    const countdownInterval = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-
-    const steps = [
-      "Khởi tạo kết nối bảo mật đến Database...",
-      "Đang đối chiếu tọa độ GPS với trạm phát sóng...",
-      "Phát hiện dấu hiệu di chuyển ảo (Fake GPS)...",
-      "Trích xuất dữ liệu vắng mặt không lý do...",
-      "Đang truy xuất lịch sử thiết bị và IP Wifi...",
-      "Ollama (Qwen2) đang đánh giá hành vi nhân sự...",
-      "Đang khởi tạo các đề xuất cá nhân hóa...",
-      "Hoàn tất! Đang đồng bộ lên Dashboard..."
-    ];
-    
-    let stepIndex = 0;
-    setAnalysisStep(steps[0]);
-    const stepInterval = setInterval(() => {
-      stepIndex++;
-      if(stepIndex < steps.length) setAnalysisStep(steps[stepIndex]);
-    }, estimatedSeconds * 1000 / steps.length);
-
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        'http://localhost:5000/api/ai/analyze-turnover', 
-        {}, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      await fetchAlerts();
-    } catch (err) {
-      console.warn("API analyze-turnover lỗi, dùng fallback:", err.message);
-      setError(err.response?.data?.message || "Lỗi kết nối AI Ollama. Đảm bảo bạn đã chạy 'ollama run qwen2'.");
-      await fetchAlerts(); // Fallback data sẽ được sử dụng nếu API alerts cũng lỗi
-    } finally {
-      clearInterval(stepInterval);
-      clearInterval(countdownInterval);
-      setTimeLeft(0);
-      setElapsed(0);
-      setIsAnalyzing(false);
-    }
+  const handleRunAnalysis = () => {
+    runAIAnalysis(fetchAlerts); // Chạy và reload lại dữ liệu khi xong
   };
 
   const parseAiMessage = (msg) => {
@@ -142,7 +92,7 @@ export default function AITurnoverDashboard() {
           </div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
             <BrainCircuit className="w-8 h-8 text-purple-600" />
-            AI Phân tích Rủi ro & Gian lận
+            AI Phân Tích Rủi Ro Nghỉ Việc & Gian Lận
           </h1>
           <p className="text-sm text-gray-500 font-medium">Hệ thống phân tích hành vi chuyên cần và tọa độ GPS thời gian thực.</p>
         </div>
@@ -165,7 +115,7 @@ export default function AITurnoverDashboard() {
               <p className="text-red-600 text-xs">{error}</p>
             </div>
           </div>
-          <button onClick={() => setError(null)}><X className="w-4 h-4 text-red-400" /></button>
+          <button onClick={() => {}}><X className="w-4 h-4 text-red-400" /></button>
         </div>
       )}
 
@@ -306,33 +256,7 @@ export default function AITurnoverDashboard() {
         </div>
       </div>
 
-      {/* TERMINAL LOADING */}
-      {isAnalyzing && (
-        <div className="fixed inset-0 z-[100] bg-[#0f172a]/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in px-4">
-          <div className="w-full max-w-lg bg-[#1e293b] rounded-xl overflow-hidden shadow-2xl border border-gray-700">
-            <div className="bg-[#0f172a] px-4 py-3 flex items-center justify-between border-b border-gray-700">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-gray-300 font-mono">Qwen2 Security Engine...</span>
-              </div>
-              <div className="flex items-center gap-2 bg-emerald-900/30 px-2.5 py-1 rounded-md border border-emerald-500/30">
-                <Timer className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs text-emerald-400 font-mono font-bold">
-                  {timeLeft > 0 ? `ETA: ~${timeLeft}s` : `Đang hoàn tất... (${elapsed}s)`}
-                </span>
-              </div>
-            </div>
-            
-            <div className="p-6 font-mono text-sm text-emerald-400 flex flex-col gap-3 h-56 justify-end bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-              <div className="animate-pulse">
-                <span className="text-purple-400">~/ai-module/watchdog $ </span> 
-                {analysisStep}
-                <span className="inline-block w-2 h-4 bg-emerald-400 ml-1 align-middle animate-ping"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* MODAL PHÂN TÍCH SÂU */}
       {selectedStaff && (() => {
@@ -568,9 +492,7 @@ export default function AITurnoverDashboard() {
                 <button onClick={() => setSelectedStaff(null)} className="px-6 py-2.5 rounded-2xl border border-gray-200 text-gray-600 font-bold hover:bg-white transition-all text-sm uppercase tracking-wider">
                   Đóng
                 </button>
-                <button className={`px-8 py-2.5 rounded-2xl text-white font-black transition-all shadow-md flex items-center gap-2 text-sm uppercase tracking-widest ${isFraud ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1f2937] hover:bg-black'}`}>
-                  {isFraud ? 'Xử lý vi phạm' : 'Lên lịch 1-1'}
-                </button>
+                
               </div>
             </div>
           </div>
