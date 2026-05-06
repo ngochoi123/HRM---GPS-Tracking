@@ -188,6 +188,7 @@ async function checkInEmployee(employeeId, lat, lng, options = {}) {
     skipGeofenceValidation = false,
     skipWifiIpValidation = false,
     forceWorkLocationId = null,
+    is_mocked = false,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -298,6 +299,7 @@ async function checkOutEmployee(employeeId, lat, lng, options = {}) {
     checkOutNote = null,
     skipWifiIpValidation = false,
     forceWorkLocationId = null,
+    is_mocked = false,
   } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {

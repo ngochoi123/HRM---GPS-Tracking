@@ -329,7 +329,7 @@ exports.getAttendanceHistory = async (req, res) => {
 exports.checkIn = async (req, res) => {
   try {
     const { id } = req.params;
-    const { latitude, longitude } = req.body || {};
+    const { latitude, longitude, is_mocked } = req.body || {};
     const lat = Number(latitude);
     const lng = Number(longitude);
     const io = req.app.get('socketio');
@@ -354,8 +354,8 @@ exports.checkIn = async (req, res) => {
 
           const allowedRadius = Number(nearestWl.radius_meters) || 500;
 
-          // Nếu lệch quá bán kính cho phép -> Kích hoạt AI ngầm (không dùng await)
-          if (minDistance > allowedRadius) {
+          // Nếu lệch quá bán kính HOẶC sử dụng Mock GPS -> Kích hoạt AI ngầm
+          if (minDistance > allowedRadius || is_mocked) {
             analyzeFraudWithAI(
               req.user?.employee_id || req.user?.id || id,
               minDistance,
@@ -365,7 +365,8 @@ exports.checkIn = async (req, res) => {
               nearestWl.location_name || 'Văn phòng',
               Number(nearestWl.latitude),
               Number(nearestWl.longitude),
-              allowedRadius
+              allowedRadius,
+              is_mocked
             );
           }
         }
@@ -378,6 +379,7 @@ exports.checkIn = async (req, res) => {
       deviceIp: clientIp,
       io,
       skipGeofenceValidation: false,
+      is_mocked,
     });
     if (!result.ok) {
       return res.status(result.statusCode).json({
@@ -1347,14 +1349,17 @@ function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
 }
 
 // 2. Hàm gọi AI đánh giá gian lận (Chạy ngầm - không block checkIn)
-async function analyzeFraudWithAI(employeeId, distance, lat, lng, empName, locationName, baseLat, baseLng, allowedRadius) {
+async function analyzeFraudWithAI(employeeId, distance, lat, lng, empName, locationName, baseLat, baseLng, allowedRadius, isMocked = false) {
   try {
     const prompt = `Phân tích gian lận GPS:
 - Nhân viên: ${empName}
+- Phát hiện sử dụng Mock GPS (Giả lập vị trí): ${isMocked ? 'CÓ' : 'KHÔNG'}
 - Địa điểm chấm công chuẩn: "${locationName}" (Tọa độ: ${baseLat}, ${baseLng} | Bán kính: ${allowedRadius}m)
 - Tọa độ check-in thực tế: ${lat}, ${lng}
-- Khoảng cách lệch: ${distance}m (Vượt hạn mức ${allowedRadius}m)
-Hãy đánh giá mức độ gian lận và trả về JSON: { "risk_level": "HIGH/MEDIUM", "summary": "nhận xét", "recommendations": ["hành động 1", "hành động 2"] }`;
+- Khoảng cách lệch: ${distance}m (Giới hạn cho phép: ${allowedRadius}m)
+
+Hãy đánh giá mức độ gian lận. Nếu có is_mocked=CÓ thì rủi ro phải là HIGH.
+Trả về JSON: { "risk_level": "HIGH/MEDIUM", "summary": "nhận xét", "recommendations": ["hành động 1", "hành động 2"] }`;
 
     const response = await ollama.chat({
       model: 'qwen2',
@@ -1364,12 +1369,16 @@ Hãy đánh giá mức độ gian lận và trả về JSON: { "risk_level": "HI
     const aiResult = JSON.parse(response.message.content);
 
     // Lưu cảnh báo vào Database (bao gồm coords để Frontend vẽ bản đồ)
+    const fraudSummary = isMocked 
+      ? `SỬ DỤNG PHẦN MỀM GIẢ LẬP VỊ TRÍ (Mock GPS). ${aiResult.summary}`
+      : `Nghi vấn gian lận vị trí tại "${locationName}": Lệch ${distance}m (giới hạn ${allowedRadius}m). ${aiResult.summary}`;
+
     await AIAlert.create({
       employee_id: employeeId,
       alert_type: 'FRAUD_DETECTION',
       risk_level: aiResult.risk_level,
       message: JSON.stringify({
-        summary: `Nghi vấn gian lận vị trí tại "${locationName}": Lệch ${distance}m (giới hạn ${allowedRadius}m). ${aiResult.summary}`,
+        summary: fraudSummary,
         recommendations: aiResult.recommendations,
         coords: {
           actual: { lat, lng },

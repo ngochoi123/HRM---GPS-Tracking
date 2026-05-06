@@ -680,10 +680,12 @@ export const useAttendance = () => {
           ? await attendanceService.checkIn(employeeId, userToken, {
               latitude: location.latitude,
               longitude: location.longitude,
+              is_mocked: (location as any).mocked, // Gửi cờ giả lập
             })
           : await attendanceService.checkOut(employeeId, userToken, {
               latitude: location.latitude,
               longitude: location.longitude,
+              is_mocked: (location as any).mocked, // Gửi cờ giả lập
             });
 
       if (res?.success) {

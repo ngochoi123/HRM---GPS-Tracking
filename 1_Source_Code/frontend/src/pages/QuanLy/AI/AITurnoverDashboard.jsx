@@ -160,7 +160,7 @@ export default function AITurnoverDashboard() {
           </div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
             <BrainCircuit className="w-8 h-8 text-purple-600" />
-            AI Phân tích Rủi ro & Gian lận
+            AI Phân Tích Rủi Ro Nghỉ Việc & Gian Lận
           </h1>
           <p className="text-sm text-gray-500 font-medium">Hệ thống phân tích hành vi chuyên cần và tọa độ GPS thời gian thực.</p>
         </div>
