@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  PieChart, Calendar, TrendingUp, CreditCard, Gift, 
+  PieChart, Calendar, CreditCard, Gift, 
   Landmark, Layers, Monitor, Megaphone, Briefcase, Users,
   ArrowLeft, CheckCircle, ChevronRight, Loader2, UserCircle
 } from 'lucide-react';
@@ -12,21 +12,15 @@ const formatVND = (amount) => {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' VNĐ';
 };
 
-const formatMillions = (amount) => {
-  if (amount == null) return '0 VNĐ';
-  const val = Number(amount) / 1000000;
-  return `${val.toLocaleString('vi-VN')} VNĐ`;
-};
 
 // Map colors based on department ID or index
 const colors = ['bg-indigo-500', 'bg-amber-400', 'bg-emerald-400', 'bg-purple-500', 'bg-rose-500', 'bg-cyan-500'];
 const iconMap = [Monitor, Megaphone, Briefcase, Users, Layers, Landmark];
 
 export default function PayrollStatistics() {
-  // Tháng hiện tại (Ví dụ: Tháng 04/2026 thì lấy tháng 4. Chú ý payroll trong máy tính test giả lập thường là tháng 8/2023)
-  // Chọn mặc định là tháng 8 năm 2023 vì dữ liệu mock thường ở đó
-  const [month, setMonth] = useState(4); 
-  const [year] = useState(2026);
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [year, setYear] = useState(today.getFullYear());
 
   const [isLoading, setIsLoading] = useState(false);
   const [overview, setOverview] = useState(null);
@@ -133,7 +127,7 @@ export default function PayrollStatistics() {
           <div className="relative z-10">
             <h3 className="text-[13px] font-semibold uppercase tracking-wider text-cyan-100 mb-1">Tổng Quỹ Lương Thực Chi</h3>
             <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-bold">{formatMillions(overview.total_net_salary)}</span>
+              <span className="text-3xl font-bold">{formatVND(overview.total_net_salary)}</span>
             </div>
           </div>
           <CreditCard className="absolute -right-4 -bottom-4 w-32 h-32 text-white opacity-10" />
@@ -148,7 +142,7 @@ export default function PayrollStatistics() {
             </div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-gray-900 mb-3">{formatMillions(overview.total_base_salary)}</div>
+            <div className="text-2xl font-bold text-gray-900 mb-3">{formatVND(overview.total_base_salary)}</div>
             <div className="flex items-center gap-3">
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 rounded-full" style={{ width: `${basePct}%` }}></div>
@@ -167,7 +161,7 @@ export default function PayrollStatistics() {
             </div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-gray-900 mb-3">{formatMillions(overview.total_allowance)}</div>
+            <div className="text-2xl font-bold text-gray-900 mb-3">{formatVND(overview.total_allowance)}</div>
             <div className="flex items-center gap-3">
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${allowPct}%` }}></div>
@@ -186,7 +180,7 @@ export default function PayrollStatistics() {
             </div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-gray-900 mb-3">{formatMillions(overview.total_deduction)}</div>
+            <div className="text-2xl font-bold text-gray-900 mb-3">{formatVND(overview.total_deduction)}</div>
             <div className="flex items-center gap-3">
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-rose-500 rounded-full" style={{ width: `${deductPct}%` }}></div>
@@ -451,11 +445,35 @@ export default function PayrollStatistics() {
           <p className="text-sm text-gray-500 mt-1">Quản lý quỹ lương, chi phí theo phòng ban và duyệt lương trực tiếp.</p>
         </div>
         <div className="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm p-1">
-           <button onClick={() => setMonth(m => m === 1 ? 12 : m - 1)} className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-bold">&lt;</button>
+           <button 
+             onClick={() => {
+               if (month === 1) {
+                 setMonth(12);
+                 setYear(y => y - 1);
+               } else {
+                 setMonth(m => m - 1);
+               }
+             }} 
+             className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-bold"
+           >
+             &lt;
+           </button>
            <div className="px-4 py-2 font-bold text-cyan-700 flex items-center gap-2">
               <Calendar className="w-4 h-4"/> Tháng {String(month).padStart(2, '0')}/{year}
            </div>
-           <button onClick={() => setMonth(m => m === 12 ? 1 : m + 1)} className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-bold">&gt;</button>
+           <button 
+             onClick={() => {
+               if (month === 12) {
+                 setMonth(1);
+                 setYear(y => y + 1);
+               } else {
+                 setMonth(m => m + 1);
+               }
+             }} 
+             className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-bold"
+           >
+             &gt;
+           </button>
         </div>
       </div>
 

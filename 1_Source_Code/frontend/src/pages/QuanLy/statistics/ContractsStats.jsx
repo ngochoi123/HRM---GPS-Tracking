@@ -458,7 +458,14 @@ export default function ContractStatistics() {
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleRenewSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRenewSubmit();
+              }} 
+              noValidate 
+              className="p-6 space-y-5 overflow-y-auto max-h-[70vh]"
+            >
               {/* Employee Info Strip */}
               <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold bg-cyan-100 text-cyan-700">
@@ -535,10 +542,25 @@ export default function ContractStatistics() {
                     type="date"
                     required={renewFormData.contract_type !== 'indefinite'}
                     disabled={renewFormData.contract_type === 'indefinite'}
+                    min={new Date().toISOString().split('T')[0]}
                     value={renewFormData.end_date}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all text-sm font-semibold disabled:bg-gray-50 disabled:text-gray-400"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-xl focus:outline-none focus:ring-2 transition-all text-sm font-semibold disabled:bg-gray-50 disabled:text-gray-400 ${
+                      renewFormData.contract_type !== 'indefinite' && renewFormData.end_date && new Date(renewFormData.end_date).setHours(0,0,0,0) < new Date().setHours(0,0,0,0)
+                        ? 'border-red-500 bg-red-50/30 focus:ring-red-500/20 focus:border-red-500'
+                        : 'border-gray-200 focus:ring-cyan-500/20 focus:border-cyan-500'
+                    }`}
                     onChange={(e) => setRenewFormData({...renewFormData, end_date: e.target.value})}
                   />
+                  {renewFormData.contract_type !== 'indefinite' && renewFormData.end_date && new Date(renewFormData.end_date).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && (
+                    <div className="flex items-center gap-1.5 mt-1.5 px-1 animate-in slide-in-from-top-1 duration-200">
+                      <div className="w-4 h-4 rounded-full bg-red-100 flex items-center justify-center">
+                        <AlertCircle className="w-2.5 h-2.5 text-red-600" />
+                      </div>
+                      <p className="text-[11px] text-red-600 font-bold tracking-tight">
+                        Ngày kết thúc không được nhỏ hơn ngày hôm nay ({new Date().toLocaleDateString('vi-VN')})
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Phụ cấp ăn trưa */}

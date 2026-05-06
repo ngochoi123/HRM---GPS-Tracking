@@ -6,6 +6,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const { QueryTypes } = require('sequelize');
+const { AIAlert } = require('../models');
 const {
   haversineDistanceMeters,
   impliedSpeedMetersPerSecond,
@@ -23,7 +24,9 @@ const GRACE_MS = 5 * 60 * 1000;
 const OUT_ZONE_AUTO_SEC = 300;
 const HARD_BUFFER_M = 300;
 const MAX_SPEED_MPS = 40;
+const MAX_POSSIBLE_SPEED = 150; // m/s (540 km/h) - Vượt quá mức này coi như nhảy GPS (noise)
 const ACCURACY_WARN_M = 80;
+const IGNORE_ACCURACY_THRESHOLD = 150; // m - Bỏ qua hoàn toàn nếu sai số quá lớn
 
 const AUTO_CHECKOUT_NOTE_HARD = 'Tự động checkout do rời xa vùng làm việc';
 
@@ -124,6 +127,12 @@ async function processTrackLocation(io, employeeId, payload) {
     return;
   }
 
+  // --- Lọc nhiễu GPS (Jumping) dựa trên độ chính xác ---
+  if (accuracy != null && accuracy > IGNORE_ACCURACY_THRESHOLD) {
+    console.log(`[Geofence] Bỏ qua điểm của ${employeeId} do sai số quá lớn (${accuracy}m)`);
+    return;
+  }
+
   const prevState = employeeTrackState.get(employeeId) || {};
   const prev = prevState.last;
 
@@ -136,17 +145,49 @@ async function processTrackLocation(io, employeeId, payload) {
             { lat: prev.lat, lng: prev.lng, t: prev.t },
             { lat, lng, t: now }
           );
-    if (speed != null && speed > MAX_SPEED_MPS) {
-      const wls = await fetchWorkLocations(employeeId);
-      emitManagerAlert(io, wls?.[0]?.branch_id, {
-        type: 'speed_anomaly',
-        severity: 'warning',
-        employee_id: employeeId,
-        implied_speed_mps: Number(speed.toFixed(2)),
-        max_allowed_mps: MAX_SPEED_MPS,
-        message: 'Vị trí di chuyển bất thường (tốc độ ước lượng quá cao giữa hai lần gửi).',
-      });
+    if (speed != null) {
+      if (speed > MAX_POSSIBLE_SPEED) {
+        // Đây là nhảy GPS (Impossible speed), bỏ qua không cập nhật state 'last' để tránh hỏng chuỗi sau
+        console.log(`[Geofence] Phát hiện nhảy GPS cho ${employeeId}: ${speed.toFixed(2)} m/s. Bỏ qua điểm này.`);
+        return;
+      }
+      
+      if (speed > MAX_SPEED_MPS) {
+        const wls = await fetchWorkLocations(employeeId);
+        emitManagerAlert(io, wls?.[0]?.branch_id, {
+          type: 'speed_anomaly',
+          severity: 'warning',
+          employee_id: employeeId,
+          implied_speed_mps: Number(speed.toFixed(2)),
+          max_allowed_mps: MAX_SPEED_MPS,
+          message: 'Vị trí di chuyển bất thường (tốc độ ước lượng cao).',
+        });
+      }
     }
+  }
+
+  // --- Phát hiện Mock GPS (Fake GPS) ---
+  if (payload?.is_mocked) {
+    const wls = await fetchWorkLocations(employeeId);
+    emitManagerAlert(io, wls?.[0]?.branch_id, {
+      type: 'mock_gps_detected',
+      severity: 'danger',
+      employee_id: employeeId,
+      message: 'PHÁT HIỆN SỬ DỤNG ỨNG DỤNG GIẢ LẬP VỊ TRÍ (Mock GPS)!',
+    });
+
+    // Tạo cảnh báo AI ngay lập tức
+    AIAlert.create({
+      employee_id: employeeId,
+      alert_type: 'FRAUD_DETECTION',
+      risk_level: 'HIGH',
+      message: JSON.stringify({
+        summary: 'SỬ DỤNG PHẦN MỀM GIẢ LẬP VỊ TRÍ (Mock GPS) trong lúc làm việc.',
+        recommendations: ['Yêu cầu giải trình ngay lập tức', 'Kiểm tra thiết bị'],
+        last_stats: { lat, lng, t: now }
+      }),
+      status: 'PENDING'
+    }).catch(console.error);
   }
 
   if (isWeakGpsAccuracy(accuracy, ACCURACY_WARN_M)) {

@@ -70,12 +70,15 @@ import Contract from "./pages/NhanVien/Contract";
 import OvertimeRequest from "./pages/NhanVien/OvertimeRequest";
 import Ae_request from "./pages/NhanVien/attendance_explanation_request";
 // ==========================================
-// 6. LAYOUT
+// 6. LAYOUT & CONTEXTS
 // ==========================================
 import MainLayout from './layouts/MainLayout';
+import { AIProgressProvider } from './contexts/AIProgressContext';
+
 function App() {
   return (
-    <BrowserRouter>
+    <AIProgressProvider>
+      <BrowserRouter>
       {/* 🔥 THÔNG BÁO TOAST TOÀN CỤC */}
       <Toaster
         position="bottom-right"
@@ -191,6 +194,7 @@ function App() {
 
       </Routes>
     </BrowserRouter>
+    </AIProgressProvider>
   );
 }
 
