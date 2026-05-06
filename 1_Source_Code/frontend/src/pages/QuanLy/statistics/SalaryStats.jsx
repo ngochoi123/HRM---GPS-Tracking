@@ -115,7 +115,10 @@ export default function PayrollStatistics() {
   };
 
   // Tính toán dữ liệu pie chart/biểu đồ
-  const totalNetAllDepartments = departments.reduce((sum, d) => sum + Number(d.total_net_salary), 0);
+  const visibleDepartments = departments.filter(
+    (d) => d?.department_id != null && String(d.department_name || '').trim()
+  );
+  const totalNetAllDepartments = visibleDepartments.reduce((sum, d) => sum + Number(d.total_net_salary), 0);
 
   const renderTopCards =() => {
     if (!overview) return null;
@@ -201,11 +204,11 @@ export default function PayrollStatistics() {
 
   const renderDepartmentList = () => {
     // Calculate totals for table footer
-    const totalHeadcount = departments.reduce((sum, d) => sum + Number(d.headcount), 0);
-    const totalBaseSalary = departments.reduce((sum, d) => sum + Number(d.total_base_salary), 0);
-    const totalAllowance = departments.reduce((sum, d) => sum + Number(d.total_allowance), 0);
-    const totalNetSalary = departments.reduce((sum, d) => sum + Number(d.total_net_salary), 0);
-    const totalDeduction = departments.reduce((sum, d) => sum + Number(d.total_deduction), 0);
+    const totalHeadcount = visibleDepartments.reduce((sum, d) => sum + Number(d.headcount), 0);
+    const totalBaseSalary = visibleDepartments.reduce((sum, d) => sum + Number(d.total_base_salary), 0);
+    const totalAllowance = visibleDepartments.reduce((sum, d) => sum + Number(d.total_allowance), 0);
+    const totalNetSalary = visibleDepartments.reduce((sum, d) => sum + Number(d.total_net_salary), 0);
+    const totalDeduction = visibleDepartments.reduce((sum, d) => sum + Number(d.total_deduction), 0);
 
     return (
       <div className="space-y-6">
@@ -219,7 +222,7 @@ export default function PayrollStatistics() {
             <p className="text-sm text-gray-500 mt-1">Phân bổ tháng {month}/{year}</p>
           </div>
           <div className="space-y-6">
-            {departments.map((d, idx) => {
+            {visibleDepartments.map((d, idx) => {
               const bg = colors[idx % colors.length];
               const pct = totalNetAllDepartments > 0 ? (Number(d.total_net_salary) / totalNetAllDepartments) * 100 : 0;
               return (
@@ -264,7 +267,7 @@ export default function PayrollStatistics() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {departments.map((d, idx) => {
+                {visibleDepartments.map((d, idx) => {
                    const Icon = iconMap[idx % iconMap.length];
                    return (
                   <tr key={d.department_id} className="hover:bg-gray-50/50 transition-colors group">

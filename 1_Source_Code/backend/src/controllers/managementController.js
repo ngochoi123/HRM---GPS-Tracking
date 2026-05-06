@@ -32,10 +32,18 @@ const getEmployees = async (req, res) => {
         p.position_name AS position, 
         d.id AS department_id,
         d.department_name AS department, 
-        e.status 
+        e.status,
+        a.status AS attendance_status,
+        a.check_in_time,
+        a.check_out_time,
+        (a.check_in_time IS NOT NULL) AS has_checked_in,
+        (a.check_out_time IS NOT NULL) AS has_checked_out
       FROM employee e
       LEFT JOIN position p ON e.position_id = p.id
       LEFT JOIN department d ON p.department_id = d.id
+      LEFT JOIN attendance a
+        ON a.employee_id = e.id
+        AND a.attendance_date = CURRENT_DATE
       ${whereClause}
       ORDER BY e.created_at DESC;
     `;
@@ -61,6 +69,18 @@ const getEmployees = async (req, res) => {
         department_id: emp.department_id,
         status: emp.status,
         statusText: statusText,
+        attendance_status: emp.attendance_status,
+        check_in_time: emp.check_in_time,
+        check_out_time: emp.check_out_time,
+        has_checked_in: Boolean(emp.has_checked_in),
+        has_checked_out: Boolean(emp.has_checked_out),
+        attendanceStatusText: emp.status === 'inactive'
+          ? 'Đã nghỉ việc'
+          : emp.has_checked_out
+            ? 'Đã check-out'
+            : emp.has_checked_in
+              ? 'Đang làm việc'
+              : 'Chưa check-in',
         avatar_url: emp.avatar_url
       };
     });
@@ -1005,7 +1025,7 @@ const getApprovalHistory = async (req, res) => {
       FROM leave_request lr
       JOIN employee e ON lr.employee_id = e.id
       WHERE lr.approver_id = :id
-      AND lr.status = 'approved'
+      AND lr.status IN ('approved', 'rejected')
       UNION ALL
 
       SELECT 
@@ -1018,7 +1038,7 @@ const getApprovalHistory = async (req, res) => {
       FROM attendance_explanation_request aer
       JOIN employee e ON aer.employee_id = e.id
       WHERE aer.approver_id = :id
-      AND aer.status = 'approved'
+      AND aer.status IN ('approved', 'rejected')
 
       UNION ALL
 
@@ -1032,7 +1052,7 @@ const getApprovalHistory = async (req, res) => {
       FROM overtime_request ot
       JOIN employee e ON ot.employee_id = e.id
       WHERE ot.approver_id = :id
-      AND ot.status = 'approved'
+      AND ot.status IN ('approved', 'rejected')
     ) t
     ORDER BY updated_at DESC
     `;
@@ -1692,15 +1712,10 @@ const getPayrollOverview = async (req, res) => {
     }
     const { role, department_id: userDeptId } = req.user;
     let scopingClause = '';
-    let scopingJoin = '';
     let replacements = { monthYear };
 
     if (role === 'MANAGER') {
-      scopingJoin = `
-        JOIN employee e ON pr.employee_id = e.id
-        JOIN position pos ON e.position_id = pos.id
-      `;
-      scopingClause = 'AND pos.department_id = :userDeptId';
+      scopingClause = 'AND d.id = :userDeptId';
       replacements.userDeptId = userDeptId;
     }
 
@@ -1712,7 +1727,9 @@ const getPayrollOverview = async (req, res) => {
             COALESCE(SUM(pr.total_allowance), 0) AS total_allowance,
             COALESCE(SUM(pr.total_deduction), 0) AS total_deduction
           FROM payroll pr
-          ${scopingJoin}
+          JOIN employee e ON pr.employee_id = e.id
+          JOIN position pos ON e.position_id = pos.id
+          JOIN department d ON pos.department_id = d.id
           WHERE pr.month_year = :monthYear
           ${scopingClause}
         `;
@@ -1742,7 +1759,7 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
     let replacements = { monthYear };
 
     if (role === 'MANAGER') {
-      scopingClause = 'AND pos.department_id = :deptId';
+      scopingClause = 'AND d.id = :deptId';
       replacements.deptId = department_id;
     }
 
@@ -1750,18 +1767,20 @@ const getDepartmentPayrollBreakdown = async (req, res) => {
       SELECT 
         d.id AS department_id,
         d.department_name,
-        COUNT(e.id) AS headcount,
+        COUNT(DISTINCT e.id) FILTER (WHERE p.id IS NOT NULL) AS headcount,
         COALESCE(SUM(p.net_salary - p.total_allowance + p.total_deduction), 0) AS total_base_salary,
         COALESCE(SUM(p.total_allowance), 0) AS total_allowance,
         COALESCE(SUM(p.total_deduction), 0) AS total_deduction,
         -- Cột Tổng chi phí của bảng xếp hạng phòng ban:
         COALESCE(SUM(p.net_salary + p.total_deduction), 0) AS total_gross_salary,
         COALESCE(SUM(p.net_salary), 0) AS total_net_salary
-      FROM payroll p
-      JOIN employee e ON p.employee_id = e.id
-      LEFT JOIN position pos ON e.position_id = pos.id
-      LEFT JOIN department d ON pos.department_id = d.id
-      WHERE p.month_year = :monthYear
+      FROM department d
+      LEFT JOIN position pos ON pos.department_id = d.id
+      LEFT JOIN employee e ON e.position_id = pos.id
+      LEFT JOIN payroll p
+        ON p.employee_id = e.id
+        AND p.month_year = :monthYear
+      WHERE d.id IS NOT NULL
         ${scopingClause}
       GROUP BY d.id, d.department_name
       ORDER BY total_net_salary DESC

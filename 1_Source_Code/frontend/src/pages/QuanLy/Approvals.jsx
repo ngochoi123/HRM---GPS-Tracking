@@ -129,6 +129,8 @@ const Approvals = () => {
   try {
     await managerApprovals.rejectRequest(type, id, user.id, reason);
     setRequests(prev => prev.filter(r => r.id !== id || r.type !== type));
+    const resApproved = await managerApprovals.getApprovalHistory(user.id);
+    setApprovedRequests(resApproved.data || resApproved);
     alert("Đã từ chối đơn!");
   } catch (err) {
     alert("Thao tác thất bại");
@@ -430,8 +432,9 @@ const handleApproveAll = async () => {
                         </div>
                         
                         <div className="history-meta">
-                          <span className="status-approved">
-                            <CiCircleCheck size={16} /> Đã duyệt
+                          <span className={req.status === 'rejected' ? 'status-rejected' : 'status-approved'}>
+                            {req.status === 'approved' && <CiCircleCheck size={16} />}
+                            {req.status === 'rejected' ? 'Từ chối' : 'Đã duyệt'}
                           </span>
                           <span className="history-time">
                             {moment(req.updated_at).calendar(null, {
