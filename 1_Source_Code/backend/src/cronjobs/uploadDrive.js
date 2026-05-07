@@ -1,12 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// uploadDrive.js — Upload file backup lên Google Drive (OAuth2)
-// ═══════════════════════════════════════════════════════════════════════════════
-// Yêu cầu các biến trong .env:
-//   - GOOGLE_CLIENT_ID
-//   - GOOGLE_CLIENT_SECRET
-//   - GOOGLE_REFRESH_TOKEN
-//   - GOOGLE_DRIVE_FOLDER_ID
-// ═══════════════════════════════════════════════════════════════════════════════
 
 'use strict';
 

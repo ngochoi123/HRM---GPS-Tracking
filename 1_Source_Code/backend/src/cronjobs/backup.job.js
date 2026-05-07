@@ -161,7 +161,7 @@ function startBackupJob() {
     }
   });
 
-  console.log(`🗓️  [Backup] CronJob đã kích hoạt — Lịch: "${CRON_SCHEDULE}" (2:00 AM Chủ Nhật hàng tuần)`);
+  console.log(`🗓️  [Backup] CronJob đã kích hoạt — Lịch: "${CRON_SCHEDULE}" (4:30 PM Hàng ngày)`);
 }
 
 module.exports = { startBackupJob, backupDatabase };

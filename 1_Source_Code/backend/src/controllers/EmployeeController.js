@@ -804,13 +804,13 @@ exports.updateEmployee = async (req, res) => {
       address: address || employee.address,
       identity_card_number: identity_card_number || employee.identity_card_number,
       date_of_birth: date_of_birth || employee.date_of_birth,
-      gender: gender !== undefined ? gender : employee.gender,
+      gender: (gender !== undefined && gender !== '') ? gender : (gender === '' ? null : employee.gender),
       bank_account_number: bank_account_number || employee.bank_account_number,
       bank_name: bank_name || employee.bank_name,
       status: status || employee.status,
       position_id: position_id || employee.position_id,
       join_date: join_date || employee.join_date,
-      direct_manager_id: direct_manager_id !== undefined ? direct_manager_id : employee.direct_manager_id,
+      direct_manager_id: (direct_manager_id !== undefined && direct_manager_id !== '') ? direct_manager_id : (direct_manager_id === '' ? null : employee.direct_manager_id),
       avatar_url: req.file ? `avatars/${req.file.filename}` : employee.avatar_url
     }, { transaction: t });
 
