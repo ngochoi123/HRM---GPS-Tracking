@@ -42,6 +42,17 @@ export default function AITurnoverDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Xử lý đóng Modal bằng phím Esc
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && selectedStaff) {
+        setSelectedStaff(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedStaff]);
+
   const handleRunAnalysis = () => {
     // Context tự reset analyzedList — không cần làm gì ở đây
     runAIAnalysis(fetchAlerts);
@@ -251,9 +262,9 @@ export default function AITurnoverDashboard() {
                   <td className="py-5 px-6 text-center">
                     <span className={`
                       inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase
-                      ${item.risk_level === 'HIGH' ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'}
+                      ${item.risk_level === 'HIGH' ? 'bg-red-50 text-red-600' : item.risk_level === 'MEDIUM' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}
                     `}>
-                      {item.risk_level === 'HIGH' ? 'Nguy cơ cao' : 'Trung bình'}
+                      {item.risk_level === 'HIGH' ? 'Nguy cơ cao' : item.risk_level === 'MEDIUM' ? 'Trung bình' : 'Thấp'}
                     </span>
                   </td>
                   
@@ -289,7 +300,12 @@ export default function AITurnoverDashboard() {
         const aiData = parseAiMessage(selectedStaff.message);
 
         return (
-          <div className="fixed inset-0 z-[90] bg-[#1a1a1a]/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div 
+            className="fixed inset-0 z-[90] bg-[#1a1a1a]/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedStaff(null);
+            }}
+          >
             <div className="bg-white w-full max-w-4xl rounded-[32px] overflow-hidden flex flex-col shadow-2xl border border-white/20 animate-bounce-in max-h-[95vh]">
               
               {/* Header Modal - Đổi màu theo loại */}
@@ -505,7 +521,14 @@ export default function AITurnoverDashboard() {
                     {aiData.recommendations.map((rec, index) => (
                       <li key={index} className="flex items-start gap-3 text-sm font-medium">
                         <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0 mt-0.5 text-[10px]">{index + 1}</div>
-                        {rec}
+                        <div className="flex-1">
+                          {typeof rec === 'string' ? rec : (
+                            <>
+                              <div className="font-bold">{rec.strategy || rec.action || 'Đề xuất'}</div>
+                              {rec.reason && <div className="text-[12px] font-normal opacity-80 mt-0.5">{rec.reason}</div>}
+                            </>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

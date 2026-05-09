@@ -6,7 +6,7 @@ import {
   Medal, TrendingUp, TrendingDown, AlertTriangle, Filter, Clock,
   Info, X ,BrainCircuit
 } from 'lucide-react';
-import { recommendationService } from '../../services/recommendationService';
+import { recommendationService } from '../../../services/recommendationService';
 
 export default function RecommendationList() {
   const navigate = useNavigate();
@@ -295,8 +295,14 @@ export default function RecommendationList() {
 
       {/* <-- MODAL THÔNG TIN TIÊU CHÍ (NEW) --> */}
       {showInfoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             
             {/* Modal Header */}
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -324,20 +330,42 @@ export default function RecommendationList() {
                   <h3 className="flex items-center gap-2 text-emerald-700 font-bold mb-2">
                     <Medal size={20} /> Tiêu chí Khen Thưởng (Reward)
                   </h3>
-                  <ul className="space-y-2 text-[13px] text-slate-600 font-medium">
-                    <li className="flex items-start gap-2">
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
-                      Tỷ lệ đi làm (chuyên cần) đạt mức xuất sắc (thường {'>'}= 95% ngày công chuẩn).
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
-                      Tuyệt đối <span className="font-bold text-emerald-600">KHÔNG</span> đi trễ, về sớm hay nghỉ không phép.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
-                      (Tùy chọn) Có số giờ tăng ca (OT) nổi bật, đóng góp tích cực cho tiến độ công ty.
-                    </li>
-                  </ul>
+                  <div className="text-[13px] text-slate-600 font-medium space-y-3">
+                    <div>
+                      <p className="font-bold text-emerald-700 mb-1">1. Điều kiện Cần (Phải đạt TẤT CẢ):</p>
+                      <ul className="space-y-1.5 pl-1">
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          AI đánh giá rủi ro nghỉ việc ở mức <span className="font-bold text-emerald-600">Thấp (LOW)</span>.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          Tuyệt đối <span className="font-bold text-emerald-600">KHÔNG</span> nghỉ không phép.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          Tuyệt đối <span className="font-bold text-emerald-600">KHÔNG</span> đi trễ.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          Tuyệt đối <span className="font-bold text-emerald-600">KHÔNG</span> gian lận GPS.
+                        </li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-bold text-emerald-700 mb-1">2. Điều kiện Đủ (Đạt 1 TRONG 2):</p>
+                      <ul className="space-y-1.5 pl-1">
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          Cống hiến làm thêm (OT) từ <span className="font-bold text-emerald-600">10 giờ trở lên</span> trong tháng.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
+                          Hoặc có tổng ngày đi làm thực tế từ <span className="font-bold text-emerald-600">20 ngày trở lên</span>.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Discipline Section */}
