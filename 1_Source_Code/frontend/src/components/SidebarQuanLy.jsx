@@ -23,8 +23,8 @@ const personalItems = [
         
       ]
     },
-    { path: '/QuanLy/AI/AITurnoverDashboard', icon: <BrainCircuit size={20} />, label: 'AI Dự báo nhân sự' },
   ];
+  
 const SidebarQuanLy = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,7 +68,8 @@ const SidebarQuanLy = () => {
     { path: '/QuanLy/Payroll/payroll', icon: <FileSpreadsheet size={20} />, label: 'Quản lý bảng lương' },
     { path: '/QuanLy/approvals', icon: <ClipboardCheck size={20} />, label: 'Phê duyệt đơn từ' },
     { path: '/QuanLy/rewards-discipline', icon: <Award size={20} />, label: 'Khen thưởng & Kỷ luật' },
-    { path: '/QuanLy/recommendations', icon: <Sparkles size={20} />, label: 'Đề xuất & Cảnh báo' },
+    { path: '/QuanLy/AI/AITurnoverDashboard', icon: <BrainCircuit size={20} />, label: 'AI Dự báo nhân sự' },
+    { path: '/QuanLy/AI/recommendations', icon: <Sparkles size={20} />, label: 'Đề xuất & Cảnh báo' },
     { path: '/QuanLy/notifications', icon: <Bell size={20} />, label: 'Quản lý thông báo' },
   ];  
 

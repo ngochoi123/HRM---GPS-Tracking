@@ -28,6 +28,10 @@ exports.analyzeTurnoverRisk = async (req, res) => {
     const currentUser = req.user; 
     if (!currentUser) return res.status(401).json({ message: 'Chưa xác thực người dùng' });
 
+    if (currentUser.role === 'EMPLOYEE' || currentUser.role_code === 'EMPLOYEE') {
+      return res.status(403).json({ success: false, message: 'Chỉ dành cho Quản lý (Manager)' });
+    }
+
     const whereClause = { status: 'active' };
 
     // ═══════════════════════════════════════════════════════════════
@@ -76,6 +80,7 @@ exports.analyzeTurnoverRisk = async (req, res) => {
 
       empMap[emp.id] = { 
         full_name: emp.full_name,
+        join_date: emp.join_date,
         position: emp.position?.position_name || 'Chưa rõ',
         department: emp.position?.department?.department_name || 'Chưa rõ',
         seniority_months: seniorityMonths,
@@ -222,11 +227,15 @@ exports.analyzeTurnoverRisk = async (req, res) => {
       if (stat) stat.gpsFraudCount = row.fraud_count;
     }
 
-    // 1f. Tính pastWorkingDays (chủ tính các ngày đã diễn ra trong tháng, tới hôm qua)
-    const pastWorkingDays = getPastWorkingDays(monthStart, today);
-
+    // 1f. Tính pastWorkingDays (tính theo từng nhân viên nếu mới gia nhập)
     const employeeStats = empIds.map(id => {
       const s = empMap[id];
+      let empStartDate = monthStart;
+      if (s.join_date) {
+        const jd = new Date(s.join_date);
+        if (jd > monthStart) empStartDate = jd;
+      }
+      const pastWorkingDays = getPastWorkingDays(empStartDate, today);
       const absentCount = Math.max(0, Math.round((pastWorkingDays - s.presentCount - s.approvedLeaveCount) * 100) / 100);
       return { id, ...s, pastWorkingDays, absentCount };
     });
@@ -308,7 +317,6 @@ Nhân viên ${idx + 1} (employee_id: "${s.id}"):
 
 const batchPrompt = `
 Phân tích rủi ro nghỉ việc CHUYÊN SÂU cho ${batch.length} nhân viên trong tháng ${monthLabel} dựa trên các số liệu sau:
-(Lưu ý: Tháng ${monthLabel} hiện tại có ${pastWorkingDays} ngày làm việc đã diễn ra, không kể ngày hôm nay và chủ nhật)
 ${employeeListText}
 
 Quy tắc đánh giá risk_level (HIGH/MEDIUM/LOW):
@@ -561,6 +569,10 @@ Yêu cầu bắt buộc:
 exports.getAIAlerts = async (req, res) => {
   try {
     const currentUser = req.user;
+    if (currentUser.role === 'EMPLOYEE' || currentUser.role_code === 'EMPLOYEE') {
+      return res.status(403).json({ success: false, message: 'Chỉ dành cho Quản lý (Manager)' });
+    }
+    
     let employeeWhere = {};
     if (currentUser.role === 'MANAGER' || currentUser.role_code === 'MANAGER') {
       let managerEmployeeId = currentUser.employee_id;
@@ -598,6 +610,10 @@ exports.getAIAlerts = async (req, res) => {
 exports.getRecommendations = async (req, res) => {
   try {
     const currentUser = req.user;
+    if (currentUser.role === 'EMPLOYEE' || currentUser.role_code === 'EMPLOYEE') {
+      return res.status(403).json({ success: false, message: 'Chỉ dành cho Quản lý (Manager)' });
+    }
+    
     let employeeWhere = {};
 
     // RBAC
@@ -742,6 +758,11 @@ exports.analyzeStream = async (req, res) => {
     const currentUser = req.user;
     if (!currentUser) { send('error', { message: 'Chưa xác thực' }); return res.end(); }
 
+    if (currentUser.role === 'EMPLOYEE' || currentUser.role_code === 'EMPLOYEE') {
+      send('error', { message: 'Chỉ dành cho Quản lý (Manager)' });
+      return res.end();
+    }
+
     const whereClause = { status: 'active' };
     if (currentUser.role === 'MANAGER' || currentUser.role_code === 'MANAGER') {
       let managerEmployeeId = currentUser.employee_id;
@@ -773,7 +794,7 @@ exports.analyzeStream = async (req, res) => {
     for (const emp of employees) {
       const joinDate = emp.join_date ? new Date(emp.join_date) : null;
       const seniorityMonths = joinDate ? Math.floor((Date.now() - joinDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000)) : null;
-      empMap[emp.id] = { full_name: emp.full_name, position: emp.position?.position_name || 'Chưa rõ', department: emp.position?.department?.department_name || 'Chưa rõ', seniority_months: seniorityMonths, presentCount: 0, totalWorkHours: 0, otHours: 0, approvedLeaveCount: 0, lateCount: 0, earlyLeaveCount: 0, disciplineCount: 0, rewardCount: 0, gpsFraudCount: 0 };
+      empMap[emp.id] = { full_name: emp.full_name, join_date: emp.join_date, position: emp.position?.position_name || 'Chưa rõ', department: emp.position?.department?.department_name || 'Chưa rõ', seniority_months: seniorityMonths, presentCount: 0, totalWorkHours: 0, otHours: 0, approvedLeaveCount: 0, lateCount: 0, earlyLeaveCount: 0, disciplineCount: 0, rewardCount: 0, gpsFraudCount: 0 };
     }
 
     const STANDARD_DAY_HOURS_SSE = 8;
@@ -793,14 +814,19 @@ exports.analyzeStream = async (req, res) => {
     const leaveRowsSSE = await sequelize.query(`SELECT lr.employee_id, COUNT(DISTINCT d::date)::int AS leave_days FROM leave_request lr, generate_series(GREATEST(lr.start_datetime::date,:startDate::date),LEAST(lr.end_datetime::date,CURRENT_DATE),'1 day') AS d WHERE lr.employee_id IN (:empIds) AND lr.status='approved' AND EXTRACT(DOW FROM d) <> 0 GROUP BY lr.employee_id`, { replacements: { empIds, startDate: startDateStr }, type: QueryTypes.SELECT });
     for (const row of leaveRowsSSE) { const s = empMap[row.employee_id]; if (s) s.approvedLeaveCount = row.leave_days; }
 
-    const pastWorkingDaysSSE = getPastWorkingDays(monthStart, today);
     const toProcess = empIds.map(id => {
       const s = empMap[id];
+      let empStartDate = monthStart;
+      if (s.join_date) {
+        const jd = new Date(s.join_date);
+        if (jd > monthStart) empStartDate = jd;
+      }
+      const pastWorkingDaysSSE = getPastWorkingDays(empStartDate, today);
       const absentCount = Math.max(0, Math.round((pastWorkingDaysSSE - s.presentCount - s.approvedLeaveCount) * 100) / 100);
       return { id, ...s, pastWorkingDays: pastWorkingDaysSSE, absentCount };
     });
 
-    send('start', { total: toProcess.length, month: monthLabel, pastWorkingDays: pastWorkingDaysSSE });
+    send('start', { total: toProcess.length, month: monthLabel });
 
     let isConnectionOpen = true;
     req.on('close', () => {
