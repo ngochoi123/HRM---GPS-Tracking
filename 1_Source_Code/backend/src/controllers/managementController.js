@@ -947,9 +947,10 @@ const updateApprovalStatus = async (req, res) => {
 
     // ===== HANDLE EXPLANATION APPROVED => UPDATE ATTENDANCE =====
       if (type === 'explanation' && status === 'approved') {
-        // Lấy detail của explanation
+        // Lấy detail của explanation bao gồm proposed_check_in / proposed_check_out
         const explanationRows = await db.query(`
-          SELECT id, employee_id, attendance_date, explanation_type
+          SELECT id, employee_id, attendance_date, explanation_type,
+                 proposed_check_in, proposed_check_out
           FROM attendance_explanation_request
           WHERE id = :id
           LIMIT 1
@@ -966,57 +967,75 @@ const updateApprovalStatus = async (req, res) => {
           return res.status(404).json({ message: 'Không tìm thấy đơn giải trình' });
         }
 
-        const DEFAULT_CHECKIN = '07:30:00';
-        const DEFAULT_CHECKOUT = '17:00:00';
+        // Helper: chuẩn hóa chuỗi thời gian (HH:MM hoặc HH:MM:SS) → 'HH:MM:SS' hoặc ''
+        const normalizeTime = (val) => {
+          if (!val) return '';
+          const s = String(val).trim();
+          // Nếu đã là dạng ISO timestamp thì tách phần giờ ra
+          const isoMatch = s.match(/(\d{2}:\d{2}(?::\d{2})?)(?:[Z+\-]|$)/);
+          if (isoMatch) return isoMatch[1].length === 5 ? isoMatch[1] + ':00' : isoMatch[1];
+          if (/^\d{2}:\d{2}$/.test(s)) return s + ':00';
+          if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          return '';
+        };
 
-        // Tạo hoặc update attendance
-        let attendanceStatus = 'on_time';
+        // Lấy giờ đề xuất từ đơn, fallback về giờ mặc định nếu không có
+        const proposedCheckin  = normalizeTime(explanation.proposed_check_in)  || '07:30:00';
+        const proposedCheckout = normalizeTime(explanation.proposed_check_out) || '17:00:00';
+        const attDate = explanation.attendance_date;
 
-        if (explanation.explanation_type === 'late_arrival') {
-          attendanceStatus = 'late';
-        } else if (explanation.explanation_type === 'early_leave') {
-          attendanceStatus = 'early_leave';
-        }
+        // Xác định check_in / check_out theo loại giải trình
+        const needCheckin = ['system_error', 'late_arrival', 'forgot_checkin'].includes(explanation.explanation_type);
+        const needCheckout = ['system_error', 'early_leave', 'forgot_checkout'].includes(explanation.explanation_type);
 
+        const checkinVal  = needCheckin  ? `${attDate}T${proposedCheckin}+07:00`  : null;
+        const checkoutVal = needCheckout ? `${attDate}T${proposedCheckout}+07:00` : null;
+
+        // Upsert attendance với giờ đề xuất
         await db.query(`
           INSERT INTO attendance (
             employee_id,
             attendance_date,
             check_in_time,
-            check_out_time,
-            status
+            check_out_time
           )
-          VALUES (
-            :employee_id,
-            :attendance_date,
-            :checkin,
-            :checkout,
-            :status
-          )
+          VALUES (:employee_id, :attendance_date, :checkin, :checkout)
           ON CONFLICT (employee_id, attendance_date)
           DO UPDATE SET
-            check_in_time = COALESCE(EXCLUDED.check_in_time, attendance.check_in_time),
-            check_out_time = COALESCE(EXCLUDED.check_out_time, attendance.check_out_time),
-            status = :status
+            check_in_time  = COALESCE(EXCLUDED.check_in_time,  attendance.check_in_time),
+            check_out_time = COALESCE(EXCLUDED.check_out_time, attendance.check_out_time)
         `, {
           replacements: {
-            employee_id: explanation.employee_id,
-            attendance_date: explanation.attendance_date,
-            status: attendanceStatus,
+            employee_id:     explanation.employee_id,
+            attendance_date: attDate,
+            checkin:         checkinVal,
+            checkout:        checkoutVal
+          },
+          transaction
+        });
 
-            checkin:
-              explanation.explanation_type === 'system_error' ||
-              explanation.explanation_type === 'late_arrival' ||
-              explanation.explanation_type === 'forgot_checkin'
-                ? `${explanation.attendance_date}T07:30:00+07:00`
-                : null,
-
-            checkout:
-              explanation.explanation_type === 'system_error' ||
-              explanation.explanation_type === 'early_leave' ||
-              explanation.explanation_type === 'forgot_checkout'
-                ? `${explanation.attendance_date}T17:00:00+07:00`
-                : null
+        // Sau khi upsert xong, tính lại status + total_work_hours
+        await db.query(`
+          UPDATE attendance
+          SET
+            status = CASE
+              WHEN check_in_time IS NULL THEN 'absent'::attendance_status
+              WHEN (check_in_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time > TIME '07:30:00' THEN 'late'::attendance_status
+              WHEN check_out_time IS NOT NULL
+                AND (check_out_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::time < TIME '17:00:00' THEN 'early_leave'::attendance_status
+              ELSE 'on_time'::attendance_status
+            END,
+            total_work_hours = CASE
+              WHEN check_in_time IS NOT NULL AND check_out_time IS NOT NULL AND check_out_time >= check_in_time
+                THEN ROUND((EXTRACT(EPOCH FROM (check_out_time - check_in_time)) / 3600.0)::numeric, 2)
+              ELSE 0
+            END
+          WHERE employee_id = :employee_id
+            AND attendance_date = :attendance_date::date
+        `, {
+          replacements: {
+            employee_id:     explanation.employee_id,
+            attendance_date: attDate
           },
           transaction
         });
