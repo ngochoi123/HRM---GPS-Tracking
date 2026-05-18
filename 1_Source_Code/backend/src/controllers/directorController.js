@@ -1654,7 +1654,7 @@ const createPersonalNotification = async ({ transaction, employeeId, senderId = 
   );
 };
 
-const createApprovalNotification = async ({ transaction, type, employeeId, employeeName, monthYear, payrollRow, requestRow, isApproved }) => {
+const createApprovalNotification = async ({ transaction, type, employeeId, employeeName, monthYear, payrollRow, requestRow, isApproved, rejectReason }) => {
   if (type === 'payroll') {
     const title = isApproved ? `Bảng lương ${monthYear} đã được duyệt` : `Bảng lương ${monthYear} bị từ chối`;
     const desc = isApproved ? 'Giám đốc đã duyệt bảng lương của bạn.' : 'Giám đốc đã từ chối bảng lương của bạn.';
@@ -1680,7 +1680,7 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
       title,
       desc,
       content,
-      notificationType: isApproved ? 'info' : 'warning'
+      notificationType: isApproved ? 'system_info' : 'system_warning'
     });
   }
 
@@ -1718,7 +1718,8 @@ const createApprovalNotification = async ({ transaction, type, employeeId, emplo
       <p style="margin:0 0 8px;"><strong style="color:${tone.titleColor};font-size:18px;">${requestLabel} của bạn đã bị từ chối.</strong></p>
       <div style="margin:10px 0;padding:12px 14px;border:1px solid ${tone.border};background:${tone.background};border-radius:12px;">
         <p style="margin:0 0 8px;"><strong>Thời gian:</strong> ${rangeLabel}</p>
-        <p style="margin:0;"><strong>Lý do trong đơn:</strong> ${reasonText}</p>
+        <p style="margin:0 0 8px;"><strong>Lý do trong đơn:</strong> ${reasonText}</p>
+        <p style="margin:0;color:#b91c1c;"><strong>Lý do từ chối:</strong> ${rejectReason || 'Không có lý do chi tiết'}</p>
       </div>
     `;
 
@@ -1963,7 +1964,7 @@ const applyApprovedExplanationToAttendance = async ({ transaction, request }) =>
   );
 };
 
-const processDirectorApproval = async ({ transaction, type, id, action }) => {
+const processDirectorApproval = async ({ transaction, type, id, action, reason }) => {
   const isApproved = action === 'approve';
 
   if (type === 'payroll') {
@@ -2009,8 +2010,8 @@ const processDirectorApproval = async ({ transaction, type, id, action }) => {
   const request = rows[0];
   if (!request) throw new Error('Không tìm thấy yêu cầu.');
 
-  await db.query(`UPDATE ${tableName} SET status = :status WHERE id = :id`, {
-    replacements: { status: isApproved ? 'approved' : 'rejected', id },
+  await db.query(`UPDATE ${tableName} SET status = :status, reject_reason = :reject_reason WHERE id = :id`, {
+    replacements: { status: isApproved ? 'approved' : 'rejected', reject_reason: isApproved ? null : (reason || 'Không có lý do chi tiết'), id },
     transaction
   });
 
@@ -2024,7 +2025,8 @@ const processDirectorApproval = async ({ transaction, type, id, action }) => {
     employeeId: request.employee_id,
     employeeName: request.full_name,
     requestRow: request,
-    isApproved
+    isApproved,
+    rejectReason: reason
   });
 };
 
@@ -2290,12 +2292,13 @@ const updateDirectorApprovalStatus = async (req, res) => {
   try {
     const { type, id } = req.params;
     const action = String(req.body?.action || '').toLowerCase();
+    const reason = String(req.body?.reason || '').trim();
     if (!['approve', 'reject'].includes(action)) {
       await tx.rollback();
       return res.status(400).json({ success: false, message: 'Hành động không hợp lệ.' });
     }
 
-    await processDirectorApproval({ transaction: tx, type, id, action });
+    await processDirectorApproval({ transaction: tx, type, id, action, reason });
     await tx.commit();
     return res.json({ success: true, message: action === 'approve' ? 'Đã duyệt yêu cầu.' : 'Đã từ chối yêu cầu.' });
   } catch (error) {

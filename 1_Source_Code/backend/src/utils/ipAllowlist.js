@@ -43,7 +43,14 @@ function isIpAllowed(clientIp, allowedIps) {
   if (!list.length) return true;
   const normalized = normalizeClientIp(clientIp);
   if (!normalized) return false;
-  return list.map((x) => normalizeClientIp(x)).includes(normalized);
+  return list.some((allowedIp) => {
+    const normAllowed = normalizeClientIp(allowedIp);
+    if (normAllowed.endsWith('*')) {
+      const prefix = normAllowed.slice(0, -1);
+      return normalized.startsWith(prefix);
+    }
+    return normAllowed === normalized;
+  });
 }
 
 /**

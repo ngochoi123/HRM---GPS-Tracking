@@ -6,8 +6,8 @@ export const directorApprovalService = {
     return response;
   },
 
-  updateStatus: async (type, id, action) => {
-    const response = await axiosClient.patch(`/director/approvals/${type}/${id}`, { action });
+  updateStatus: async (type, id, action, reason = '') => {
+    const response = await axiosClient.patch(`/director/approvals/${type}/${id}`, { action, reason });
     return response;
   },
 

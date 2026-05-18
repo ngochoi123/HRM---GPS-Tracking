@@ -116,7 +116,7 @@ const handleSaveConfig = async () => {
             
             updateField('isNew', false);
             
-            const newWorkLocId = res.data?.data?.work_location_id;
+            const newWorkLocId = res?.data?.work_location_id || res?.work_location_id;
             if (newWorkLocId) {
                 updateField('work_location_id', newWorkLocId);
                 updateField('id', newWorkLocId); 
@@ -175,7 +175,7 @@ const handleDeleteLocation = async () => {
         try {
             const res = await adminLocationService.deleteWorkLocation(selectedLoc.work_location_id);
             
-            if (res.data.success) {
+            if (res.success || res.data?.success) {
                 alert("✅ Đã xóa khu vực chấm công thành công!");
                 
                 // Cập nhật lại UI: Lọc bỏ khu vực vừa xóa
@@ -198,10 +198,10 @@ const handleDeleteLocation = async () => {
 const handleAddIp = () => {
     if (!ipInput.trim()) return;
 
-    // Kiểm tra định dạng IP cơ bản (Regex)
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    // Kiểm tra định dạng: IPv4 chính xác (192.168.1.1) HOẶC dải IP wildcard (192.168.1.*)
+    const ipPattern = /^(\d{1,3}\.){3}(\d{1,3}|\*)$/;
     if (!ipPattern.test(ipInput.trim())) {
-        alert("❌ Định dạng IP không hợp lệ (Ví dụ: 192.168.1.1)");
+        alert("❌ Định dạng IP không hợp lệ\nHợp lệ: 192.168.1.1 (IP cụ thể) hoặc 192.168.0.* (dải mạng)");
         return;
     }
 
@@ -418,10 +418,10 @@ const handleRemoveIp = (ipToRemove) => {
                     <div style={{ marginTop: '40px' }}>
                         <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: '#334155' }}>
                             <div style={{ backgroundColor: '#F5F3FF', padding: '6px', borderRadius: '8px' }}><Wifi size={18} color="#7C3AED" /></div>
-                            IP Wifi (Tùy chọn)
+                            IP Wifi (Tùy chọn) — Nhập IP hoặc dải mạng (192.168.0.*)
                         </h4>
                         <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                            <input type="text" placeholder="Nhập IPv4..." value={ipInput} onChange={(e) => setIpInput(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }} />
+                            <input type="text" placeholder="Ví dụ: 192.168.0.* hoặc 192.168.1.5" value={ipInput} onChange={(e) => setIpInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddIp()} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }} />
                             <button onClick={handleAddIp} style={{ padding: '0 25px', backgroundColor: '#F5F3FF', color: '#7C3AED', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Thêm IP</button>
                         </div>
                         <div style={{ marginTop: '15px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>

@@ -334,6 +334,7 @@ exports.checkIn = async (req, res) => {
     const lng = Number(longitude);
     const io = req.app.get('socketio');
     const clientIp = getClientIp(req);
+    console.log(`[checkIn DEBUG] clientIp="${clientIp}" | socket="${req.socket?.remoteAddress}" | xff="${req.headers['x-forwarded-for']}" | req.ip="${req.ip}"`);
 
     // ✅ HARD-BLOCK: Kiểm tra WiFi IP tại tầng controller trước khi gọi service
     try {

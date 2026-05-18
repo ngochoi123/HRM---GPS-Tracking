@@ -475,6 +475,11 @@ const filteredRequests = filterMonth
                                 className="input-option"
                                 value={approverId}
                                 onChange={(e) => setApproverId(e.target.value)}
+                                disabled={user?.role?.toUpperCase() === 'EMPLOYEE'}
+                                style={{
+                                    backgroundColor: user?.role?.toUpperCase() === 'EMPLOYEE' ? '#f3f4f6' : '#fff',
+                                    cursor: user?.role?.toUpperCase() === 'EMPLOYEE' ? 'not-allowed' : 'pointer'
+                                }}
                                 >
                                 <option value="" disabled hidden>
                                 Chọn người kiểm duyệt

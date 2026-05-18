@@ -236,17 +236,19 @@ export default function NotificationPage() {
     const lowerTitle = title?.toLowerCase() || "";
     if (lowerTitle.includes('hè')) return { icon: <FaUmbrellaBeach size={18} />, bg: "bg-orange-100", textColor: "text-orange-500" };
     if (lowerTitle.includes('lương')) return { icon: <FaMoneyBillWave size={18} />, bg: "bg-green-100", textColor: "text-green-600" };
-    if (type === 'warning') return { icon: <FaExclamationTriangle size={18} />, bg: "bg-red-100", textColor: "text-red-500" };
+    if (type === 'warning' || type === 'system_warning') return { icon: <FaExclamationTriangle size={18} />, bg: "bg-red-100", textColor: "text-red-500" };
+    if (type === 'system_info' || type === 'system') return { icon: <FaInfoCircle size={18} />, bg: "bg-purple-100", textColor: "text-purple-500" };
     return { icon: <FaInfoCircle size={18} />, bg: "bg-blue-100", textColor: "text-blue-500" };
   };
 
   const normalizeNotificationType = (t) => {
     if (!t) return "info";
     const v = String(t).toLowerCase();
-    if (v.includes("cảnh") || v === "warning") return "warning";
-    if (v.includes("bình") || v === "info" || v === "thông tin") return "info";
-    if (v === "system") return "system";
-    return t;
+    if (v === "system_warning") return "system_warning";
+    if (v === "system_info" || v === "system") return "system_info";
+    if (v.includes("ảnh") || v === "warning") return "warning";
+    if (v.includes("ình") || v === "info" || v === "thông tin") return "info";
+    return "info";
   };
 
   const fetchNotifications = useCallback(async () => {
@@ -354,6 +356,7 @@ export default function NotificationPage() {
         );
 
     handledPrefillKeyRef.current = prefillKey;
+    /* eslint-disable react-hooks/set-state-in-effect */
     setFormErrors({});
     setEditItem(null);
     setForm({
@@ -366,6 +369,7 @@ export default function NotificationPage() {
       content: prefill.content || "",
     });
     setOpen(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [departments, location.state]);
 
   const clearFormError = useCallback((key) => {
@@ -658,30 +662,34 @@ export default function NotificationPage() {
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex justify-center gap-1">
+                      {/* Nút Xem — luôn hiển thị */}
                       <button onClick={() => setViewItem(row)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-xl shadow-sm transition-all"><Eye size={18}/></button>
-                      <button
-                        onClick={() => {
-                          setFormErrors({});
-                          const mappedType = row.notification_type === 'warning' ? 'Cảnh báo' : 'Bình thường';
-                          setEditItem(row);
-                          setForm({
-                            title: row.title,
-                            target: normalizeNotificationTargetForForm(row.target),
-                            type: mappedType,
-                            department_id:
-                              row.target_department_id != null
-                                ? String(row.target_department_id)
-                                : row.department_id || '',
-                            employee_id:
-                              row.target_employee_id || row.employee_id || '',
-                            content: row.content
-                          });
-                          setOpen(true);
-                        }}
-                        className="p-2 text-gray-400 hover:text-teal-600 hover:bg-white rounded-xl shadow-sm transition-all"
-                      >
-                        <Edit size={18}/>
-                      </button>
+                      {/* Nút Sửa — ẩn với thông báo tự động hệ thống (system_info / system_warning) */}
+                      {!normalizeNotificationType(row.notification_type).startsWith('system') && (
+                        <button
+                          onClick={() => {
+                            setFormErrors({});
+                            const mappedType = row.notification_type === 'warning' ? 'Cảnh báo' : 'Bình thường';
+                            setEditItem(row);
+                            setForm({
+                              title: row.title,
+                              target: normalizeNotificationTargetForForm(row.target),
+                              type: mappedType,
+                              department_id:
+                                row.target_department_id != null
+                                  ? String(row.target_department_id)
+                                  : row.department_id || '',
+                              employee_id:
+                                row.target_employee_id || row.employee_id || '',
+                              content: row.content
+                            });
+                            setOpen(true);
+                          }}
+                          className="p-2 text-gray-400 hover:text-teal-600 hover:bg-white rounded-xl shadow-sm transition-all"
+                        >
+                          <Edit size={18}/>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

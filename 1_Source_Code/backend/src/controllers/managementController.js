@@ -739,9 +739,24 @@ const createRequestApprovalNotification = async ({ transaction, type, requestRow
     ? `${formatDateTimeVi(requestRow.ot_date)} ${requestRow.start_time || ''}-${requestRow.end_time || ''}`.trim()
     : formatDateTimeVi(requestRow.attendance_date || requestRow.start_datetime);
 
+  const tone = isApproved
+    ? { titleColor: '#065f46', border: '#a7f3d0', background: '#ecfdf5' }
+    : { titleColor: '#b91c1c', border: '#fecaca', background: '#fef2f2' };
+
   const content = isApproved
-    ? `${requestLabel} của bạn cho thời gian ${timeLabel} đã được phê duyệt.`
-    : `${requestLabel} của bạn cho thời gian ${timeLabel} đã bị từ chối. Lý do từ chối: ${rejectReason || 'không được'}.`;
+    ? `
+      <p style="margin:0 0 8px;"><strong style="color:${tone.titleColor};font-size:18px;">${requestLabel} của bạn đã được quản lý phê duyệt.</strong></p>
+      <div style="margin:10px 0;padding:12px 14px;border:1px solid ${tone.border};background:${tone.background};border-radius:12px;">
+        <p style="margin:0;"><strong>Thời gian:</strong> ${timeLabel}</p>
+      </div>
+    `
+    : `
+      <p style="margin:0 0 8px;"><strong style="color:${tone.titleColor};font-size:18px;">${requestLabel} của bạn đã bị quản lý từ chối.</strong></p>
+      <div style="margin:10px 0;padding:12px 14px;border:1px solid ${tone.border};background:${tone.background};border-radius:12px;">
+        <p style="margin:0 0 8px;"><strong>Thời gian:</strong> ${timeLabel}</p>
+        <p style="margin:0;color:#b91c1c;"><strong>Lý do từ chối:</strong> ${rejectReason || 'Không có lý do chi tiết'}</p>
+      </div>
+    `;
 
   await createPersonalNotification({
     transaction,
@@ -749,7 +764,7 @@ const createRequestApprovalNotification = async ({ transaction, type, requestRow
     title,
     desc,
     content,
-    notificationType: isApproved ? 'info' : 'warning'
+    notificationType: isApproved ? 'system_info' : 'system_warning'
   });
 };
 
