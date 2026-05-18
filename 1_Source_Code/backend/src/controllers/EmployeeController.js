@@ -589,9 +589,18 @@ exports.getManagerZoneAttendance = async (req, res) => {
         return { employeeId: row.employee_id, employeeCode: row.employee_code || null, fullName: row.full_name || 'Nhân viên', departmentName: row.department_name || null, positionName: row.position_name || null, checkInTime: row.check_in_time, checkOutTime: row.check_out_time, status: row.status || null, latitude: hasCoords ? lat : null, longitude: hasCoords ? lng : null, distanceMeters: distanceMeters == null ? null : Number(distanceMeters.toFixed(2)), isInsideZone };
       });
 
-    const totalInZone = attendees.filter((item) => item.isInsideZone).length;
+
+    const totalInZone = attendees.filter((item) => {
+      // Nếu có tọa độ GPS → dùng GPS để kiểm tra
+      if (item.latitude != null && item.longitude != null) return item.isInsideZone;
+      // Không có tọa độ (web check-in) → coi là "trong zone" nếu đang làm việc (chưa checkout)
+      return item.checkInTime != null && item.checkOutTime == null;
+    }).length;
+
+    // "Đang làm" = đã check-in nhưng chưa check-out (không yêu cầu GPS)
+    const checkedInOnlyCount = attendees.filter((item) => item.checkInTime && !item.checkOutTime).length;
+    // "Đã out" = đã check-out (không yêu cầu GPS)
     const checkedOutCount = attendees.filter((item) => item.checkOutTime).length;
-    const checkedInOnlyCount = attendees.filter((item) => !item.checkOutTime && item.isInsideZone).length;
 
     return res.status(200).json({ success: true, data: { workLocation, zoneStats: { totalInZone, checkedInOnly: checkedInOnlyCount, checkedOut: checkedOutCount }, attendees } });
   } catch (error) { return res.status(500).json({ success: false, message: 'Lỗi server', error: error.message }); } 
