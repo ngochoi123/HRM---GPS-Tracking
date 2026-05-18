@@ -15,7 +15,6 @@ import ResetPassword from './pages/ResetPassword';
 // ==========================================
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminUsers from './pages/Admin/Users';
-import AdminSettings from './pages/Admin/Settings';
 import LocationSettings from './pages/Admin/LocationSettings';
 
 // ==========================================
@@ -41,8 +40,6 @@ import BranchesDelete from "./pages/GiamDoc/BranchesDelete";
 // ==========================================
 import ManagerDashboard from './pages/QuanLy/Dashboard';
 import ManagerCheckIn from './pages/QuanLy/CheckIn';
-import MyRequests from './pages/QuanLy/MyRequests';
-import MySalary from './pages/QuanLy/MySalary';
 import EmployeeManagement from './pages/QuanLy/Employees';
 import ApprovalsQuanLy from './pages/QuanLy/Approvals';
 import RewardsDiscipline from './pages/QuanLy/RewardsDiscipline';
@@ -135,7 +132,6 @@ function App() {
           <Route path="/Admin" element={<Navigate to="/Admin/dashboard" replace />} />
           <Route path="/Admin/dashboard" element={<AdminDashboard />} />
           <Route path="/Admin/users" element={<AdminUsers />} />
-          <Route path="/Admin/settings" element={<AdminSettings />} />
           <Route path="/Admin/LocationSettings" element={<LocationSettings />} />
 
           {/* --- ROUTES GIÁM ĐỐC --- */}
@@ -156,9 +152,7 @@ function App() {
 
           {/* --- ROUTES QUẢN LÝ (MANAGER) --- */}
           <Route path="/QuanLy/dashboard" element={<ManagerDashboard />} />
-          <Route path="/QuanLy/CheckIn" element={<ManagerCheckIn />} /> 
-          <Route path="/QuanLy/my-requests" element={<MyRequests />} />
-          <Route path="/QuanLy/my-salary" element={<MySalary />} />
+          <Route path="/QuanLy/CheckIn" element={<ManagerCheckIn />} />
           <Route path="/QuanLy/Employees" element={<EmployeeManagement />} />
           <Route path="/QuanLy/approvals" element={<ApprovalsQuanLy />} />
           <Route path="/QuanLy/Payroll/payroll" element={<Payroll />} />
@@ -180,7 +174,7 @@ function App() {
           <Route path="/NhanVien/payroll" element={<PayrollEmployee />} />
           
           <Route path="/NhanVien/profile" element={<Profile />} />
-          <Route path="/profile/:id" element={<Profile />} />  // ✅ THÊM DÒNG NÀY
+          <Route path="/profile/:id" element={<Profile />} />
           <Route path="/NhanVien/contracts" element={<Contract />} />
           <Route path="/NhanVien/requests/leave" element={<Requests />} />
           <Route path="/NhanVien/requests/overtime" element={<OvertimeRequest />} />

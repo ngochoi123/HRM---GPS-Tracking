@@ -11,8 +11,7 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
     send_email: true,
     branch_id: '',
     department_id: '',
-    position_id: '',
-    direct_manager_id: ''
+    position_id: ''
   });
   
   const [options, setOptions] = useState({ 
@@ -91,7 +90,7 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
 
   const handleBranchChange = async (e) => {
     const branchId = e.target.value;
-    setFormData(prev => ({ ...prev, branch_id: branchId, department_id: '', position_id: '', direct_manager_id: '' }));
+    setFormData(prev => ({ ...prev, branch_id: branchId, department_id: '', position_id: '' }));
     setOptions(prev => ({ ...prev, departments: [] }));
     
     if (branchId) {
@@ -106,7 +105,7 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
 
   const handleDeptChange = async (e) => {
     const deptId = e.target.value;
-    setFormData(prev => ({ ...prev, department_id: deptId, position_id: '', direct_manager_id: '' }));
+    setFormData(prev => ({ ...prev, department_id: deptId, position_id: '' }));
     if (deptId) {
       await fetchDeptCascadeData(deptId);
     } else {
@@ -171,10 +170,6 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
 
   const filteredPositions = options.positions.filter(
     pos => String(pos.department_id) === String(formData.department_id)
-  );
-
-  const filteredManagers = options.managers.filter(
-    mgr => String(mgr.department_id) === String(formData.department_id)
   );
 
   if (loading) {
@@ -359,14 +354,9 @@ export default function AddEmployee({ onBack, onSaveSuccess }) {
                 })}
                 disabled={!formData.department_id || loadingCascade}
               />
-              <SelectField 
-                label="Người quản lý trực tiếp" name="direct_manager_id" value={formData.direct_manager_id} onChange={handleChange}
-                options={filteredManagers.map(mgr => ({ value: mgr.id, label: mgr.full_name }))}
-                disabled={!formData.department_id || loadingCascade}
-                icon={User}
-              />
 
               <InputField label="Ngày gia nhập" name="join_date" type="date" value={formData.join_date} onChange={handleChange} />
+
               <div className="md:col-span-2">
                 <InputField label="Email Công tác" name="work_email" type="email" value={formData.work_email} onChange={handleChange} placeholder="Ví dụ: an.nv@company.com" icon={Mail} />
               </div>
