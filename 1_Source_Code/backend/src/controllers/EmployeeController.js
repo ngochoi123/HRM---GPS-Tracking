@@ -334,6 +334,25 @@ exports.checkIn = async (req, res) => {
     const lng = Number(longitude);
     const io = req.app.get('socketio');
     const clientIp = getClientIp(req);
+
+    // ✅ HARD-BLOCK: Kiểm tra WiFi IP tại tầng controller trước khi gọi service
+    try {
+      const workLocationsForIp = await fetchWorkLocations(id);
+      const primaryWl = workLocationsForIp[0] || null;
+      if (primaryWl) {
+        const allowed_ips = primaryWl.allowed_ips || [];
+        if (allowed_ips.length > 0 && !isIpAllowed(clientIp, allowed_ips)) {
+          console.warn(`[checkIn] IP bị chặn: clientIp=${clientIp}, allowed=${JSON.stringify(allowed_ips)}, employee=${id}`);
+          return res.status(403).json({
+            success: false,
+            message: 'Lỗi: Thiết bị chưa kết nối đúng WiFi văn phòng (IP không hợp lệ).'
+          });
+        }
+      }
+    } catch (ipCheckErr) {
+      console.error('[checkIn] Lỗi kiểm tra WiFi IP:', ipCheckErr.message);
+    }
+
     // 🚀 DYNAMIC LOCATION: Lấy tọa độ chuẩn từ bảng work_location (không còn hardcode)
     if (latitude && longitude) {
       try {
@@ -407,6 +426,25 @@ exports.checkOut = async (req, res) => {
     const lng = Number(longitude);
     const io = req.app.get('socketio');
     const clientIp = getClientIp(req);
+
+    // ✅ HARD-BLOCK: Kiểm tra WiFi IP tại tầng controller trước khi gọi service
+    try {
+      const workLocationsForIp = await fetchWorkLocations(id);
+      const primaryWl = workLocationsForIp[0] || null;
+      if (primaryWl) {
+        const allowed_ips = primaryWl.allowed_ips || [];
+        if (allowed_ips.length > 0 && !isIpAllowed(clientIp, allowed_ips)) {
+          console.warn(`[checkOut] IP bị chặn: clientIp=${clientIp}, allowed=${JSON.stringify(allowed_ips)}, employee=${id}`);
+          return res.status(403).json({
+            success: false,
+            message: 'Lỗi: Thiết bị chưa kết nối đúng WiFi văn phòng (IP không hợp lệ).'
+          });
+        }
+      }
+    } catch (ipCheckErr) {
+      console.error('[checkOut] Lỗi kiểm tra WiFi IP:', ipCheckErr.message);
+    }
+
     const result = await checkOutEmployee(id, lat, lng, {
       deviceIp: clientIp,
       io,

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import {
@@ -264,7 +265,7 @@ const getPayrollPreviewMetrics = (item) => {
     companyCost: Number(
       detail.companyCost ??
         item?.companyCost ??
-        (baseSalarySnapshot + Number(companyInsurance.total || 0) + reward - discipline)
+        (Number(item?.amount ?? detail.netSalary ?? 0) + Number(employeeInsurance.total || 0) + Number(companyInsurance.total || 0))
     ),
     finalNetSalary: Number(item?.amount ?? detail.netSalary ?? 0)
   };
@@ -287,6 +288,9 @@ export default function ApprovalsDirector() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectTarget, setRejectTarget] = useState(null);
+  // Inline reject form bên trong preview modal (tránh vấn đề z-index)
+  const [isRejectingPreview, setIsRejectingPreview] = useState(false);
+  const [previewRejectReason, setPreviewRejectReason] = useState('');
   const dashboardNavRef = useRef({ applied: false, focusId: null });
   const latestFetchRef = useRef(0);
 
@@ -373,6 +377,8 @@ export default function ApprovalsDirector() {
 
     // Tránh render "data cũ" (payroll) khi điều hướng từ Dashboard
     setPreviewItem(null);
+    setIsRejectingPreview(false);
+    setPreviewRejectReason('');
     setSelectedIds([]);
     setItems([]);
     setLoading(true);
@@ -436,6 +442,8 @@ export default function ApprovalsDirector() {
       if (payload?.success) {
         toast.success(payload.message || 'Cập nhật thành công');
         setPreviewItem(null);
+        setIsRejectingPreview(false);
+        setPreviewRejectReason('');
         setSelectedIds((prev) => prev.filter((itemId) => itemId !== id));
         fetchApprovals(filters);
       }
@@ -725,7 +733,7 @@ export default function ApprovalsDirector() {
       </section>
 
       {previewItem && (
-        <div className="approval-preview-overlay" onClick={() => setPreviewItem(null)}>
+        <div className="approval-preview-overlay" onClick={() => { setPreviewItem(null); setIsRejectingPreview(false); setPreviewRejectReason(''); }}>
           <div
             className="approval-preview-modal"
             onClick={(event) => event.stopPropagation()}
@@ -733,7 +741,7 @@ export default function ApprovalsDirector() {
             <button
               type="button"
               className="preview-close-btn"
-              onClick={() => setPreviewItem(null)}
+              onClick={() => { setPreviewItem(null); setIsRejectingPreview(false); setPreviewRejectReason(''); }}
               aria-label="Đóng"
             >
               <X size={18} />
@@ -946,16 +954,54 @@ export default function ApprovalsDirector() {
             </div>
 
             <div className="preview-actions">
-              {previewItem.status && previewItem.status !== 'pending' ? (
+              {(previewItem.status && previewItem.status !== 'pending' && previewItem.status !== 'pending_approval') ? (
                 <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '12px', color: '#64748b', fontWeight: 'bold' }}>
                    Yêu cầu này đã được xử lý ({previewItem.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối'})
+                </div>
+              ) : isRejectingPreview ? (
+                /* INLINE REJECT FORM - không dùng modal rời, tránh hoàn toàn vấn đề z-index */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
+                    Nhập lý do từ chối cho: <strong style={{ color: '#1e293b' }}>{previewItem.employeeName}</strong>
+                  </p>
+                  <textarea
+                    className="asp-modal-textarea"
+                    value={previewRejectReason}
+                    onChange={(e) => setPreviewRejectReason(e.target.value)}
+                    placeholder="Nhập lý do từ chối chi tiết..."
+                    rows={3}
+                    autoFocus
+                    style={{ marginTop: 0 }}
+                  />
+                  <div className="asp-modal-actions" style={{ marginTop: 0 }}>
+                    <button
+                      className="asp-btn-cancel"
+                      type="button"
+                      onClick={() => { setIsRejectingPreview(false); setPreviewRejectReason(''); }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      className="asp-btn-confirm"
+                      type="button"
+                      disabled={submitting || !previewRejectReason.trim()}
+                      onClick={async () => {
+                        if (!previewRejectReason.trim()) { toast.error('Vui lòng nhập lý do từ chối'); return; }
+                        setIsRejectingPreview(false);
+                        await handleAction(previewItem.type, previewItem.id, 'reject', previewRejectReason);
+                        setPreviewRejectReason('');
+                      }}
+                    >
+                      {submitting ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
                   <button
                     type="button"
                     className="reject-btn"
-                    onClick={() => { setRejectTarget(previewItem); setRejectReason(''); setShowRejectModal(true); }}
+                    onClick={() => { setIsRejectingPreview(true); setPreviewRejectReason(''); }}
                     disabled={submitting}
                   >
                     Từ chối
@@ -1047,8 +1093,8 @@ export default function ApprovalsDirector() {
         </div>
       )}
 
-      {/* Reject Reason Modal */}
-      {showRejectModal && (
+      {/* Reject Reason Modal — rendered via Portal to escape stacking context */}
+      {showRejectModal && createPortal(
         <div className="asp-modal-overlay" onClick={() => setShowRejectModal(false)}>
           <div className="asp-modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Lý do từ chối</h3>
@@ -1070,7 +1116,8 @@ export default function ApprovalsDirector() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

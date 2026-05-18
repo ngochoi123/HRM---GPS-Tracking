@@ -39,13 +39,11 @@ function parseAllowedIps(raw) {
  * @param {unknown} allowedIps — mảng hoặc raw từ DB
  */
 function isIpAllowed(clientIp, allowedIps) {
-  const list = Array.isArray(allowedIps)
-    ? allowedIps.map((x) => normalizeClientIp(x)).filter(Boolean)
-    : parseAllowedIps(allowedIps);
+  const list = parseAllowedIps(allowedIps);
   if (!list.length) return true;
   const normalized = normalizeClientIp(clientIp);
   if (!normalized) return false;
-  return list.includes(normalized);
+  return list.map((x) => normalizeClientIp(x)).includes(normalized);
 }
 
 /**
@@ -53,14 +51,16 @@ function isIpAllowed(clientIp, allowedIps) {
  */
 function getClientIp(req) {
   if (!req) return '';
+  let ip = '';
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.trim()) {
-    return xff.split(',')[0].trim();
+    ip = xff.split(',')[0].trim();
+  } else if (Array.isArray(xff) && xff.length > 0) {
+    ip = String(xff[0]).trim();
+  } else {
+    ip = req.socket?.remoteAddress || req.connection?.remoteAddress || req.ip || '';
   }
-  if (Array.isArray(xff) && xff.length > 0) {
-    return String(xff[0]).trim();
-  }
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || req.ip || '';
+  return normalizeClientIp(ip);
 }
 
 module.exports = {

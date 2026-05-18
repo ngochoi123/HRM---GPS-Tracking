@@ -28,10 +28,6 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
     pos => String(pos.department_id) === String(formData.department_id)
   );
 
-  // Lọc quản lý: Phải cùng phòng ban VÀ không được tự chọn chính mình
-  const filteredManagers = options.managers.filter(
-    mgr => String(mgr.department_id) === String(formData.department_id) && mgr.id !== employee.id
-  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,7 +45,6 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
         if (data.join_date) data.join_date = new Date(data.join_date).toISOString().split('T')[0];
         data.department_id = data.department_id || '';
         data.position_id = data.position_id || '';
-        data.direct_manager_id = data.direct_manager_id || '';
         data.gender = data.gender !== null ? data.gender : '';
         data.status = data.status || 'active';
 
@@ -201,7 +196,7 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
               <InputField label="Số điện thoại" name="phone_number" value={formData.phone_number} onChange={handleChange} />
               <InputField label="Email cá nhân" name="personal_email" type="email" value={formData.personal_email} onChange={handleChange} />
               <div className="md:col-span-2">
-                <InputField label="Địa chỉ cư trú" name="current_address" value={formData.current_address} onChange={handleChange} />
+                <InputField label="Địa chỉ cư trú" name="address" value={formData.address} onChange={handleChange} />
               </div>
             </div>
           </div>
@@ -245,24 +240,8 @@ export default function EditEmployee({ employee, onBack, onSaveSuccess }) {
               </div>
 
 
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <InputField label="Ngày gia nhập" name="join_date" type="date" value={formData.join_date} onChange={handleChange} />
-                
-                {/* COMBOBOX: QUẢN LÝ TRỰC TIẾP */}
-                <div className="flex flex-col gap-1.5">
-  <label className="text-sm font-semibold text-slate-700">Quản lý trực tiếp</label>
-  <select name="direct_manager_id" value={formData.direct_manager_id || ''} onChange={handleChange} className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:border-cyan-400 focus:outline-none">
-    
-    <option value="">-- Chọn quản lý --</option>
-    
-    {/* CHỈ DÙNG DANH SÁCH ĐÃ LỌC (filteredManagers) */}
-    {filteredManagers.map(mgr => (
-      <option key={mgr.id} value={mgr.id}>{mgr.full_name}</option>
-    ))}
-    
-  </select>
-</div>
               </div>
 
             </div>
