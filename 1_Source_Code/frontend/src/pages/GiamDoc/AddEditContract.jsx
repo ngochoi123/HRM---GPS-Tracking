@@ -4,6 +4,16 @@ import { directorContractService } from '../../services/directorContractService'
 
 export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
   const isEdit = !!contract;
+
+  const formatVND = (value) => {
+    const amount = Number(value || 0);
+    return `${new Intl.NumberFormat('vi-VN').format(amount)} VNĐ`;
+  };
+
+  const parseVND = (value) => {
+    const numeric = String(value ?? '').replace(/[^\d]/g, '');
+    return numeric ? Number(numeric) : 0;
+  };
   
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -332,9 +342,16 @@ export default function AddEditContract({ contract, onBack, onSaveSuccess }) {
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-bold text-slate-700">Mức lương cơ bản (Theo ngạch bậc) <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₫</span>
-                  <input type="number" name="base_salary_min" value={formData.base_salary_min} onChange={handleChange} required 
-                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:outline-none transition-all" />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">VNĐ</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    name="base_salary_min"
+                    value={formatVND(formData.base_salary_min)}
+                    onChange={(e) => setFormData({ ...formData, base_salary_min: parseVND(e.target.value) })}
+                    required
+                    className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:outline-none transition-all"
+                  />
                 </div>
                 <span className="text-xs text-slate-400">* Hệ thống tự động áp dụng khung lương chuẩn của công ty dựa trên Cấp bậc đã chọn phía trên (Bạn có thể điều chỉnh).</span>
               </div>

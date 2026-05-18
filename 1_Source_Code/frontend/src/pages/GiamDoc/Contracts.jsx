@@ -39,8 +39,8 @@ export default function ContractManagement() {
   // Format Tiền
   // Format Tiền chuẩn VNĐ
   const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return "0 VNĐ";
-    return amount.toLocaleString('vi-VN') + " VNĐ";
+    const value = Number(amount || 0);
+    return `${new Intl.NumberFormat('vi-VN').format(value)} VNĐ`;
   };
 
   // Cấu hình Badge
