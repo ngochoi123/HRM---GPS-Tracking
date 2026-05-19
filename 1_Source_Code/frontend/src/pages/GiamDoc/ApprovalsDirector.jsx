@@ -868,10 +868,6 @@ export default function ApprovalsDirector() {
                         <strong>{requestTypeLabel(previewItem)}</strong>
                       </div>
                       <div className="preview-request-card">
-                        <span>Quản lý trực tiếp</span>
-                        <strong>{previewItem.directManagerName || 'Chưa có thông tin'}</strong>
-                      </div>
-                      <div className="preview-request-card">
                         <span>{previewItem.type === 'overtime' ? 'Tổng thời lượng' : 'Tổng thời gian nghỉ'}</span>
                         <strong>
                           {previewItem.type === 'overtime'

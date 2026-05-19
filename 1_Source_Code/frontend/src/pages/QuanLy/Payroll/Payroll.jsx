@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Eye, FileSpreadsheet, Send, Download, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { payrollService } from '../../../services/payrollService';
 import PayrollDetailModal from './PayrollDetailModal';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 const PAYROLL_VI_MONTHS = [
   'Tháng 1',
@@ -231,8 +231,9 @@ const Payroll = () => {
       return;
     }
 
+    // 1. Chuẩn bị dữ liệu
     const excelData = data.map((item, idx) => ({
-      STT: idx + 1,
+      'STT': idx + 1,
       'Mã NV': item.employee_code,
       'Tên Nhân Viên': item.full_name,
       'Phòng Ban': item.department_name,
@@ -252,7 +253,58 @@ const Payroll = () => {
       'Chi Phí Tiền Lương': Math.round(item.company_cost)
     }));
 
+    // 2. Tạo worksheet từ dữ liệu
     const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // 3. AUTO-FIT CỘT (Tính toán độ rộng lớn nhất của từng cột)
+    const objectKeys = Object.keys(excelData[0]);
+    const colWidths = objectKeys.map(key => {
+      // Tìm độ dài lớn nhất giữa Tên cột và các giá trị trong cột đó
+      const maxLen = Math.max(
+        key.length,
+        ...excelData.map(row => {
+          const val = row[key];
+          return val !== null && val !== undefined ? val.toString().length : 0;
+        })
+      );
+      return { wch: maxLen + 2 }; // Cộng thêm 2 ký tự padding cho thoáng
+    });
+    worksheet['!cols'] = colWidths; // Gán mảng độ rộng vào worksheet
+
+    // 4. THÊM MÀU SẮC VÀ STYLE CHO HEADER (Dòng 1)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C }); // r: 0 là hàng đầu tiên (header)
+      if (!worksheet[cellAddress]) continue;
+      
+      // Khởi tạo object style
+      worksheet[cellAddress].s = {
+        fill: {
+          fgColor: { rgb: "2563EB" } // Màu nền xanh (Mã HEX không có dấu #)
+        },
+        font: {
+          name: "Arial",
+          sz: 11,
+          bold: true,
+          color: { rgb: "FFFFFF" } // Màu chữ trắng
+        },
+        alignment: {
+          horizontal: "center",
+          vertical: "center",
+          wrapText: true
+        },
+        border: {
+          top: { style: "thin", color: { auto: 1 } },
+          bottom: { style: "thin", color: { auto: 1 } },
+          left: { style: "thin", color: { auto: 1 } },
+          right: { style: "thin", color: { auto: 1 } }
+        }
+      };
+    }
+
+    // (Tùy chọn) Bạn có thể loop thêm để kẻ viền (border) cho các ô dữ liệu nếu muốn ở đây
+
+    // 5. Khởi tạo workbook và xuất file
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'BangLuong');
     
