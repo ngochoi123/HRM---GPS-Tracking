@@ -68,3 +68,8 @@ google-credentials.json
 # Exclude Documents and Reports completely for this repository
 2_Documents/
 3_Reports/
+
+# Exclude root project files completely for this repository
+/package.json
+/package-lock.json
+/README.md
