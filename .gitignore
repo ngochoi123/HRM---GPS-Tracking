@@ -61,3 +61,6 @@ backups/
 # Google Service Account credentials (BI MAT - KHONG commit)
 **/google-credentials.json
 google-credentials.json
+
+# Exclude Mobile app completely for this repository
+1_Source_Code/Mobile/
