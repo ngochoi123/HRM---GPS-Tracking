@@ -331,6 +331,38 @@ When something breaks, follow this sequence — don't skip steps or shotgun fixe
   - If a `.env` file exists in the project root, treat it as essential configuration
   - For secrets and API keys, prefer GCP Secret Manager over plain `.env` entries — see `/google-agents-cli-deploy` for secret management guidance
 
+## Principle 3: Git & GitHub Workflow Rules (Mandatory)
+
+Always follow this project's strict Git and branching strategy when saving or pushing code:
+
+1. **Branching Strategy:**
+   - **`main`**: Stable code only. Do not merge directly.
+   - **`develop`**: Primary integration branch.
+   - **Feature Branches**: Must branch from `develop`. Use format: `feature/[tên-sinh-viên]/[tên-tính-năng]` (e.g., `feature/hoi/haversine-logic`).
+   - **Fix/Hotfix Branches**: Use format: `fix/[tên-sinh-viên]/[tên-lỗi]` (e.g., `fix/hoi/sualoixuatex`).
+
+2. **Commit Message Format (Conventional Commits):**
+   - Syntax: `<type>: <short description in Vietnamese or English>`
+   - Allowed types:
+     - `feat`: New feature
+     - `fix`: Bug fix
+     - `docs`: Documentation updates
+     - `style`: Code style/UI formatting (no logic change)
+     - `refactor`: Code reorganization/optimization
+
+3. **PR & Code Push Workflow:**
+   - Never push directly to `develop` or `main`.
+   - Before coding, pull the latest changes: `git pull origin develop`.
+   - Create your feature/fix branch: `git checkout -b feature/...` or `fix/...`.
+   - Staging/Commit: `git add .` -> `git commit -m "<type>: ..."`
+   - Push branch: `git push origin <branch_name>` (use `hrm-gps` or corresponding remote).
+   - Pull Request: Open a PR on GitHub, assign the Mentor and at least 1 other reviewer. Merge only after approval.
+
+4. **Conflict Resolution:**
+   - Always resolve conflicts locally by merging `develop` (or target branch) into your branch: `git merge develop` (or `git merge hrm-gps/main` if target is main).
+   - Test changes thoroughly before pushing updates to the PR.
+   - For complex conflicts, do not delete other collaborators' code without consulting them/Mentor.
+
 ---
 
 ## Using a Temporary Scaffold as Reference
