@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [

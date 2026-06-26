@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bot, X, Send, Loader2, Sparkles, User,

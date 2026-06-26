@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 // src/components/ProtectedRoute.jsx
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';

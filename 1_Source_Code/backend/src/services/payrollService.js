@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 const calculateTaxesAndInsurances = (baseSalary, totalIncome) => {
     // Tỷ lệ theo luật định
     const empRate = { bhxh: 0.08, bhyt: 0.015, bhtn: 0.01 }; // 10.5%

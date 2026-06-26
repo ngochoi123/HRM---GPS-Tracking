@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { BriefcaseBusiness, CalendarDays, ChevronLeft, ChevronRight, Filter, TrendingUp, UserPlus2, UserRoundX, Users } from 'lucide-react';
 import axiosClient from '../../../api/axiosClient';

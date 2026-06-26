@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 const db = require('../config/database');
 const { sendAccountEmail } = require('../services/emailService');
 const { Employee, UserAccount, Position, Department } = require('../models');

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from "react";
 import { Users, Wallet, AlertCircle, RefreshCw } from "lucide-react";
 // eslint-disable-next-line no-unused-vars

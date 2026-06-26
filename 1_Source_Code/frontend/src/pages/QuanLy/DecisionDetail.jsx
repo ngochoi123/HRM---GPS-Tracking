@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { managerDecisionService } from '../../services/managerDecisionService';
 import {

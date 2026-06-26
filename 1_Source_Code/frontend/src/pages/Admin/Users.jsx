@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Shield, Lock, Loader2, RotateCcw, Edit, Key, ChevronLeft, ChevronRight } from 'lucide-react';
 // Sử dụng service Admin để quản lý toàn bộ API tài khoản

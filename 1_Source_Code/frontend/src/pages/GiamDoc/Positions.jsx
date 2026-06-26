@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Eye, Edit2, Trash2, Award, Loader2, Coins, AlertTriangle } from 'lucide-react';
 import AddEditPosition from './AddEditPosition';

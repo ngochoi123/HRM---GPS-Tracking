@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import axiosClient from '../api/axiosClient';
 
 // Service cho các API phòng ban (đang dùng bởi nhiều màn hình, gồm cả trang Quản Lý thông báo)

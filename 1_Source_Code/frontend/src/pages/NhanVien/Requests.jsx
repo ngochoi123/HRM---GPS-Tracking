@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useEffect, useState, useRef } from "react";
 import { FaUser, FaRegFileAlt, FaRegClock } from "react-icons/fa";
 import { MdChatBubbleOutline } from "react-icons/md";

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 /**
  * Geofencing + Socket.io: track_location, grace 5 phút, auto check-in/out.
  * Trạng thái timer: một bản ghi / nhân viên (Map), tránh tạo vô hạn timer.

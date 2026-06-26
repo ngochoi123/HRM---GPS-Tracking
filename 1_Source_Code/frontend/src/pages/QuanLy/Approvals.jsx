@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useEffect, useState } from 'react';
 import { FaRegSquareCheck } from "react-icons/fa6";
 import { CiCircleCheck } from "react-icons/ci";

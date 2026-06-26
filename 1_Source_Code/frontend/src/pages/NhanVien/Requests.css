@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 .request-container {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -1130,4 +1135,4 @@
   border-color: #16a34a;
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(22, 163, 74, 0.25);
-}
+}

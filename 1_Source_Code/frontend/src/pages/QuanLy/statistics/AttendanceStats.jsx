@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock, CalendarDays, ChevronLeft, ChevronRight, CircleAlert, Clock3, Send, TimerReset, TrendingUp } from 'lucide-react';

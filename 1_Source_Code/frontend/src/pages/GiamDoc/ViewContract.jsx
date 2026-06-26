@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React from 'react';
 import { ArrowLeft, Edit2, FileText, User, Briefcase, Calculator, Clock, CheckCircle2 } from 'lucide-react';
 

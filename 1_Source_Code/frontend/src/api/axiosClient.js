@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import axios from 'axios';
 
 // Khởi tạo axios instance dùng chung cho toàn bộ project

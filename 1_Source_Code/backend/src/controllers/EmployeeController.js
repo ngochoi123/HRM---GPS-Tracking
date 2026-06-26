@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 const db = require('../config/database');
 const { QueryTypes, Op } = require('sequelize');
 const { Employee, Department, Position, UserAccount, sequelize, AIAlert } = require('../models');
