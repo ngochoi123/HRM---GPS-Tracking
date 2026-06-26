@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Loader2, User, CreditCard, Briefcase, ShieldCheck, MapPin, Building2, UserPlus, Hash, Phone, Mail, Camera, UploadCloud, Lock, ChevronDown } from 'lucide-react';
 import { managerEmployeeService } from '../../services/managerEmployeeService';

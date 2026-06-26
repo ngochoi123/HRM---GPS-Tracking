@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 

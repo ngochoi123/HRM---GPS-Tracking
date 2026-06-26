@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useEffect } from 'react';
 import { HelpCircle as QuestionIcon } from 'lucide-react';
 

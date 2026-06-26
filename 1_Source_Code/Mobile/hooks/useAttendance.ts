@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import { API_URL } from "@/config/env";
 import { useGeofenceTracking } from "@/hooks/useGeofenceTracking";
 import { getGeofenceSocket } from "@/services/geofenceSocket";

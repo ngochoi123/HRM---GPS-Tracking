@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 // ─── AttendanceHistoryModal ────────────────────────────────────────────────────
 // Hiển thị lịch sử chấm công theo tháng trong một bottom-sheet có thể vuốt.
 //

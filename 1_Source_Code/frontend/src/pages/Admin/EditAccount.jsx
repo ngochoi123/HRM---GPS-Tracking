@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState } from 'react';
 import { ArrowLeft, UserSquare2, KeyRound, ShieldCheck, Lock, Mail, Save } from 'lucide-react';
 

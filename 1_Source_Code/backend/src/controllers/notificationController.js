@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const axios = require('axios');

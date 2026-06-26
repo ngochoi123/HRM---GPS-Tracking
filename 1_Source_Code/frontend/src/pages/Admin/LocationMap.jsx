@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useEffect, useRef } from 'react';
 // CHỈ IMPORT LEAFLET GỐC, KHÔNG DÙNG REACT-LEAFLET NỮA
 import L from 'leaflet';

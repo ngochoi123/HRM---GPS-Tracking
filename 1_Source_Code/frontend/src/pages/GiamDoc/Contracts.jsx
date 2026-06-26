@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, FileText, Eye, Edit2, Clock, Loader2, Coins } from 'lucide-react';
 import AddEditContract from './AddEditContract';

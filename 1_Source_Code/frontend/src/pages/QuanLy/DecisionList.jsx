@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Calendar, ChevronDown, Plus, Eye, Edit2, Gift, Medal, TrendingDown, AlertCircle, ArrowUpCircle, Loader2 } from 'lucide-react';
 import { managerDecisionService } from '../../services/managerDecisionService';

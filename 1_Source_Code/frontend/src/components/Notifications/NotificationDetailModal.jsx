@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 ﻿import React, { useEffect, useState, startTransition } from "react";
 import { X, Users, Calendar, Tag, FileText, Loader2, ChevronDown } from "lucide-react";
 import { notificationService } from "../../services/notificationService";

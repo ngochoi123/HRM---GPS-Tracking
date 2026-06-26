@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useRef, useEffect, startTransition } from "react";
 import { Bell, CheckCircle2, ChevronDown, ChevronUp, Paperclip } from "lucide-react";
 import NotificationDetailModal from "./NotificationDetailModal";

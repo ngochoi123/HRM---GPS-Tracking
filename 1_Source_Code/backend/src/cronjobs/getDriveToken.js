@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 const { google } = require('googleapis');
 const readline = require('readline');
 require('dotenv').config({ path: '../../.env' }); // Adjust if needed

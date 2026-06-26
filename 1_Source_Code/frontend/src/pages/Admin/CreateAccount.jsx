@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react'; // Đã thêm useEffect ở đây
 import { ArrowLeft, UserSquare2, KeyRound, ShieldCheck, RefreshCw, UserPlus, Users } from 'lucide-react';
 // Sử dụng service tập trung cho các API Admin liên quan tới tài khoản

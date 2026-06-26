@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 /**
  * Learn more about light and dark modes:
  * https://docs.expo.dev/guides/color-schemes/

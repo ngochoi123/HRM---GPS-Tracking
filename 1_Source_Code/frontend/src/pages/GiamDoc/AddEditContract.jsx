@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Loader2, User, Briefcase, Link as LinkIcon, Lock, Plus, Trash2, FileText } from 'lucide-react';
 import { directorContractService } from '../../services/directorContractService';

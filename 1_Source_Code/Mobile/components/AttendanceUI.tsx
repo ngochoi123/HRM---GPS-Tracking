@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 // ─── AttendanceUI ────────────────────────────────────────────────────────────
 // Component UI thuần túy cho màn hình Chấm công (nhân viên).
 //
@@ -607,4 +612,4 @@ const styles = StyleSheet.create({
   },
   historyBtnText: { fontSize: 14, fontWeight: '800', color: '#00b4d8', flex: 1, textAlign: 'center' },
 });
-
+

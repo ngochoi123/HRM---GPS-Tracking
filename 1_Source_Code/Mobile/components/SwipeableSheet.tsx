@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 ngochoi123 / HRM - GPS Tracking.
+ * All rights reserved.
+ */
+
 /**
  * SwipeableSheet — Bottom sheet có thể kéo lên/xuống.
  * - Kéo nhanh xuống (fling) → tự đóng
